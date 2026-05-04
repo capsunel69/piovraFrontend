@@ -53,6 +53,28 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
   return response.json();
 }
 
+/** Readable message from a failed `fetchApi` call (response body is often JSON `{ error }`). */
+export function piovraFetchErrorMessage(err: unknown): string {
+  if (!(err instanceof Error)) return 'Request failed';
+  const raw = err.message.trim();
+  try {
+    const j = JSON.parse(raw) as { error?: string };
+    if (typeof j.error === 'string') {
+      if (j.error === 'duplicate_email') return 'That email is already in your contacts.';
+      if (/relation\s+["']?contacts["']?\s+does\s+not\s+exist/i.test(j.error)) {
+        return 'Server is missing the contacts table — on Piovra run: npm run db:migrate';
+      }
+      return j.error.length > 200 ? `${j.error.slice(0, 200)}…` : j.error;
+    }
+  } catch {
+    /* plain text body */
+  }
+  if (/failed to fetch|networkerror|load failed/i.test(raw)) {
+    return 'Cannot reach Piovra — check VITE_PIOVRA_BASE_URL and that the API is running.';
+  }
+  return raw.length > 200 ? `${raw.slice(0, 200)}…` : raw;
+}
+
 export const TasksAPI = {
   getAll: (): Promise<Task[]> => fetchApi<Task[]>('tasks'),
 

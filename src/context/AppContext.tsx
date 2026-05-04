@@ -2,7 +2,14 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { v4 as uuidv4 } from 'uuid';
 import { isSameDay } from 'date-fns';
 import type { Task, Meeting, Reminder, TimerSession, Journal, Contact } from '../types';
-import { TasksAPI, MeetingsAPI, RemindersAPI, JournalsAPI, ContactsAPI } from '../services/api';
+import {
+  TasksAPI,
+  MeetingsAPI,
+  RemindersAPI,
+  JournalsAPI,
+  ContactsAPI,
+  piovraFetchErrorMessage,
+} from '../services/api';
 import { useToast } from '../components/ui/Toast';
 
 interface AppContextType {
@@ -271,7 +278,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (err) {
         console.error('Error adding contact:', err);
         setError('Failed to add contact');
-        toast.error('Could not save contact');
+        toast.error(piovraFetchErrorMessage(err));
       }
     },
     [toast],
@@ -289,7 +296,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (err) {
         console.error('Error updating contact:', err);
         setError('Failed to update contact');
-        toast.error('Could not update contact');
+        toast.error(piovraFetchErrorMessage(err));
       }
     },
     [toast],
