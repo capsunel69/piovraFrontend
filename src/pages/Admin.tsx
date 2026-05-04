@@ -134,19 +134,13 @@ const StatHint = styled.div`
   color: var(--text-3);
 `;
 
-const TableScroll = styled.div`
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-
-  @media (max-width: 1100px) {
-    margin: 0 calc(-1 * var(--s-3));
-    padding: 0 var(--s-3);
-  }
+const TableWrap = styled.div`
+  overflow: hidden;
 `;
 
 const Table = styled.table`
   width: 100%;
-  min-width: 920px;
+  table-layout: fixed;
   border-collapse: collapse;
 
   th,
@@ -176,8 +170,24 @@ const Table = styled.table`
     background: rgba(255, 255, 255, 0.02);
   }
 
+  tbody tr[data-clickable='true']:hover td {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
   tbody tr:last-child td {
     border-bottom: none;
+  }
+
+  .col-user {
+    width: 55%;
+  }
+
+  .col-status {
+    width: 28%;
+  }
+
+  .col-active {
+    width: 17%;
   }
 `;
 
@@ -213,6 +223,7 @@ const Avatar = styled.div<{ $src?: string | null }>`
 `;
 
 const UserText = styled.div`
+  flex: 1;
   min-width: 0;
 
   .name {
@@ -230,25 +241,6 @@ const UserText = styled.div`
     text-overflow: ellipsis;
     white-space: nowrap;
     margin-top: 2px;
-  }
-`;
-
-const WorkspaceCounts = styled.div`
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--text-3);
-  white-space: nowrap;
-
-  .n {
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--text-1);
-  }
-
-  .sep {
-    margin: 0 5px;
-    opacity: 0.4;
-    user-select: none;
   }
 `;
 
@@ -279,9 +271,85 @@ const ActionsStack = styled.div`
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 6px;
-  justify-content: flex-end;
+  gap: 8px;
   align-items: center;
+`;
+
+const StatusCell = styled.div`
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+
+  > * {
+    flex-shrink: 0;
+  }
+`;
+
+const RowHint = styled.span`
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+  flex-shrink: 0;
+`;
+
+const DetailGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--s-3);
+`;
+
+const DetailStat = styled.div`
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-1);
+  background: var(--bg-3);
+
+  .label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+    margin-bottom: 4px;
+  }
+
+  .value {
+    font-size: 18px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-1);
+  }
+`;
+
+const ScopeList = styled.ul`
+  margin: 0;
+  padding-left: var(--s-4);
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.45;
+  max-height: 160px;
+  overflow-y: auto;
+`;
+
+const DetailSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+`;
+
+const DetailSectionTitle = styled.div`
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-3);
+`;
+
+const UserModalPanel = styled(ModalPanel)`
+  width: min(640px, 100%);
 `;
 
 const EmptyHint = styled.div`
@@ -377,6 +445,7 @@ const Admin: React.FC = () => {
   const [skillModalUser, setSkillModalUser] = useState<AdminUser | null>(null);
   const [draftDisabledSkills, setDraftDisabledSkills] = useState<string[]>([]);
   const [skillSaveBusy, setSkillSaveBusy] = useState(false);
+  const [detailUser, setDetailUser] = useState<AdminUser | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const descBySkillId = useMemo(() => {
@@ -417,6 +486,17 @@ const Admin: React.FC = () => {
   );
 
   const loading = users === null && !error;
+
+  const openSkillsForUser = useCallback(
+    (u: AdminUser) => {
+      setDetailUser(null);
+      setSkillModalUser(u);
+      setDraftDisabledSkills(
+        normalizeUserDisabled(u.disabledSkills ?? [], skillCatalog?.defaultSkillIds ?? []),
+      );
+    },
+    [skillCatalog?.defaultSkillIds],
+  );
 
   if (me?.role !== 'admin') {
     return (
@@ -510,30 +590,32 @@ const Admin: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardBody style={{ padding: 0 }}>
-          <TableScroll>
+          <TableWrap>
             <Table>
               <thead>
                 <tr>
-                  <th>User</th>
-                  <th>Access</th>
-                  <th>Google</th>
-                  <th>Workspace</th>
-                  <th>Usage</th>
-                  <th>Last active</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <th className="col-user">User</th>
+                  <th className="col-status">Status</th>
+                  <th className="col-active">Last active</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={3}>
                       <EmptyHint>No users yet.</EmptyHint>
                     </td>
                   </tr>
                 ) : (
                   sortedUsers.map((u) => (
-                    <tr key={u.id}>
-                      <td>
+                    <tr
+                      key={u.id}
+                      data-clickable="true"
+                      style={{ cursor: 'pointer' }}
+                      title="View details"
+                      onClick={() => setDetailUser(u)}
+                    >
+                      <td className="col-user">
                         <UserCell>
                           <Avatar $src={u.pictureUrl}>
                             {!u.pictureUrl ? (u.name?.[0] ?? u.email[0] ?? '?').toUpperCase() : null}
@@ -542,141 +624,215 @@ const Admin: React.FC = () => {
                             <div className="name">{u.name ?? u.email}</div>
                             <div className="email">{u.email}</div>
                           </UserText>
+                          <RowHint>Open →</RowHint>
                         </UserCell>
                       </td>
-                      <td>
-                        <Row $gap={2} $wrap>
+                      <td className="col-status">
+                        <StatusCell>
                           <Badge $variant={u.role === 'admin' ? 'accent' : 'neutral'}>{u.role}</Badge>
-                          {u.disabledAt && <Badge $variant="danger">disabled</Badge>}
-                          {(u.disabledSkills?.length ?? 0) > 0 && (
-                            <Badge $variant="neutral" title="Skills turned off for this user">
-                              {u.disabledSkills.length} skill{u.disabledSkills.length !== 1 ? 's' : ''} off
-                            </Badge>
-                          )}
-                        </Row>
-                      </td>
-                      <td>
-                        <Stack $gap={2}>
+                          {u.disabledAt && <Badge $variant="danger">Off</Badge>}
                           <Badge $variant={u.googleConnected ? 'success' : 'warning'}>
-                            {u.googleConnected ? 'Connected' : 'Not linked'}
+                            {u.googleConnected ? 'Google' : 'No Google'}
                           </Badge>
-                          {u.googleConnected && (
-                            <MetaMuted>{u.googleScopes.length} OAuth scopes</MetaMuted>
-                          )}
-                        </Stack>
+                        </StatusCell>
                       </td>
-                      <td>
-                        <WorkspaceCounts>
-                          <span title="Tasks">
-                            <span className="n">{u.taskCount}</span> tasks
-                          </span>
-                          <span className="sep" aria-hidden>
-                            ·
-                          </span>
-                          <span title="Reminders">
-                            <span className="n">{u.reminderCount}</span> rem
-                          </span>
-                          <span className="sep" aria-hidden>
-                            ·
-                          </span>
-                          <span title="Meetings">
-                            <span className="n">{u.meetingCount}</span> mtg
-                          </span>
-                          <span className="sep" aria-hidden>
-                            ·
-                          </span>
-                          <span title="Journals">
-                            <span className="n">{u.journalCount}</span> jrnl
-                          </span>
-                          <span className="sep" aria-hidden>
-                            ·
-                          </span>
-                          <span title="Notes">
-                            <span className="n">{u.noteCount}</span> notes
-                          </span>
-                        </WorkspaceCounts>
-                      </td>
-                      <td>
-                        <UsageCell>
-                          <span className="runs">{u.runCount} runs</span>
-                          <span className="spend">${u.totalCostUsd.toFixed(2)} spend</span>
-                        </UsageCell>
-                      </td>
-                      <td>
-                        <MetaMuted title={u.lastSeenAt ? new Date(u.lastSeenAt).toLocaleString() : undefined}>
+                      <td className="col-active">
+                        <MetaMuted
+                          style={{ whiteSpace: 'normal' }}
+                          title={u.lastSeenAt ? new Date(u.lastSeenAt).toLocaleString() : undefined}
+                        >
                           {u.lastSeenAt
                             ? formatDistanceToNow(new Date(u.lastSeenAt), { addSuffix: true })
                             : 'Never'}
                         </MetaMuted>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <ActionsStack>
-                          <Button
-                            type="button"
-                            $variant="secondary"
-                            $size="sm"
-                            disabled={u.id === me?.id}
-                            title={
-                              u.id === me?.id
-                                ? 'Adjust others only — use DB or another admin for your account'
-                                : undefined
-                            }
-                            onClick={() => {
-                              setSkillModalUser(u);
-                              setDraftDisabledSkills(
-                                normalizeUserDisabled(
-                                  u.disabledSkills ?? [],
-                                  skillCatalog?.defaultSkillIds ?? [],
-                                ),
-                              );
-                            }}
-                          >
-                            Skills
-                          </Button>
-                          <Button
-                            type="button"
-                            $variant="secondary"
-                            $size="sm"
-                            disabled={u.id === me?.id && u.role === 'admin'}
-                            title={u.id === me?.id ? 'Cannot demote yourself' : undefined}
-                            onClick={async () => {
-                              await adminFetch(`/users/${u.id}/role`, {
-                                method: 'PATCH',
-                                body: JSON.stringify({
-                                  role: u.role === 'admin' ? 'user' : 'admin',
-                                }),
-                              });
-                              void load();
-                            }}
-                          >
-                            {u.role === 'admin' ? 'Demote to user' : 'Make admin'}
-                          </Button>
-                          <Button
-                            type="button"
-                            $variant={u.disabledAt ? 'success' : 'danger'}
-                            $size="sm"
-                            disabled={u.id === me?.id}
-                            title={u.id === me?.id ? 'Cannot disable yourself' : undefined}
-                            onClick={async () => {
-                              await adminFetch(`/users/${u.id}/disabled`, {
-                                method: 'PATCH',
-                                body: JSON.stringify({ disabled: !u.disabledAt }),
-                              });
-                              void load();
-                            }}
-                          >
-                            {u.disabledAt ? 'Enable account' : 'Disable account'}
-                          </Button>
-                        </ActionsStack>
                       </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </Table>
-          </TableScroll>
+          </TableWrap>
         </CardBody>
       </Card>
+
+      {detailUser && (
+        <ModalBackdrop
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setDetailUser(null);
+          }}
+        >
+          <UserModalPanel
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <CardHeader>
+              <CardTitle style={{ alignItems: 'center', gap: 'var(--s-3)', flexWrap: 'wrap' }}>
+                <Avatar $src={detailUser.pictureUrl} style={{ width: 48, height: 48 }}>
+                  {!detailUser.pictureUrl
+                    ? (detailUser.name?.[0] ?? detailUser.email[0] ?? '?').toUpperCase()
+                    : null}
+                </Avatar>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>
+                    {detailUser.name ?? detailUser.email}
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-3)' }}>
+                    {detailUser.email}
+                  </span>
+                </span>
+              </CardTitle>
+              <CardSubtle>User id: {detailUser.id}</CardSubtle>
+            </CardHeader>
+            <CardBody
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--s-5)',
+                maxHeight: 'min(560px, calc(100vh - 200px))',
+                overflowY: 'auto',
+              }}
+            >
+              <DetailSection>
+                <DetailSectionTitle>Access</DetailSectionTitle>
+                <StatusCell style={{ flexWrap: 'wrap' }}>
+                  <Badge $variant={detailUser.role === 'admin' ? 'accent' : 'neutral'}>
+                    {detailUser.role}
+                  </Badge>
+                  {detailUser.disabledAt && <Badge $variant="danger">Account disabled</Badge>}
+                  {(detailUser.disabledSkills?.length ?? 0) > 0 && (
+                    <Badge $variant="neutral" title="Skills turned off for this user">
+                      {detailUser.disabledSkills.length} skill
+                      {detailUser.disabledSkills.length !== 1 ? 's' : ''} off
+                    </Badge>
+                  )}
+                </StatusCell>
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>Google</DetailSectionTitle>
+                <Stack $gap={2}>
+                  <Badge $variant={detailUser.googleConnected ? 'success' : 'warning'}>
+                    {detailUser.googleConnected ? 'Connected' : 'Not linked'}
+                  </Badge>
+                  {detailUser.googleConnected && detailUser.googleScopes.length > 0 && (
+                    <ScopeList>
+                      {detailUser.googleScopes.map((s) => (
+                        <li key={s}>{s}</li>
+                      ))}
+                    </ScopeList>
+                  )}
+                  {detailUser.googleConnected && detailUser.googleScopes.length === 0 && (
+                    <MetaMuted>No scopes recorded</MetaMuted>
+                  )}
+                </Stack>
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>Workspace</DetailSectionTitle>
+                <DetailGrid>
+                  <DetailStat>
+                    <div className="label">Tasks</div>
+                    <div className="value">{detailUser.taskCount}</div>
+                  </DetailStat>
+                  <DetailStat>
+                    <div className="label">Reminders</div>
+                    <div className="value">{detailUser.reminderCount}</div>
+                  </DetailStat>
+                  <DetailStat>
+                    <div className="label">Meetings</div>
+                    <div className="value">{detailUser.meetingCount}</div>
+                  </DetailStat>
+                  <DetailStat>
+                    <div className="label">Journals</div>
+                    <div className="value">{detailUser.journalCount}</div>
+                  </DetailStat>
+                  <DetailStat>
+                    <div className="label">Notes</div>
+                    <div className="value">{detailUser.noteCount}</div>
+                  </DetailStat>
+                </DetailGrid>
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>Usage</DetailSectionTitle>
+                <UsageCell>
+                  <span className="runs">{detailUser.runCount} runs</span>
+                  <span className="spend">${detailUser.totalCostUsd.toFixed(2)} spend</span>
+                </UsageCell>
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>Last active</DetailSectionTitle>
+                <MetaMuted style={{ whiteSpace: 'normal' }}>
+                  {detailUser.lastSeenAt
+                    ? `${formatDistanceToNow(new Date(detailUser.lastSeenAt), { addSuffix: true })} (${new Date(detailUser.lastSeenAt).toLocaleString()})`
+                    : 'Never signed in'}
+                </MetaMuted>
+              </DetailSection>
+
+              <ModalFooter style={{ justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                <Button type="button" $variant="secondary" $size="sm" onClick={() => setDetailUser(null)}>
+                  Close
+                </Button>
+                <ActionsStack>
+                  <Button
+                    type="button"
+                    $variant="secondary"
+                    $size="sm"
+                    disabled={detailUser.id === me?.id}
+                    title={
+                      detailUser.id === me?.id
+                        ? 'Adjust others only — use DB or another admin for your account'
+                        : undefined
+                    }
+                    onClick={() => openSkillsForUser(detailUser)}
+                  >
+                    Skills
+                  </Button>
+                  <Button
+                    type="button"
+                    $variant="secondary"
+                    $size="sm"
+                    disabled={detailUser.id === me?.id && detailUser.role === 'admin'}
+                    title={detailUser.id === me?.id ? 'Cannot demote yourself' : undefined}
+                    onClick={async () => {
+                      await adminFetch(`/users/${detailUser.id}/role`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                          role: detailUser.role === 'admin' ? 'user' : 'admin',
+                        }),
+                      });
+                      setDetailUser(null);
+                      void load();
+                    }}
+                  >
+                    {detailUser.role === 'admin' ? 'Demote to user' : 'Make admin'}
+                  </Button>
+                  <Button
+                    type="button"
+                    $variant={detailUser.disabledAt ? 'success' : 'danger'}
+                    $size="sm"
+                    disabled={detailUser.id === me?.id}
+                    title={detailUser.id === me?.id ? 'Cannot disable yourself' : undefined}
+                    onClick={async () => {
+                      await adminFetch(`/users/${detailUser.id}/disabled`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ disabled: !detailUser.disabledAt }),
+                      });
+                      setDetailUser(null);
+                      void load();
+                    }}
+                  >
+                    {detailUser.disabledAt ? 'Enable account' : 'Disable account'}
+                  </Button>
+                </ActionsStack>
+              </ModalFooter>
+            </CardBody>
+          </UserModalPanel>
+        </ModalBackdrop>
+      )}
 
       {skillModalUser && skillCatalog && (
         <ModalBackdrop
