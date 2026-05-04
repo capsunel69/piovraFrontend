@@ -186,6 +186,8 @@ const WhatsAppPanel: React.FC = () => {
   const [autoreply, setAutoreply] = useState<WhatsAppAutoreplySettings | null>(null);
   const [instances, setInstances] = useState<AgentInstance[]>([]);
   const [allowFromText, setAllowFromText] = useState('');
+  /** True after POST pairing until connected, QR visible, cancel, or error — bridges brief socket gaps. */
+  const [pairingStarted, setPairingStarted] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async (): Promise<WhatsAppStatus | null> => {
@@ -225,21 +227,36 @@ const WhatsAppPanel: React.FC = () => {
 
   useEffect(() => {
     if (!status) return;
-    const shouldPoll = status.pairingActive || (status.qrDataUrl != null && !status.connected);
+    const shouldPoll =
+      status.pairingActive ||
+      (pairingStarted && !status.connected) ||
+      (status.qrDataUrl != null && !status.connected);
     if (!shouldPoll) return;
     if (pollTimer.current) clearTimeout(pollTimer.current);
     pollTimer.current = setTimeout(() => {
       void refresh();
     }, POLL_MS);
-  }, [status, refresh]);
+  }, [status, refresh, pairingStarted]);
+
+  useEffect(() => {
+    if (status?.connected || status?.qrDataUrl) setPairingStarted(false);
+  }, [status?.connected, status?.qrDataUrl]);
+
+  useEffect(() => {
+    if (!pairingStarted) return;
+    const t = setTimeout(() => setPairingStarted(false), 120_000);
+    return () => clearTimeout(t);
+  }, [pairingStarted]);
 
   const startPairing = async (): Promise<void> => {
     setError(null);
     setBusy('pair');
     try {
+      setPairingStarted(true);
       await PiovraAPI.startWhatsAppPairing({ consentAcknowledged: true });
       await refresh();
     } catch (e) {
+      setPairingStarted(false);
       if (e instanceof WhatsAppConsentRequiredError) {
         setError('Please acknowledge access before pairing.');
       } else {
@@ -254,6 +271,7 @@ const WhatsAppPanel: React.FC = () => {
     setError(null);
     setBusy('disconnect');
     try {
+      setPairingStarted(false);
       await PiovraAPI.disconnectWhatsApp();
       setConsent(false);
       await refresh();
@@ -469,7 +487,7 @@ const WhatsAppPanel: React.FC = () => {
         <CardSubtle>
           {status.connected ? (
             <Badge $variant="success">connected</Badge>
-          ) : status.pairingActive ? (
+          ) : status.pairingActive || pairingStarted ? (
             <Badge>pairing…</Badge>
           ) : (
             <Badge>disconnected</Badge>
@@ -531,7 +549,7 @@ const WhatsAppPanel: React.FC = () => {
             </HelpList>
           </Section>
         </>
-      ) : status.pairingActive && status.qrDataUrl ? (
+      ) : (status.pairingActive || pairingStarted) && status.qrDataUrl ? (
         <Section>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>
             {status.scanReminder}
@@ -562,7 +580,7 @@ const WhatsAppPanel: React.FC = () => {
           </StatusRow>
           {error ? <ErrorBox>{error}</ErrorBox> : null}
         </Section>
-      ) : status.pairingActive ? (
+      ) : status.pairingActive || pairingStarted ? (
         <Section>
           <EmptyState>
             <Spinner /> Generating QR code…
