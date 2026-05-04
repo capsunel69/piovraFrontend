@@ -13,7 +13,7 @@ export interface Task {
   createdAt: Date;
   completedAt?: Date;
   priority: 'low' | 'medium' | 'high';
-  dueDate?: Date;
+  dueDate?: Date | null;
   timeSpent: number; // in seconds
   timers: TimerSession[];
   subtasks?: Subtask[]; // Checklist items belonging to this task
@@ -66,5 +66,6 @@ export interface TimerSession {
   startTime: Date;
   endTime?: Date;
   duration: number; // in seconds
-  breakTime: number; // in seconds
+  /** Piovra does not persist this; omitted when loaded from API → treat as 0. */
+  breakTime?: number;
 } 

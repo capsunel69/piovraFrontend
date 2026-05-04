@@ -10,6 +10,24 @@ import type { Task, Meeting, Reminder, Journal } from '../types';
 const PIOVRA_BASE_URL = (import.meta.env.VITE_PIOVRA_BASE_URL as string | undefined) ?? '';
 const API_URL = `${PIOVRA_BASE_URL}/v1`;
 
+/** Piovra stores `durationMinutes`; the SPA uses `duration` (minutes). */
+function mapMeetingFromServer(raw: unknown): Meeting {
+  const r = raw as Record<string, unknown>;
+  const dm = r.durationMinutes;
+  const legacy = r.duration;
+  const duration =
+    typeof dm === 'number' ? dm : typeof legacy === 'number' ? legacy : 30;
+  const { durationMinutes: _dm, duration: _d, ...rest } = r;
+  return { ...(rest as Omit<Meeting, 'duration'>), duration };
+}
+
+function mapMeetingToApiBody(updates: Partial<Meeting>): Record<string, unknown> {
+  const { duration, ...rest } = updates;
+  const body: Record<string, unknown> = { ...rest };
+  if (duration !== undefined) body.durationMinutes = duration;
+  return body;
+}
+
 async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_URL}/${endpoint}`;
 
@@ -62,24 +80,34 @@ export const TasksAPI = {
 };
 
 export const MeetingsAPI = {
-  getAll: (): Promise<Meeting[]> => fetchApi<Meeting[]>('meetings'),
+  getAll: async (): Promise<Meeting[]> => {
+    const rows = await fetchApi<unknown[]>('meetings');
+    return rows.map(mapMeetingFromServer);
+  },
 
-  getById: (id: string): Promise<Meeting> => fetchApi<Meeting>(`meetings/${id}`),
+  getById: async (id: string): Promise<Meeting> =>
+    mapMeetingFromServer(await fetchApi<unknown>(`meetings/${id}`)),
 
-  create: (meeting: Omit<Meeting, 'id'>): Promise<Meeting> =>
-    fetchApi<Meeting>('meetings', {
+  create: async (meeting: Omit<Meeting, 'id'>): Promise<Meeting> => {
+    const { duration, ...rest } = meeting;
+    const raw = await fetchApi<unknown>('meetings', {
       method: 'POST',
       body: JSON.stringify({
-        ...meeting,
+        ...rest,
+        durationMinutes: duration,
         id: crypto.randomUUID(),
       }),
-    }),
+    });
+    return mapMeetingFromServer(raw);
+  },
 
-  update: (id: string, updates: Partial<Meeting>): Promise<Meeting> =>
-    fetchApi<Meeting>(`meetings/${id}`, {
+  update: async (id: string, updates: Partial<Meeting>): Promise<Meeting> => {
+    const raw = await fetchApi<unknown>(`meetings/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify(updates),
-    }),
+      body: JSON.stringify(mapMeetingToApiBody(updates)),
+    });
+    return mapMeetingFromServer(raw);
+  },
 
   delete: (id: string): Promise<void> =>
     fetchApi<void>(`meetings/${id}`, {

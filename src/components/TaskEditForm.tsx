@@ -51,7 +51,12 @@ const TaskEditForm: React.FC<Props> = ({ task, onSave, onCancel, isLoading }) =>
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(task.id, { title, description, priority, dueDate: dueDate ? new Date(dueDate) : undefined });
+    onSave(task.id, {
+      title,
+      description,
+      priority,
+      dueDate: dueDate ? new Date(dueDate) : null,
+    });
   };
 
   return (
