@@ -8,6 +8,7 @@ import Tasks from './pages/Tasks';
 import Meetings from './pages/Meetings';
 import Reminders from './pages/Reminders';
 import Notes from './pages/Notes';
+import Contacts from './pages/Contacts';
 import Agents from './pages/Agents';
 import Admin from './pages/Admin';
 import Timer from './components/timer/Timer';
@@ -30,6 +31,7 @@ function App() {
                     <Route path="/meetings" element={<Meetings />} />
                     <Route path="/reminders" element={<Reminders />} />
                     <Route path="/notes" element={<Notes />} />
+                    <Route path="/contacts" element={<Contacts />} />
                     <Route path="/agents" element={<Agents />} />
                     <Route path="/admin" element={<Admin />} />
                   </Routes>

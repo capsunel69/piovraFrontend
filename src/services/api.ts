@@ -1,4 +1,4 @@
-import type { Task, Meeting, Reminder, Journal } from '../types';
+import type { Task, Meeting, Reminder, Journal, Contact, GmailCorrespondentSuggestion } from '../types';
 
 /**
  * REST clients for Piovra. All endpoints are mounted under `/v1/...` and
@@ -168,4 +168,67 @@ export const JournalsAPI = {
 
   search: (query: string): Promise<Journal[]> =>
     fetchApi<Journal[]>(`journals?search=${encodeURIComponent(query)}`),
+};
+
+function mapContactRaw(raw: unknown): Contact {
+  const r = raw as Record<string, unknown>;
+  return {
+    id: String(r.id),
+    displayName: String(r.displayName ?? ''),
+    email: String(r.email ?? ''),
+    description: String(r.description ?? ''),
+    createdAt: new Date(String(r.createdAt ?? 0)),
+    updatedAt: new Date(String(r.updatedAt ?? 0)),
+  };
+}
+
+export const ContactsAPI = {
+  getAll: async (): Promise<Contact[]> => {
+    const rows = await fetchApi<unknown[]>('contacts');
+    return rows.map(mapContactRaw);
+  },
+
+  create: async (input: {
+    displayName: string;
+    email: string;
+    description?: string;
+  }): Promise<Contact> => {
+    const raw = await fetchApi<unknown>('contacts', {
+      method: 'POST',
+      body: JSON.stringify({
+        id: crypto.randomUUID(),
+        displayName: input.displayName,
+        email: input.email,
+        description: input.description ?? '',
+      }),
+    });
+    return mapContactRaw(raw);
+  },
+
+  update: async (id: string, updates: Partial<Pick<Contact, 'displayName' | 'email' | 'description'>>): Promise<Contact> => {
+    const raw = await fetchApi<unknown>(`contacts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+    return mapContactRaw(raw);
+  },
+
+  delete: (id: string): Promise<void> =>
+    fetchApi<void>(`contacts/${id}`, {
+      method: 'DELETE',
+    }),
+
+  /** Uses Gmail thread metadata (existing consent). Returns [] if Google is not connected (428). */
+  gmailSuggestions: async (query?: string): Promise<GmailCorrespondentSuggestion[]> => {
+    const qs = query?.trim() ? `?query=${encodeURIComponent(query.trim())}` : '';
+    const url = `${API_URL}/contacts/gmail-suggestions${qs}`;
+    const res = await fetch(url, { credentials: 'include' });
+    if (res.status === 428) return [];
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `gmail-suggestions -> ${res.status}`);
+    }
+    const data = (await res.json()) as { suggestions?: GmailCorrespondentSuggestion[] };
+    return data.suggestions ?? [];
+  },
 };

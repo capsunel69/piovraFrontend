@@ -9,7 +9,7 @@ import BackgroundFx from './BackgroundFx';
 import ChatWidget from '../chat/ChatWidget';
 import MobileNav, { type MobileNavItem } from './MobileNav';
 import {
-  IconDashboard, IconTasks, IconCalendar, IconBell, IconNote,
+  IconDashboard, IconTasks, IconCalendar, IconBell, IconNote, IconContacts,
   IconLogout, IconChevronLeft, IconSpark, IconClock, IconBot,
   IconMenu, IconLock,
 } from '../ui/icons';
@@ -23,6 +23,7 @@ const NAV_PRIMARY: MobileNavItem[] = [
   { to: '/meetings',  label: 'Meetings',  icon: IconCalendar },
   { to: '/reminders', label: 'Reminders', icon: IconBell },
   { to: '/notes',     label: 'Notes',     icon: IconNote },
+  { to: '/contacts',  label: 'Contacts',  icon: IconContacts },
   { to: '/agents',    label: 'Agents',    icon: IconBot },
 ];
 

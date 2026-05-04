@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { isSameDay } from 'date-fns';
-import type { Task, Meeting, Reminder, TimerSession, Journal } from '../types';
-import { TasksAPI, MeetingsAPI, RemindersAPI, JournalsAPI } from '../services/api';
+import type { Task, Meeting, Reminder, TimerSession, Journal, Contact } from '../types';
+import { TasksAPI, MeetingsAPI, RemindersAPI, JournalsAPI, ContactsAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 
 interface AppContextType {
@@ -71,6 +71,12 @@ interface AppContextType {
   refreshMeetings: () => Promise<void>;
   refreshReminders: () => Promise<void>;
   refreshJournals: () => Promise<void>;
+
+  contacts: Contact[];
+  addContact: (input: { displayName: string; email: string; description?: string }) => Promise<void>;
+  updateContact: (id: string, updates: Partial<Pick<Contact, 'displayName' | 'email' | 'description'>>) => Promise<void>;
+  deleteContact: (id: string) => Promise<void>;
+  refreshContacts: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -124,6 +130,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [meetings, setMeetings] = useState<Meeting[]>(cachedMeetings);
   const [reminders, setReminders] = useState<Reminder[]>(cachedReminders);
   const [journals, setJournals] = useState<Journal[]>(cachedJournals);
+  const [contacts, setContacts] = useState<Contact[]>([]);
 
   // Only show the full-screen loader on the very first load (no cache yet).
   const hasCache =
@@ -180,6 +187,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         void reconcileReminders(remindersData, tasksData).then((fixed) => {
           if (!cancelled && fixed) setReminders(fixed);
         });
+
+        try {
+          const contactsData = await ContactsAPI.getAll();
+          if (!cancelled) setContacts(contactsData);
+        } catch (err) {
+          console.warn('Contacts load skipped or failed', err);
+        }
       } catch (err) {
         console.error('Error fetching data:', err);
         if (!cancelled && !hasCache) {
@@ -236,6 +250,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('refreshJournals failed', err);
     }
   }, []);
+
+  const refreshContacts = useCallback(async (): Promise<void> => {
+    try {
+      const fresh = await ContactsAPI.getAll();
+      setContacts(fresh);
+    } catch (err) {
+      console.warn('refreshContacts failed', err);
+    }
+  }, []);
+
+  const addContact = useCallback(
+    async (input: { displayName: string; email: string; description?: string }) => {
+      try {
+        const row = await ContactsAPI.create(input);
+        setContacts((prev) =>
+          [...prev, row].sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' })),
+        );
+        toast.success('Contact saved', row.displayName);
+      } catch (err) {
+        console.error('Error adding contact:', err);
+        setError('Failed to add contact');
+        toast.error('Could not save contact');
+      }
+    },
+    [toast],
+  );
+
+  const updateContact = useCallback(
+    async (id: string, updates: Partial<Pick<Contact, 'displayName' | 'email' | 'description'>>) => {
+      try {
+        const row = await ContactsAPI.update(id, updates);
+        setContacts((prev) =>
+          prev
+            .map((c) => (c.id === id ? row : c))
+            .sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' })),
+        );
+      } catch (err) {
+        console.error('Error updating contact:', err);
+        setError('Failed to update contact');
+        toast.error('Could not update contact');
+      }
+    },
+    [toast],
+  );
+
+  const deleteContact = useCallback(
+    async (id: string) => {
+      try {
+        await ContactsAPI.delete(id);
+        setContacts((prev) => prev.filter((c) => c.id !== id));
+        toast.success('Contact removed');
+      } catch (err) {
+        console.error('Error deleting contact:', err);
+        setError('Failed to delete contact');
+        toast.error('Could not remove contact');
+      }
+    },
+    [toast],
+  );
 
   // Reconcile reminder conversion state against actual tasks. Returns the
   // updated reminder list only if something changed; otherwise null.
@@ -998,6 +1071,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshMeetings,
         refreshReminders,
         refreshJournals,
+
+        contacts,
+        addContact,
+        updateContact,
+        deleteContact,
+        refreshContacts,
       }}
     >
       {children}

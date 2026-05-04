@@ -68,4 +68,19 @@ export interface TimerSession {
   duration: number; // in seconds
   /** Piovra does not persist this; omitted when loaded from API → treat as 0. */
   breakTime?: number;
-} 
+}
+
+export interface Contact {
+  id: string;
+  displayName: string;
+  email: string;
+  description: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GmailCorrespondentSuggestion {
+  email: string;
+  name: string | null;
+  lastMessageMs: string | null;
+}

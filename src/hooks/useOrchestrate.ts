@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { PiovraAPI, type AgentStep, type ChatHistoryMessage, type OrchestrateUserImage } from '../services/piovra';
 import { useAppContext } from '../context/AppContext';
-import type { Journal, Meeting, Reminder, Task } from '../types';
+import type { Contact, Journal, Meeting, Reminder, Task } from '../types';
 
 export type ChatStatus = 'idle' | 'streaming' | 'error';
 
@@ -32,8 +32,17 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [status, setStatus] = useState<ChatStatus>('idle');
   const abortRef = useRef<AbortController | null>(null);
-  const { tasks, meetings, reminders, journals, refreshTasks, refreshMeetings, refreshReminders, refreshJournals } =
-    useAppContext();
+  const {
+    tasks,
+    meetings,
+    reminders,
+    journals,
+    contacts,
+    refreshTasks,
+    refreshMeetings,
+    refreshReminders,
+    refreshJournals,
+  } = useAppContext();
 
   // Keep the latest workspace data in refs so `send` (a stable callback)
   // always builds the snapshot from up-to-date state without forcing the
@@ -42,10 +51,12 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
   const meetingsRef = useRef<Meeting[]>(meetings);
   const remindersRef = useRef<Reminder[]>(reminders);
   const journalsRef = useRef<Journal[]>(journals);
+  const contactsRef = useRef<Contact[]>(contacts);
   tasksRef.current = tasks;
   meetingsRef.current = meetings;
   remindersRef.current = reminders;
   journalsRef.current = journals;
+  contactsRef.current = contacts;
 
   /**
    * Watch each agent step. When the agent calls a Piovra workspace mutation
@@ -115,6 +126,7 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
         meetings: meetingsRef.current,
         reminders: remindersRef.current,
         journals: journalsRef.current,
+        contacts: contactsRef.current,
       });
 
       const turnId = crypto.randomUUID();
@@ -241,6 +253,7 @@ function lastAssistantText(steps: AgentStep[]): string {
  *   - tasks completed in the last 2 days
  *   - meetings within ±2 days of now
  *   - all active reminders
+ *   - contacts (display name, email, description) for resolving mail recipients
  *
  * IDs are the `id` field (uuid) used by the Capsuna API — exactly what
  * capsuna_*_update / _complete / _delete skills expect.
@@ -250,8 +263,9 @@ function buildContextSnapshot(params: {
   meetings: Meeting[];
   reminders: Reminder[];
   journals: Journal[];
+  contacts: Contact[];
 }): string {
-  const { tasks, meetings, reminders, journals } = params;
+  const { tasks, meetings, reminders, journals, contacts } = params;
 
   const now = new Date();
   const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
@@ -314,6 +328,13 @@ function buildContextSnapshot(params: {
     );
   }
 
+  if (contacts.length > 0) {
+    sections.push(
+      `Contacts (${contacts.length}) — use these emails when the user refers to someone by name:\n` +
+        contacts.map(formatContactLine).join('\n'),
+    );
+  }
+
   if (sections.length === 0) return '';
   return sections.join('\n\n');
 }
@@ -361,6 +382,12 @@ function formatJournalLine(j: Journal): string {
   if (j.updatedAt) parts.push(`updatedAt=${toIso(j.updatedAt)}`);
   if (j.tags?.length) parts.push(`tags=${j.tags.join(',')}`);
   parts.push(`content="${truncate(oneLine(stripHtml(j.content)), 160)}"`);
+  return parts.join(' · ');
+}
+
+function formatContactLine(c: Contact): string {
+  const parts: string[] = [`- "${oneLine(c.displayName)}" <${c.email.trim()}>`];
+  if (c.description?.trim()) parts.push(`note="${truncate(oneLine(c.description), 120)}"`);
   return parts.join(' · ');
 }
 
