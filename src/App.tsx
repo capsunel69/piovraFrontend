@@ -11,6 +11,7 @@ import Notes from './pages/Notes';
 import Contacts from './pages/Contacts';
 import Agents from './pages/Agents';
 import Admin from './pages/Admin';
+import Documentation from './pages/Documentation';
 import Timer from './components/timer/Timer';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { ToastProvider } from './components/ui/Toast';
@@ -34,6 +35,7 @@ function App() {
                     <Route path="/contacts" element={<Contacts />} />
                     <Route path="/agents" element={<Agents />} />
                     <Route path="/admin" element={<Admin />} />
+                    <Route path="/docs" element={<Documentation />} />
                   </Routes>
                 </Layout>
               </ProtectedRoute>

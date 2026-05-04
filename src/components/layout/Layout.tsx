@@ -11,7 +11,7 @@ import MobileNav, { type MobileNavItem } from './MobileNav';
 import {
   IconDashboard, IconTasks, IconCalendar, IconBell, IconNote, IconContacts,
   IconLogout, IconChevronLeft, IconSpark, IconClock, IconBot,
-  IconMenu, IconLock,
+  IconMenu, IconLock, IconBook,
 } from '../ui/icons';
 import { IconButton } from '../ui/primitives';
 
@@ -174,6 +174,27 @@ const FooterButton = styled.button<{ $collapsed: boolean }>`
   width: 100%;
   justify-content: ${p => p.$collapsed ? 'center' : 'flex-start'};
   transition: background 0.15s, color 0.15s;
+
+  &:hover { background: var(--bg-3); color: var(--text-1); }
+
+  svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .label { display: ${p => p.$collapsed ? 'none' : 'inline'}; }
+`;
+
+const FooterNavLink = styled(Link)<{ $collapsed: boolean; $active: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: ${p => p.$collapsed ? '10px' : '8px 12px'};
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  font-weight: 500;
+  width: 100%;
+  justify-content: ${p => p.$collapsed ? 'center' : 'flex-start'};
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+  color: ${p => (p.$active ? 'var(--text-1)' : 'var(--text-2)')};
+  background: ${p => (p.$active ? 'var(--bg-3)' : 'transparent')};
 
   &:hover { background: var(--bg-3); color: var(--text-1); }
 
@@ -400,6 +421,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, [me?.role]);
 
   const currentLabel = useMemo(() => {
+    if (location.pathname === '/docs') return 'Documentation';
     const match = navItems.find(n => n.to === location.pathname);
     return match?.label ?? 'Overview';
   }, [location.pathname, navItems]);
@@ -453,6 +475,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </Nav>
 
           <SidebarFooter>
+            <FooterNavLink
+              to="/docs"
+              $collapsed={collapsed}
+              $active={location.pathname === '/docs'}
+              title={collapsed ? 'Documentation' : undefined}
+            >
+              <IconBook /> <span className="label">Documentation</span>
+            </FooterNavLink>
             <FooterButton
               $collapsed={collapsed}
               onClick={handleLogout}
@@ -527,6 +557,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         onClose={closeMobileNav}
         items={navItems}
         activePath={location.pathname}
+        footerLinks={[
+          { to: '/docs', label: 'Documentation', icon: IconBook },
+        ]}
         onLogout={handleLogout}
         logoutIcon={IconLogout}
       />

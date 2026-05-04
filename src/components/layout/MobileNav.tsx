@@ -193,20 +193,52 @@ export interface MobileNavItem {
   icon: React.FC<React.SVGProps<SVGSVGElement> & { size?: number }>;
 }
 
+export interface MobileNavFooterLink {
+  to: string;
+  label: string;
+  icon: React.FC<React.SVGProps<SVGSVGElement> & { size?: number }>;
+}
+
 interface MobileNavProps {
   open: boolean;
   onClose: () => void;
   items: MobileNavItem[];
   activePath: string;
+  /** Rendered above Sign out (e.g. Documentation). */
+  footerLinks?: MobileNavFooterLink[];
   onLogout: () => void;
   logoutIcon: React.FC<React.SVGProps<SVGSVGElement> & { size?: number }>;
 }
+
+const FooterNavItem = styled(Link)<{ $active: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  color: ${(p) => (p.$active ? 'var(--text-1, #e7ecf3)' : 'var(--text-2, #a4adbb)')};
+  background: ${(p) => (p.$active ? 'var(--bg-3, #161c25)' : 'transparent')};
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  width: 100%;
+  min-height: 44px;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover, &:focus-visible {
+    background: var(--bg-3, #161c25);
+    color: var(--text-1, #e7ecf3);
+  }
+
+  svg { width: 18px; height: 18px; flex-shrink: 0; }
+`;
 
 const MobileNav: React.FC<MobileNavProps> = ({
   open,
   onClose,
   items,
   activePath,
+  footerLinks,
   onLogout,
   logoutIcon: LogoutIcon,
 }) => {
@@ -286,6 +318,20 @@ const MobileNav: React.FC<MobileNavProps> = ({
         </Nav>
 
         <Footer>
+          {footerLinks?.map((link) => {
+            const Icon = link.icon;
+            return (
+              <FooterNavItem
+                key={link.to}
+                to={link.to}
+                $active={activePath === link.to}
+                onClick={onClose}
+              >
+                <Icon />
+                <span>{link.label}</span>
+              </FooterNavItem>
+            );
+          })}
           <FooterButton type="button" onClick={onLogout}>
             <LogoutIcon />
             <span>Sign out</span>
