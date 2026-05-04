@@ -31,6 +31,8 @@ import {
   IconCheck,
 } from '../components/ui/icons';
 
+const MOBILE_BP = 720;
+
 const PIOVRA_BASE_URL = (import.meta.env.VITE_PIOVRA_BASE_URL as string | undefined) ?? '';
 const ADMIN_URL = `${PIOVRA_BASE_URL}/v1/admin`;
 
@@ -127,11 +129,80 @@ const StatValue = styled.div`
   letter-spacing: -0.02em;
   color: var(--text-1);
   font-variant-numeric: tabular-nums;
+
+  @media (max-width: ${MOBILE_BP}px) {
+    font-size: 22px;
+  }
 `;
 
 const StatHint = styled.div`
   font-size: 11px;
   color: var(--text-3);
+`;
+
+const AdminPageHeader = styled(PageHeader)`
+  @media (max-width: ${MOBILE_BP}px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--s-3);
+
+    button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+`;
+
+const DesktopOnlyTable = styled.div`
+  overflow: hidden;
+
+  @media (max-width: ${MOBILE_BP}px) {
+    display: none;
+  }
+`;
+
+const MobileUserList = styled.div`
+  display: none;
+
+  @media (max-width: ${MOBILE_BP}px) {
+    display: flex;
+    flex-direction: column;
+  }
+`;
+
+const MobileUserCard = styled.button`
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid var(--border-1);
+  background: transparent;
+  padding: var(--s-4) var(--s-3);
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:active {
+    background: rgba(255, 255, 255, 0.04);
+  }
+`;
+
+const MobileUserTop = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+`;
+
+const MobileUserMeta = styled.div`
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: var(--s-2);
+  line-height: 1.4;
 `;
 
 const TableWrap = styled.div`
@@ -365,6 +436,11 @@ const ModalBackdrop = styled.div`
   justify-content: center;
   padding: var(--s-6);
   overflow-y: auto;
+
+  @media (max-width: ${MOBILE_BP}px) {
+    padding: var(--s-3);
+    align-items: flex-end;
+  }
 `;
 
 const ModalPanel = styled(Card)`
@@ -373,10 +449,21 @@ const ModalPanel = styled(Card)`
   max-height: min(720px, calc(100vh - var(--s-10)));
   display: flex;
   flex-direction: column;
+
+  @media (max-width: ${MOBILE_BP}px) {
+    margin: 0;
+    width: 100%;
+    max-height: min(92vh, 720px);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+  }
 `;
 
 const UserModalPanel = styled(ModalPanel)`
   width: min(640px, 100%);
+
+  @media (max-width: ${MOBILE_BP}px) {
+    width: 100%;
+  }
 `;
 
 const SkillCheckRow = styled.label`
@@ -435,6 +522,41 @@ const ModalFooter = styled.div`
   justify-content: flex-end;
   padding-top: var(--s-4);
   border-top: 1px solid var(--border-1);
+`;
+
+const DetailModalFooter = styled(ModalFooter)`
+  @media (max-width: ${MOBILE_BP}px) {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: var(--s-3);
+
+    .admin-detail-actions {
+      flex-direction: column;
+      width: 100%;
+
+      button {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    > button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+`;
+
+const SkillModalFooter = styled(ModalFooter)`
+  @media (max-width: ${MOBILE_BP}px) {
+    flex-direction: column-reverse;
+    align-items: stretch;
+
+    button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
 `;
 
 const Admin: React.FC = () => {
@@ -500,7 +622,7 @@ const Admin: React.FC = () => {
 
   if (me?.role !== 'admin') {
     return (
-      <PageContainer style={{ padding: 'var(--s-5)' }}>
+      <PageContainer>
         <Card>
           <CardSection>
             <Stack $gap={2}>
@@ -520,7 +642,7 @@ const Admin: React.FC = () => {
 
   if (loading) {
     return (
-      <PageContainer style={{ padding: 'var(--s-5)' }}>
+      <PageContainer>
         <LoadingState message="Loading admin dashboard…" />
       </PageContainer>
     );
@@ -528,15 +650,15 @@ const Admin: React.FC = () => {
 
   if (error) {
     return (
-      <PageContainer style={{ padding: 'var(--s-5)' }}>
+      <PageContainer>
         <ErrorMessage message={`Failed to load admin data: ${error}`} onRetry={() => void load()} />
       </PageContainer>
     );
   }
 
   return (
-    <PageContainer style={{ padding: 'var(--s-5)' }}>
-      <PageHeader>
+    <PageContainer>
+      <AdminPageHeader>
         <div>
           <PageTitle>
             <IconDashboard />
@@ -548,9 +670,9 @@ const Admin: React.FC = () => {
           <IconRefresh />
           Refresh
         </Button>
-      </PageHeader>
+      </AdminPageHeader>
 
-      <Grid $min="200px">
+      <Grid $min="160px">
         <StatCard>
           <StatLabel>
             <IconUsers /> Total users
@@ -590,68 +712,102 @@ const Admin: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardBody style={{ padding: 0 }}>
-          <TableWrap>
-            <Table>
-              <thead>
-                <tr>
-                  <th className="col-user">User</th>
-                  <th className="col-status">Status</th>
-                  <th className="col-active">Last active</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedUsers.length === 0 ? (
+          <DesktopOnlyTable>
+            <TableWrap>
+              <Table>
+                <thead>
                   <tr>
-                    <td colSpan={3}>
-                      <EmptyHint>No users yet.</EmptyHint>
-                    </td>
+                    <th className="col-user">User</th>
+                    <th className="col-status">Status</th>
+                    <th className="col-active">Last active</th>
                   </tr>
-                ) : (
-                  sortedUsers.map((u) => (
-                    <tr
-                      key={u.id}
-                      data-clickable="true"
-                      style={{ cursor: 'pointer' }}
-                      title="View details"
-                      onClick={() => setDetailUser(u)}
-                    >
-                      <td className="col-user">
-                        <UserCell>
-                          <Avatar $src={u.pictureUrl}>
-                            {!u.pictureUrl ? (u.name?.[0] ?? u.email[0] ?? '?').toUpperCase() : null}
-                          </Avatar>
-                          <UserText>
-                            <div className="name">{u.name ?? u.email}</div>
-                            <div className="email">{u.email}</div>
-                          </UserText>
-                          <RowHint>Open →</RowHint>
-                        </UserCell>
-                      </td>
-                      <td className="col-status">
-                        <StatusCell>
-                          <Badge $variant={u.role === 'admin' ? 'accent' : 'neutral'}>{u.role}</Badge>
-                          {u.disabledAt && <Badge $variant="danger">Off</Badge>}
-                          <Badge $variant={u.googleConnected ? 'success' : 'warning'}>
-                            {u.googleConnected ? 'Google' : 'No Google'}
-                          </Badge>
-                        </StatusCell>
-                      </td>
-                      <td className="col-active">
-                        <MetaMuted
-                          style={{ whiteSpace: 'normal' }}
-                          title={u.lastSeenAt ? new Date(u.lastSeenAt).toLocaleString() : undefined}
-                        >
-                          {u.lastSeenAt
-                            ? formatDistanceToNow(new Date(u.lastSeenAt), { addSuffix: true })
-                            : 'Never'}
-                        </MetaMuted>
+                </thead>
+                <tbody>
+                  {sortedUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={3}>
+                        <EmptyHint>No users yet.</EmptyHint>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </Table>
-          </TableWrap>
+                  ) : (
+                    sortedUsers.map((u) => (
+                      <tr
+                        key={u.id}
+                        data-clickable="true"
+                        style={{ cursor: 'pointer' }}
+                        title="View details"
+                        onClick={() => setDetailUser(u)}
+                      >
+                        <td className="col-user">
+                          <UserCell>
+                            <Avatar $src={u.pictureUrl}>
+                              {!u.pictureUrl ? (u.name?.[0] ?? u.email[0] ?? '?').toUpperCase() : null}
+                            </Avatar>
+                            <UserText>
+                              <div className="name">{u.name ?? u.email}</div>
+                              <div className="email">{u.email}</div>
+                            </UserText>
+                            <RowHint>Open →</RowHint>
+                          </UserCell>
+                        </td>
+                        <td className="col-status">
+                          <StatusCell>
+                            <Badge $variant={u.role === 'admin' ? 'accent' : 'neutral'}>{u.role}</Badge>
+                            {u.disabledAt && <Badge $variant="danger">Off</Badge>}
+                            <Badge $variant={u.googleConnected ? 'success' : 'warning'}>
+                              {u.googleConnected ? 'Google' : 'No Google'}
+                            </Badge>
+                          </StatusCell>
+                        </td>
+                        <td className="col-active">
+                          <MetaMuted
+                            style={{ whiteSpace: 'normal' }}
+                            title={u.lastSeenAt ? new Date(u.lastSeenAt).toLocaleString() : undefined}
+                          >
+                            {u.lastSeenAt
+                              ? formatDistanceToNow(new Date(u.lastSeenAt), { addSuffix: true })
+                              : 'Never'}
+                          </MetaMuted>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </Table>
+            </TableWrap>
+          </DesktopOnlyTable>
+          <MobileUserList>
+            {sortedUsers.length === 0 ? (
+              <EmptyHint>No users yet.</EmptyHint>
+            ) : (
+              sortedUsers.map((u) => (
+                <MobileUserCard key={u.id} type="button" onClick={() => setDetailUser(u)}>
+                  <MobileUserTop>
+                    <Avatar $src={u.pictureUrl}>
+                      {!u.pictureUrl ? (u.name?.[0] ?? u.email[0] ?? '?').toUpperCase() : null}
+                    </Avatar>
+                    <UserText style={{ flex: 1 }}>
+                      <div className="name">{u.name ?? u.email}</div>
+                      <div className="email">{u.email}</div>
+                    </UserText>
+                  </MobileUserTop>
+                  <StatusCell style={{ flexWrap: 'wrap', marginTop: 10 }}>
+                    <Badge $variant={u.role === 'admin' ? 'accent' : 'neutral'}>{u.role}</Badge>
+                    {u.disabledAt && <Badge $variant="danger">Off</Badge>}
+                    <Badge $variant={u.googleConnected ? 'success' : 'warning'}>
+                      {u.googleConnected ? 'Google' : 'No Google'}
+                    </Badge>
+                  </StatusCell>
+                  <MobileUserMeta>
+                    Last active{' '}
+                    {u.lastSeenAt
+                      ? formatDistanceToNow(new Date(u.lastSeenAt), { addSuffix: true })
+                      : 'never'}
+                  </MobileUserMeta>
+                </MobileUserCard>
+              ))
+            )}
+          </MobileUserList>
         </CardBody>
       </Card>
 
@@ -773,11 +929,11 @@ const Admin: React.FC = () => {
                 </MetaMuted>
               </DetailSection>
 
-              <ModalFooter style={{ justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+              <DetailModalFooter style={{ justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                 <Button type="button" $variant="secondary" $size="sm" onClick={() => setDetailUser(null)}>
                   Close
                 </Button>
-                <ActionsStack>
+                <ActionsStack className="admin-detail-actions">
                   <Button
                     type="button"
                     $variant="secondary"
@@ -829,7 +985,7 @@ const Admin: React.FC = () => {
                     {detailUser.disabledAt ? 'Enable account' : 'Disable account'}
                   </Button>
                 </ActionsStack>
-              </ModalFooter>
+              </DetailModalFooter>
             </CardBody>
           </UserModalPanel>
         </ModalBackdrop>
@@ -885,7 +1041,7 @@ const Admin: React.FC = () => {
                   );
                 })}
               </SkillScroll>
-              <ModalFooter>
+              <SkillModalFooter>
                 <Button
                   type="button"
                   $variant="secondary"
@@ -918,7 +1074,7 @@ const Admin: React.FC = () => {
                 >
                   Save
                 </Button>
-              </ModalFooter>
+              </SkillModalFooter>
             </CardBody>
           </ModalPanel>
         </ModalBackdrop>

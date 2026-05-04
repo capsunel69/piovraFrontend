@@ -4,66 +4,174 @@ import { useAppContext } from '../context/AppContext';
 import { ContactsAPI } from '../services/api';
 import type { Contact, GmailCorrespondentSuggestion } from '../types';
 import {
-  PageContainer, PageHeader, PageTitle, PageSubtitle,
-  Card, CardHeader, CardTitle, CardSection,
-  Button, IconButton, EmptyState, Input, Textarea, Label, Field,
+  PageContainer,
+  PageHeader,
+  PageTitle,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardSubtle,
+  CardSection,
+  Button,
+  IconButton,
+  EmptyState,
+  Input,
+  Textarea,
+  Label,
+  Field,
 } from '../components/ui/primitives';
 import { IconPlus, IconTrash, IconEdit, IconRefresh } from '../components/ui/icons';
+
+function contactHue(name: string): number {
+  const s = name.trim();
+  if (!s) return 200;
+  return (s.charCodeAt(0) * 47 + (s.charCodeAt(s.length - 1) ?? 0) * 13) % 360;
+}
+
+function initials(name: string): string {
+  const p = name.trim().split(/\s+/).filter(Boolean);
+  if (p.length === 0) return '?';
+  if (p.length === 1) return p[0]!.slice(0, 2).toUpperCase();
+  return `${p[0]![0] ?? ''}${p[p.length - 1]![0] ?? ''}`.toUpperCase();
+}
 
 const PageStack = styled.div`
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
+  gap: var(--s-5);
   width: 100%;
-`;
-
-const Subtitle = styled(PageSubtitle)`
-  max-width: 58ch;
-  line-height: 1.55;
-`;
-
-const Row = styled.div`
-  padding: var(--s-5) var(--s-6);
-  display: flex;
-  gap: var(--s-4);
-  align-items: flex-start;
-  border-top: 1px solid var(--border-1);
-  &:first-child { border-top: none; }
-  &:hover { background: var(--bg-3); }
 
   @media (max-width: 720px) {
-    padding: var(--s-4) var(--s-4);
+    gap: var(--s-4);
   }
 `;
 
-const Body = styled.div` flex: 1; min-width: 0; `;
+const HeroIntro = styled.div`
+  max-width: 56ch;
 
-const Title = styled.h3`
-  font-size: 14px;
+  p {
+    margin: var(--s-2) 0 0 0;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text-3);
+  }
+
+  @media (max-width: 720px) {
+    max-width: none;
+
+    p {
+      font-size: 14px;
+    }
+  }
+`;
+
+const ContactsPageHeader = styled(PageHeader)`
+  @media (max-width: 720px) {
+    align-items: flex-start;
+  }
+`;
+
+const FormCard = styled(Card)`
+  border-color: var(--border-1);
+  box-shadow: 0 4px 28px rgba(0, 0, 0, 0.08);
+  background: linear-gradient(180deg, rgba(76, 194, 255, 0.04), var(--bg-2));
+`;
+
+const ListCard = styled(Card)`
+  overflow: hidden;
+`;
+
+const ContactGrid = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5) var(--s-5);
+
+  @media (max-width: 720px) {
+    padding: var(--s-3);
+  }
+`;
+
+const ContactTile = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-md);
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.12s;
+
+  &:hover {
+    border-color: var(--border-2);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  }
+
+  @media (max-width: 720px) {
+    padding: var(--s-4);
+    flex-wrap: wrap;
+  }
+`;
+
+const Avatar = styled.div<{ $hue: number }>`
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #06121d;
+  background: linear-gradient(
+    135deg,
+    hsl(${(p) => p.$hue}, 72%, 58%),
+    hsl(${(p) => p.$hue + 38}, 62%, 48%)
+  );
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+`;
+
+const TileBody = styled.div`
+  flex: 1;
+  min-width: 0;
+`;
+
+const TileName = styled.h3`
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-1);
   margin: 0;
+  letter-spacing: -0.01em;
 `;
 
-const Meta = styled.div`
-  font-size: 12px;
-  color: var(--text-3);
-  margin-top: 4px;
-  word-break: break-all;
-`;
-
-const Desc = styled.p`
+const TileEmail = styled.div`
   font-size: 13px;
   color: var(--text-2);
-  margin: 8px 0 0 0;
-  white-space: pre-wrap;
-  line-height: 1.5;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  word-break: break-all;
+  opacity: 0.95;
 `;
 
-const Actions = styled.div`
+const TileNote = styled.p`
+  font-size: 13px;
+  color: var(--text-3);
+  margin: 10px 0 0 0;
+  line-height: 1.55;
+  white-space: pre-wrap;
+`;
+
+const TileActions = styled.div`
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
+
+  @media (max-width: 720px) {
+    width: 100%;
+    justify-content: flex-end;
+    margin-top: var(--s-2);
+  }
 `;
 
 const TwoCol = styled.div`
@@ -87,37 +195,70 @@ const ActionsRow = styled.div`
   margin-top: var(--s-5);
   padding-top: var(--s-5);
   border-top: 1px solid var(--border-1);
+
+  @media (max-width: 720px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--s-2);
+    margin-top: var(--s-4);
+    padding-top: var(--s-4);
+
+    & > * {
+      width: 100%;
+      justify-content: center;
+    }
+  }
 `;
 
 const SuggestionPanel = styled.div`
   margin-top: var(--s-5);
   padding: var(--s-4);
   border-radius: var(--r-md);
-  background: var(--bg-1);
+  background: linear-gradient(180deg, rgba(76, 194, 255, 0.06), var(--bg-1));
   border: 1px solid var(--border-1);
-  max-height: 240px;
+  max-height: min(260px, 42vh);
   overflow-y: auto;
+`;
+
+const SuggestionHint = styled.div`
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  margin-bottom: var(--s-2);
+  text-transform: uppercase;
 `;
 
 const SuggestionBtn = styled.button`
   display: block;
   width: 100%;
   text-align: left;
-  padding: 10px 12px;
-  border: none;
+  padding: 12px 14px;
+  border: 1px solid transparent;
   border-radius: var(--r-sm);
-  background: transparent;
+  background: var(--bg-2);
   color: var(--text-1);
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
-  transition: background 0.12s;
-  &:hover { background: var(--bg-3); }
-  .em { color: var(--text-2); font-size: 12px; }
+  margin-bottom: 6px;
+  transition: border-color 0.12s, background 0.12s;
+  &:hover {
+    background: var(--bg-3);
+    border-color: var(--border-1);
+  }
+  .em {
+    color: var(--text-3);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    display: block;
+    margin-top: 2px;
+  }
 `;
 
-const ListBody = styled.div<{ $empty?: boolean }>`
-  padding: 0;
-  min-height: ${(p) => (p.$empty ? 'min(40vh, 200px)' : 'auto')};
+const EmptyWrap = styled.div`
+  padding: var(--s-7) var(--s-5);
+  text-align: center;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(76, 194, 255, 0.08), transparent);
 `;
 
 const Contacts: React.FC = () => {
@@ -185,29 +326,36 @@ const Contacts: React.FC = () => {
   return (
     <PageContainer>
       <PageStack>
-        <PageHeader>
-          <div>
+        <ContactsPageHeader>
+          <HeroIntro>
             <PageTitle>Contacts</PageTitle>
-            <Subtitle>
-              Names and emails the assistant uses when you say things like &ldquo;email Vlad&rdquo;. Suggestions
-              come from recent Gmail threads (same Google connection as mail skills).
-            </Subtitle>
-          </div>
-        </PageHeader>
+            <p>
+              Save people you email often. The assistant can match a first name to these entries when you ask it to send
+              mail. You can also pull names from your recent Gmail threads.
+            </p>
+          </HeroIntro>
+        </ContactsPageHeader>
 
-        <Card>
+        <FormCard>
           <CardHeader>
-            <CardTitle>{editingId ? 'Edit contact' : 'Add contact'}</CardTitle>
+            <div>
+              <CardTitle>{editingId ? 'Edit contact' : 'Add someone'}</CardTitle>
+              <CardSubtle style={{ marginTop: 6 }}>
+                {editingId
+                  ? 'Update their details below, then save.'
+                  : 'Name and email are required. Notes are optional — they help the assistant understand who this is.'}
+              </CardSubtle>
+            </div>
           </CardHeader>
           <CardSection>
             <form onSubmit={(e) => void onSubmit(e)}>
               <FormFields>
                 <TwoCol>
                   <Field>
-                    <Label htmlFor="contact-name">Display name</Label>
+                    <Label htmlFor="contact-name">Name</Label>
                     <Input
                       id="contact-name"
-                      placeholder="e.g. Vlad"
+                      placeholder="Their name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       autoComplete="name"
@@ -217,7 +365,7 @@ const Contacts: React.FC = () => {
                     <Label htmlFor="contact-email">Email</Label>
                     <Input
                       id="contact-email"
-                      placeholder="name@company.com"
+                      placeholder="name@example.com"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -226,10 +374,10 @@ const Contacts: React.FC = () => {
                   </Field>
                 </TwoCol>
                 <Field>
-                  <Label htmlFor="contact-desc">Description (optional)</Label>
+                  <Label htmlFor="contact-desc">Note (optional)</Label>
                   <Textarea
                     id="contact-desc"
-                    placeholder="How you know them, role, notes for the assistant…"
+                    placeholder="e.g. colleague, client, how you usually say hi…"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     rows={3}
@@ -238,11 +386,15 @@ const Contacts: React.FC = () => {
               </FormFields>
               <ActionsRow>
                 <Button type="submit" $variant="primary">
-                  {editingId ? 'Save changes' : <><IconPlus size={16} /> Add contact</>}
+                  {editingId ? 'Save changes' : (
+                    <>
+                      <IconPlus size={16} /> Save contact
+                    </>
+                  )}
                 </Button>
                 {editingId && (
                   <Button type="button" $variant="ghost" onClick={resetForm}>
-                    Cancel edit
+                    Cancel
                   </Button>
                 )}
                 <Button
@@ -252,67 +404,73 @@ const Contacts: React.FC = () => {
                   onClick={() => void loadGmailSuggestions()}
                 >
                   <IconRefresh size={16} />
-                  {loadingSuggest ? 'Loading…' : 'Suggest from Gmail'}
+                  {loadingSuggest ? 'Loading…' : 'Suggestions from Gmail'}
                 </Button>
               </ActionsRow>
             </form>
             {suggestions.length > 0 && (
               <SuggestionPanel>
+                <SuggestionHint>Tap a suggestion to fill the form</SuggestionHint>
                 {suggestions.map((s) => (
-                  <SuggestionBtn
-                    key={s.email}
-                    type="button"
-                    onClick={() => pickSuggestion(s)}
-                  >
+                  <SuggestionBtn key={s.email} type="button" onClick={() => pickSuggestion(s)}>
                     <strong>{s.name || s.email}</strong>
-                    {s.name && <span className="em"> · {s.email}</span>}
+                    {s.name ? <span className="em">{s.email}</span> : null}
                   </SuggestionBtn>
                 ))}
               </SuggestionPanel>
             )}
           </CardSection>
-        </Card>
+        </FormCard>
 
-        <Card>
+        <ListCard>
           <CardHeader>
-            <CardTitle>Your contacts ({contacts.length})</CardTitle>
+            <div>
+              <CardTitle>People you’ve saved</CardTitle>
+              <CardSubtle style={{ marginTop: 6 }}>
+                {contacts.length === 0
+                  ? 'No one here yet — add your first contact above.'
+                  : `${contacts.length} contact${contacts.length === 1 ? '' : 's'}`}
+              </CardSubtle>
+            </div>
           </CardHeader>
-          <ListBody $empty={contacts.length === 0}>
-            {contacts.length === 0 ? (
-              <EmptyState>No contacts yet — add one above or pull suggestions from Gmail.</EmptyState>
-            ) : (
-              contacts.map((c) => (
-                <Row key={c.id}>
-                  <Body>
-                    <Title>{c.displayName}</Title>
-                    <Meta>{c.email}</Meta>
-                    {c.description?.trim() ? <Desc>{c.description}</Desc> : null}
-                  </Body>
-                  <Actions>
-                    <IconButton
-                      type="button"
-                      $variant="ghost"
-                      title="Edit"
-                      onClick={() => startEdit(c)}
-                    >
+          {contacts.length === 0 ? (
+            <EmptyWrap>
+              <EmptyState style={{ background: 'transparent', maxWidth: 360, margin: '0 auto' }}>
+                Your contact list is empty. Add someone manually or use Gmail suggestions.
+              </EmptyState>
+            </EmptyWrap>
+          ) : (
+            <ContactGrid>
+              {contacts.map((c) => (
+                <ContactTile key={c.id}>
+                  <Avatar $hue={contactHue(c.displayName)} aria-hidden>
+                    {initials(c.displayName)}
+                  </Avatar>
+                  <TileBody>
+                    <TileName>{c.displayName}</TileName>
+                    <TileEmail>{c.email}</TileEmail>
+                    {c.description?.trim() ? <TileNote>{c.description}</TileNote> : null}
+                  </TileBody>
+                  <TileActions>
+                    <IconButton type="button" $variant="ghost" title="Edit" onClick={() => startEdit(c)}>
                       <IconEdit />
                     </IconButton>
                     <IconButton
                       type="button"
                       $variant="ghost"
-                      title="Delete"
+                      title="Remove"
                       onClick={() => {
-                        if (window.confirm(`Remove ${c.displayName}?`)) void deleteContact(c.id);
+                        if (window.confirm(`Remove ${c.displayName} from your contacts?`)) void deleteContact(c.id);
                       }}
                     >
                       <IconTrash />
                     </IconButton>
-                  </Actions>
-                </Row>
-              ))
-            )}
-          </ListBody>
-        </Card>
+                  </TileActions>
+                </ContactTile>
+              ))}
+            </ContactGrid>
+          )}
+        </ListCard>
       </PageStack>
     </PageContainer>
   );

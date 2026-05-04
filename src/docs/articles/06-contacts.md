@@ -1,17 +1,15 @@
-# Contacts
+## Contacts
 
-**Route:** `/contacts`
+Save **name**, **email**, and an optional **note** for people you talk to often.
 
-## Purpose
+## Why bother?
 
-- Store **display name**, **email**, and optional **description** for people you email often.
-- The **AI chat snapshot** includes contacts so phrases like “email Vlad” can resolve to the right address before calling Gmail send.
+When you ask the assistant to **send email** using a **first name** (“email Sam”), it can match that name to your saved contacts.
 
 ## Gmail suggestions
 
-- **Suggest from Gmail** loads recent **From / To / Cc** addresses from your mailbox (requires Google connected on Piovra with Gmail scope). Pick a row to fill the form.
-- Duplicate emails (case-insensitive) are rejected by the API.
+Tap **Suggestions from Gmail** to see addresses that recently appeared in your mail (requires your Google account to be linked). Pick one to fill the form—you can still edit before saving.
 
-## API
+## Duplicates
 
-- **`/v1/contacts`** CRUD and **`/v1/contacts/gmail-suggestions`** for the picker.
+The same email (ignoring capital letters) can’t be saved twice; you’ll get a clear message if you try.

@@ -1,13 +1,7 @@
-# Admin
+## Admin area
 
-**Route:** `/admin` — visible only when your Piovra user has **`role: admin`**.
+**Admin** appears only for **operator** accounts.
 
-## Typical capabilities
+From there you can manage **users** and other server-side settings exposed by your deployment.
 
-- Inspect **users** connected to Piovra (ids, emails, Google link state, disabled flags where applicable).
-- **Usage / operations** helpers exposed by your deployment (exact panels follow the current `Admin.tsx` implementation).
-- Calls Piovra **`/v1/admin`** with the same session cookie as the rest of the app.
-
-## Security
-
-- Do not share admin sessions; admin routes are **not** for non-operator accounts.
+If you don’t see **Admin** in the menu, your account doesn’t have that role—ask your organisation’s owner.

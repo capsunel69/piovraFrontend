@@ -285,8 +285,8 @@ const MobileNav: React.FC<MobileNavProps> = ({
         <Brand>
           <div className="logo"><IconSpark /></div>
           <div className="name">
-            <strong>Capsuna</strong>
-            <span>control panel</span>
+            <strong>Piovra</strong>
+            <span>workspace</span>
           </div>
           <IconButton
             $variant="ghost"

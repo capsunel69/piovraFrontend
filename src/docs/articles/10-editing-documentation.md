@@ -1,27 +1,18 @@
-# Editing this documentation
+## For people updating the help articles
 
-## Where content lives
+These guides are **plain Markdown files** plus a small registry so search works.
 
-- **Markdown articles:** `src/docs/articles/*.md`
-- **Registry (titles, sections, search keywords, imports):** `src/docs/registry.ts`
+### Files
 
-## How to add a new article
+- **Articles:** folder `src/docs/articles/` — one topic per file, use `##` headings inside (the app shows the title separately).
+- **List & search:** `src/docs/registry.ts` — each article needs an entry with **id**, **title**, **section**, **keywords**, and an **import** of the `.md` file as raw text.
 
-1. Create `src/docs/articles/XX-my-topic.md` (use a numeric prefix to keep ordering predictable).
-2. Open **`src/docs/registry.ts`** and append one object to **`DOC_ARTICLES`**:
-   - `id` — stable slug for URLs (`?article=id`).
-   - `title` — shown in the sidebar list.
-   - `section` — grouping label (Introduction, Workspace, AI, …).
-   - `keywords` — extra search terms not already in the body (comma or space separated string).
-   - `body` — `import text from './articles/XX-my-topic.md?raw'` and use `body: text`.
+### Add a new guide
 
-3. Run **`npm run build`** (or `npm run dev`) so Vite picks up the new `?raw` import.
+1. Create `src/docs/articles/XX-short-name.md`.
+2. In `registry.ts`, add `import bodyXX from './articles/XX-short-name.md?raw'` and append to the `DOC_ARTICLES` array.
+3. Rebuild or run dev; search picks up **title, section, keywords, and full text**.
 
-## Search
+### Link to a specific guide
 
-- The Documentation page searches **title, section, keywords, and full markdown body** (case-insensitive, all words must match somewhere).
-
-## Style tips
-
-- Use `#` / `##` headings, bullet lists, and **tables** (GitHub-flavored markdown is enabled).
-- Keep environment variable names in backticks: `` `VITE_PIOVRA_BASE_URL` ``.
+Use the URL query **`?article=`** plus the **id** from the registry (example: `?article=tasks`).

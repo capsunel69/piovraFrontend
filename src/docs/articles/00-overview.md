@@ -1,23 +1,21 @@
-# Capsuna control panel
+## What is Piovra?
 
-Capsuna is the **workspace UI** for tasks, meetings, reminders, notes, contacts, and a built-in **AI chat** that talks to **Piovra** (your agent backend on Google Cloud / your server).
+**Piovra** (this app) is your **daily hub**: tasks, meetings, reminders, notes, people you email, and a **chat assistant** that can help using what’s on your screen.
 
-## Sign-in
+## Signing in
 
-- You authenticate with **Google**; the app sets a session cookie against Piovra (`piovra_sid`).
-- Your **profile** (name, avatar) appears in the top bar; **Sign out** clears the session.
+- Use **Sign in with Google**. Your name and picture appear in the top bar when you’re logged in.
+- **Sign out** is at the bottom of the side menu (desktop) or in the mobile menu.
 
-## Piovra connection
+## Where your data lives
 
-- The SPA calls Piovra using `VITE_PIOVRA_BASE_URL` (see `.env` / deployment env).
-- Same origin in production often proxies `/v1` to Piovra; in dev you may set the full Piovra URL.
-- If requests fail, check the browser **Network** tab and that Piovra is reachable and CORS/cookies allow your origin.
+Your items are saved securely on the **service** that powers Piovra—not only in your browser. The app may show cached data first, then sync in the background.
 
-## Data storage
+## The assistant
 
-- **Tasks, meetings, reminders, journals (notes), and contacts** are stored in **Piovra’s PostgreSQL** via REST (`/v1/tasks`, `/v1/meetings`, etc.). The UI caches some data in **localStorage** for fast first paint, then reconciles with the API.
+- The **chat bubble** can read a **snapshot** of your open tasks, upcoming events, notes, and contacts so it understands what you mean by “that meeting” or “email Alex”.
+- If you use **email features**, they go through the **Google account** you connected at sign-in.
 
-## AI assistant
+## Something not loading?
 
-- The **floating chat** sends messages to Piovra **`/v1/orchestrate`** with a **live workspace snapshot** (tasks, meetings, reminders, notes, contacts) so the model can resolve names and ids without extra round-trips.
-- Gmail-related skills use your **connected Google account** (OAuth scopes granted at sign-in).
+Check your internet connection. If problems continue, whoever runs your Piovra setup can check that the app can reach the server.

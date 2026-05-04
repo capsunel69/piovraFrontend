@@ -1,18 +1,12 @@
-# Meetings
+## Meetings
 
-**Route:** `/meetings`
+Use **Meetings** for anything with a **time on the calendar**.
 
-## Features
+## What you can do
 
-- **Schedule** meetings with title, description, **start date/time**, **duration** (minutes), optional **participants** (list), and **notes** (agenda).
-- **Mark complete** or reopen.
-- **Edit** or **delete** meetings.
-- List is ordered for upcoming work; the dashboard highlights meetings **within a few days** when applicable.
+- Create an entry with **title**, **date and time**, **how long** it lasts, optional **participants**, and **notes** (agenda or links).
+- **Mark complete** when it’s finished, or **edit** / **remove** it.
 
-## AI integration
+## Tips
 
-- Skills: `piovra.meetings.*` for create/list/update/complete/delete. Snapshot includes meetings near the current date window for referent resolution.
-
-## API
-
-- Piovra stores `durationMinutes`; the UI maps to `duration` in minutes.
+Put **video links** or dial-in details in the notes field so they’re one tap away.

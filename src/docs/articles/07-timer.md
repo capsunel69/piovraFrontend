@@ -1,14 +1,10 @@
-# Timer bar
+## Focus timer
 
-The **sticky timer** appears at the top of the workspace when a task timer is active (docked with the layout, not a separate route).
+When you **start a timer** on a task, a **thin bar** appears near the top of the app showing elapsed time.
 
-## Behaviour
+## Controls
 
-- **Start** on a task from the Tasks page (or flows that start the timer).
-- **Pause / resume** and **stop**; stopping can persist a **session** on the task.
-- **Break time** may be tracked depending on configuration.
-- Timer state is partially restored from **localStorage** after reload.
+- **Pause** and **resume** if you step away.
+- **Stop** when you’re done; your session can be saved on that task.
 
-## AI
-
-- The assistant does not control the UI timer directly; it operates on **tasks** and their persisted timer data via Piovra.
+The timer may **remember your place** briefly if you refresh the page, but don’t rely on it for critical billing—use it as a helper.

@@ -255,7 +255,7 @@ function lastAssistantText(steps: AgentStep[]): string {
  *   - all active reminders
  *   - contacts (display name, email, description) for resolving mail recipients
  *
- * IDs are the `id` field (uuid) used by the Capsuna API — exactly what
+ * IDs are the `id` field (uuid) used by the Piovra API — exactly what
  * capsuna_*_update / _complete / _delete skills expect.
  */
 function buildContextSnapshot(params: {

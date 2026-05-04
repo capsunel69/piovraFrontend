@@ -1,7 +1,5 @@
-# In-app documentation (Capsuna)
+# In-app help (Piovra)
 
-- **Articles:** `articles/*.md` (Markdown, GitHub-flavored tables supported in the UI).
-- **Registry & search metadata:** `registry.ts` — import each `.md` with `?raw` and append to `DOC_ARTICLES`.
-- **UI:** `src/pages/Documentation.tsx`.
+User-facing articles: **`articles/*.md`**
 
-See the **“Maintaining this documentation”** article inside the app for step-by-step edits.
+For developers: **`registry.ts`** and the in-app guide **Updating these guides**.

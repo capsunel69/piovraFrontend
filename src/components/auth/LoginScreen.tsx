@@ -142,7 +142,7 @@ const LoginScreen: React.FC = () => {
   const { googleSignInUrl } = useAuth();
 
   useEffect(() => {
-    document.title = 'Capsuna · Sign in';
+    document.title = 'Piovra · Sign in';
   }, []);
 
   return (
@@ -151,8 +151,8 @@ const LoginScreen: React.FC = () => {
         <Brand>
           <Logo><IconSpark /></Logo>
           <BrandText>
-            <strong>Capsuna</strong>
-            <span>control panel</span>
+            <strong>Piovra</strong>
+            <span>workspace</span>
           </BrandText>
         </Brand>
 

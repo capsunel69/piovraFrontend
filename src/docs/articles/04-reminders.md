@@ -1,18 +1,16 @@
-# Reminders
+## Reminders
 
-**Route:** `/reminders`
+**Reminders** fire at a specific time so you don’t forget something small or repetitive.
 
-## Features
+## One-time vs repeating
 
-- **One-off reminders** with title, description, and fire **date/time**.
-- **Recurring** options: daily, weekly (pick weekday), monthly (day-of-month or “nth weekday” patterns) depending on the form.
-- **Complete** a firing instance; recurring reminders track **completed instances** and optional **conversion to task** metadata.
-- **Convert to task** when you want a reminder to become actionable work (links reminder ↔ task in the API).
+- **One-off**: pick date and time once.
+- **Repeating**: daily, weekly, or monthly patterns (depending on what the form offers).
 
-## AI integration
+## Converting to a task
 
-- Skills: `piovra.reminders.*`. Snapshot lists active reminders for natural language like “snooze the standup reminder”.
+When something turns into real work, you can **turn a reminder into a task** so it lives with your main list.
 
-## Persistence
+## Completing
 
-- **`/v1/reminders`**. The app may reconcile conversion flags against real tasks after load.
+Mark a reminder **done** when you’ve handled it. Recurring reminders track which times you already cleared.

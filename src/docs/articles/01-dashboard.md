@@ -1,13 +1,12 @@
-# Overview (Dashboard)
+## Home overview
 
-The **home** route (`/`) summarizes your workspace.
+The **first screen** after you sign in gives you a quick picture of your workload.
 
-## What you see
+## What you’ll see
 
-- **Counts / stats** for open tasks, upcoming meetings, reminders, and recent notes (wording depends on current implementation).
-- **Quick links** into Tasks, Meetings, Reminders, and Notes where relevant.
-- Use it as an **at-a-glance** health check before diving into a section.
+- **Numbers or badges** for open tasks, what’s coming up on the calendar, reminders, and recent notes (exact layout may evolve).
+- **Shortcuts** to jump into the right section when something needs attention.
 
-## Date context
+## Why it’s useful
 
-- The layout **clock** and several pages use a shared **“current date”** from app context (updates periodically) so relative labels like “today” stay sensible.
+Glance here before you dive into **Tasks** or **Meetings** so you know where to focus.

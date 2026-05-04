@@ -352,6 +352,8 @@ const Content = styled.main`
   position: relative;
   isolation: isolate;
   -webkit-overflow-scrolling: touch;
+  /* Main column scrolls over the fixed BackgroundFx; keep chrome transparent here. */
+  background: transparent;
 `;
 
 const ContentInner = styled.div`
@@ -421,17 +423,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, [me?.role]);
 
   const currentLabel = useMemo(() => {
-    if (location.pathname === '/docs') return 'Documentation';
+    if (location.pathname === '/docs') return 'Help center';
     const match = navItems.find(n => n.to === location.pathname);
     return match?.label ?? 'Overview';
   }, [location.pathname, navItems]);
 
   useEffect(() => {
-    document.title = `${currentLabel} · Capsuna`;
+    document.title = `${currentLabel} · Piovra`;
   }, [currentLabel]);
 
   const handleLogout = useCallback(() => {
-    if (window.confirm('Sign out of the control panel?')) void signOut();
+    if (window.confirm('Sign out of Piovra?')) void signOut();
   }, [signOut]);
 
   const closeMobileNav = useCallback(() => {
@@ -449,8 +451,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <Brand $collapsed={collapsed}>
             <div className="logo"><IconSpark /></div>
             <div className="name">
-              <strong>Capsuna</strong>
-              <span>control panel</span>
+              <strong>Piovra</strong>
+              <span>workspace</span>
             </div>
           </Brand>
 
@@ -479,9 +481,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               to="/docs"
               $collapsed={collapsed}
               $active={location.pathname === '/docs'}
-              title={collapsed ? 'Documentation' : undefined}
+              title={collapsed ? 'Help' : undefined}
             >
-              <IconBook /> <span className="label">Documentation</span>
+              <IconBook /> <span className="label">Help</span>
             </FooterNavLink>
             <FooterButton
               $collapsed={collapsed}
@@ -542,7 +544,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </Topbar>
 
           <Content>
-            <BackgroundFx />
+            <BackgroundFx sidebarCollapsed={collapsed} />
             <ContentInner>{children}</ContentInner>
           </Content>
         </Main>
@@ -558,7 +560,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         items={navItems}
         activePath={location.pathname}
         footerLinks={[
-          { to: '/docs', label: 'Documentation', icon: IconBook },
+          { to: '/docs', label: 'Help', icon: IconBook },
         ]}
         onLogout={handleLogout}
         logoutIcon={IconLogout}

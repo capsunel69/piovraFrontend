@@ -1,27 +1,24 @@
-# Agents & AI chat
+## Chat bubble
 
-## Agents hub — `/agents`
+Tap the **floating chat** to talk with the assistant. It can use your **tasks, meetings, reminders, notes, and contacts** as context so answers match your real data.
 
-Tabs (URL query `?tab=`):
+You can send **images** on supported setups (there is a per-message limit).
 
-| Tab | Purpose |
-|-----|--------|
-| **Agents** | **Definitions**: model, system prompt, **skills** list, temperature/token limits. |
-| **Instances** | **Instances** of a definition — what actually runs in chat or on a schedule. |
-| **Schedules** | **Cron jobs** that POST input to an instance on a timetable (timezone-aware where configured). |
-| **Reports** | **Outputs** from scheduled runs (markdown-friendly). |
-| **Runs** | **Execution history**: user input, steps (tool calls, results), final assistant text, errors. |
-| **Usage** | **Token / cost** aggregates per model and instance. |
+## Agents section
 
-Definitions and instances are stored in Piovra; the UI uses **`/v1/definitions`**, **`/v1/instances`**, **`/v1/runs`**, **`/v1/jobs`**, **`/v1/usage`**.
+Under **Agents** you’ll find tabs such as:
 
-## Floating chat
+| Area | Plain-English purpose |
+|------|------------------------|
+| **Agents** | The “brain”: instructions and which **tools** it may use. |
+| **Instances** | A **running copy** of that brain you actually chat with or schedule. |
+| **Schedules** | **Automatic** runs on a calendar (like a cron job). |
+| **Reports** | Saved **outputs** from those automatic runs. |
+| **Runs** | **History** of what happened in each conversation—step by step. |
+| **Usage** | Rough **how much** the assistant ran and cost/token hints. |
 
-- Opens from the **chat bubble**; streams **SSE** from **`/v1/orchestrate`**.
-- Sends **workspace snapshot** text each turn (tasks, meetings, reminders, journals, contacts).
-- Supports **images** on capable models (see orchestrate client limits).
-- **Needs consent** events redirect you to Google scope upgrade when a skill lacks OAuth scopes.
+Schedules and advanced edits are usually for **power users** or admins.
 
-## Chat context provider
+## If Google asks for more access
 
-- **`ChatProvider`** wires instance selection, orchestrate calls, and optional **voice** entry points where implemented.
+Some actions (like mail) need **extra Google permissions**. The app will send you through **connect / upgrade** when that happens.
