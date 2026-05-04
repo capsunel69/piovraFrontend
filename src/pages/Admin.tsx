@@ -667,7 +667,7 @@ const Admin: React.FC = () => {
               e.stopPropagation();
             }}
           >
-            <CardHeader>
+            <CardHeader style={{ padding: 'var(--s-5) var(--s-6) var(--s-4)' }}>
               <CardTitle style={{ alignItems: 'center', gap: 'var(--s-3)', flexWrap: 'wrap' }}>
                 <Avatar $src={detailUser.pictureUrl} style={{ width: 48, height: 48 }}>
                   {!detailUser.pictureUrl
@@ -692,6 +692,7 @@ const Admin: React.FC = () => {
                 gap: 'var(--s-5)',
                 maxHeight: 'min(560px, calc(100vh - 200px))',
                 overflowY: 'auto',
+                padding: 'var(--s-4) var(--s-6) var(--s-6)',
               }}
             >
               <DetailSection>
