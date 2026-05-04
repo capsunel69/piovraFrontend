@@ -348,10 +348,6 @@ const DetailSectionTitle = styled.div`
   color: var(--text-3);
 `;
 
-const UserModalPanel = styled(ModalPanel)`
-  width: min(640px, 100%);
-`;
-
 const EmptyHint = styled.div`
   padding: var(--s-6);
   text-align: center;
@@ -377,6 +373,10 @@ const ModalPanel = styled(Card)`
   max-height: min(720px, calc(100vh - var(--s-10)));
   display: flex;
   flex-direction: column;
+`;
+
+const UserModalPanel = styled(ModalPanel)`
+  width: min(640px, 100%);
 `;
 
 const SkillCheckRow = styled.label`
