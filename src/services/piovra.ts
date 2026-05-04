@@ -147,6 +147,37 @@ export interface JobCreate {
 
 export type JobPatch = Partial<Omit<JobCreate, 'instanceId'>>;
 
+export interface WhatsAppStatus {
+  disclosure: string;
+  scanReminder: string;
+  requiresConsentForQrPairing: boolean;
+  connected: boolean;
+  pairingActive: boolean;
+  qrDataUrl: string | null;
+}
+
+export class WhatsAppConsentRequiredError extends Error {
+  readonly disclosure: string;
+  constructor(disclosure: string) {
+    super('Consent required to start WhatsApp pairing.');
+    this.disclosure = disclosure;
+  }
+}
+
+export interface WhatsAppAutoreplySettings {
+  enabled: boolean;
+  instanceId: string | null;
+  replyPrompt: string;
+  dmOnly: boolean;
+  allowFrom: string[];
+  cooldownSeconds: number;
+  updatedAt?: string;
+}
+
+export type WhatsAppAutoreplyPatch = Partial<
+  Omit<WhatsAppAutoreplySettings, 'updatedAt'>
+>;
+
 export interface ChatHistoryMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -250,6 +281,31 @@ export const PiovraAPI = {
     sendJson(`/jobs/${id}`, 'PATCH', body),
   deleteJob: (id: string): Promise<void> => sendJson(`/jobs/${id}`, 'DELETE'),
   runJobNow: (id: string): Promise<{ ok: true }> => sendJson(`/jobs/${id}/run`, 'POST'),
+
+  getWhatsAppStatus: (): Promise<WhatsAppStatus> => getJson('/me/whatsapp'),
+  startWhatsAppPairing: async (opts: { consentAcknowledged: boolean }): Promise<void> => {
+    const res = await fetch(`${BASE_URL}/me/whatsapp/pairing`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ consentAcknowledged: opts.consentAcknowledged }),
+    });
+    if (res.status === 428) {
+      const body = (await res.json().catch(() => ({}))) as { disclosure?: string };
+      throw new WhatsAppConsentRequiredError(body.disclosure ?? '');
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(text || `Piovra POST /me/whatsapp/pairing -> ${res.status}`);
+    }
+  },
+  disconnectWhatsApp: (): Promise<{ ok: true }> => sendJson('/me/whatsapp/disconnect', 'POST'),
+  getWhatsAppAutoreply: (): Promise<WhatsAppAutoreplySettings> =>
+    getJson('/me/whatsapp/autoreply'),
+  updateWhatsAppAutoreply: (
+    patch: WhatsAppAutoreplyPatch,
+  ): Promise<WhatsAppAutoreplySettings> =>
+    sendJson('/me/whatsapp/autoreply', 'PUT', patch),
 
   /**
    * Start an orchestration turn and stream events.

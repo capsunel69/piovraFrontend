@@ -4,16 +4,17 @@ import { useSearchParams } from 'react-router-dom';
 import {
   PageContainer, PageHeader, PageTitle, PageSubtitle,
 } from '../components/ui/primitives';
-import { IconBot, IconTerminal, IconClock, IconSettings, IconSend, IconNote, IconSpark } from '../components/ui/icons';
+import { IconBot, IconTerminal, IconClock, IconSettings, IconSend, IconNote, IconSpark, IconChat } from '../components/ui/icons';
 import DefinitionsList from '../components/agents/DefinitionsList';
 import InstancesList from '../components/agents/InstancesList';
 import RunsList from '../components/agents/RunsList';
 import JobsList from '../components/agents/JobsList';
 import ReportsList from '../components/agents/ReportsList';
 import UsagePanel from '../components/agents/UsagePanel';
+import WhatsAppPanel from '../components/agents/WhatsAppPanel';
 import { useChat } from '../context/ChatContext';
 
-type Tab = 'agents' | 'instances' | 'schedules' | 'reports' | 'runs' | 'usage';
+type Tab = 'agents' | 'instances' | 'schedules' | 'reports' | 'runs' | 'usage' | 'whatsapp';
 
 const TABS: {
   id: Tab;
@@ -27,6 +28,7 @@ const TABS: {
   { id: 'reports',   label: 'Reports',   icon: IconNote,     hint: 'Outputs from scheduled agent runs'  },
   { id: 'runs',      label: 'Runs',      icon: IconTerminal, hint: 'Full execution history with steps'  },
   { id: 'usage',     label: 'Usage',     icon: IconSpark,    hint: 'Token consumption + estimated cost per model and instance' },
+  { id: 'whatsapp',  label: 'WhatsApp',  icon: IconChat,     hint: 'Pair WhatsApp via QR code so agents can read chats and send replies'    },
 ];
 
 const isTab = (v: string | null): v is Tab => !!v && TABS.some((t) => t.id === v);
@@ -198,6 +200,7 @@ const Agents: React.FC = () => {
       case 'reports':   return <ReportsList />;
       case 'runs':      return <RunsList />;
       case 'usage':     return <UsagePanel />;
+      case 'whatsapp':  return <WhatsAppPanel />;
     }
   }, [tab]);
 

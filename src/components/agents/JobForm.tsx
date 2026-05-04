@@ -63,6 +63,16 @@ const PresetRow = styled.div`
   margin-top: 6px;
 `;
 
+const PromptHint = styled.div`
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.5;
+
+  strong { color: var(--text-2); font-weight: 600; }
+  em { color: var(--text-2); font-style: italic; }
+`;
+
 const PresetChip = styled.button`
   background: var(--bg-1);
   border: 1px solid var(--border-1);
@@ -251,6 +261,13 @@ const JobForm: React.FC<JobFormProps> = ({
             required
             placeholder="Give me today's agenda and any overdue tasks."
           />
+          <PromptHint>
+            This text is sent to the agent on every run. The agent's <strong>system prompt</strong>
+            (set on its definition) controls personality and rules; this <strong>input</strong>{' '}
+            says <em>what to do this run</em>. For a WhatsApp digest, describe which chats matter,
+            the tone, and the length — e.g. "Summarise unread family-group messages from the last
+            24h, three bullet points per chat, neutral tone."
+          </PromptHint>
         </Field>
 
         <Field>
