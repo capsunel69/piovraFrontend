@@ -48,24 +48,44 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
   journalsRef.current = journals;
 
   /**
-   * Watch each agent step. When the agent calls a `capsuna.*` mutation skill
-   * (anything except `.list`) and gets a successful tool_result back, refresh
-   * the matching resource so the rest of the UI shows the change live.
+   * Watch each agent step. When the agent calls a Piovra workspace mutation
+   * skill (anything except `.list`) and gets a successful tool_result back,
+   * refresh the matching resource so the rest of the UI shows the change live.
    *
-   * Note: the AI SDK normalises skill ids by replacing dots with underscores
-   * (so `capsuna.tasks.create` arrives as `capsuna_tasks_create`). We compare
-   * on the normalised form to keep things robust either way.
+   * Note: the AI SDK normalises skill ids by replacing dots with underscores.
+   * We still match legacy `capsuna_*` step ids for older runs.
    */
   const reactToStep = useCallback(
     (step: AgentStep): void => {
       if (step.kind !== 'tool_result') return;
       const skill = (step.skill ?? '').replace(/\./g, '_');
-      if (!skill.startsWith('capsuna_')) return;
+      const workspace =
+        skill.startsWith('piovra_') ||
+        skill.startsWith('capsuna_');
+      if (!workspace) return;
       if (skill.endsWith('_list')) return;
-      if (skill.startsWith('capsuna_tasks_')) void refreshTasks();
-      else if (skill.startsWith('capsuna_meetings_')) void refreshMeetings();
-      else if (skill.startsWith('capsuna_reminders_')) void refreshReminders();
-      else if (skill.startsWith('capsuna_notes_') || skill.startsWith('capsuna_journals_')) void refreshJournals();
+      if (
+        skill.startsWith('piovra_tasks_') ||
+        skill.startsWith('capsuna_tasks_')
+      )
+        void refreshTasks();
+      else if (
+        skill.startsWith('piovra_meetings_') ||
+        skill.startsWith('capsuna_meetings_')
+      )
+        void refreshMeetings();
+      else if (
+        skill.startsWith('piovra_reminders_') ||
+        skill.startsWith('capsuna_reminders_')
+      )
+        void refreshReminders();
+      else if (
+        skill.startsWith('piovra_notes_') ||
+        skill.startsWith('capsuna_notes_') ||
+        skill.startsWith('piovra_journals_') ||
+        skill.startsWith('capsuna_journals_')
+      )
+        void refreshJournals();
     },
     [refreshTasks, refreshMeetings, refreshReminders, refreshJournals],
   );
