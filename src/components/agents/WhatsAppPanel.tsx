@@ -22,6 +22,7 @@ import {
   WhatsAppConsentRequiredError,
   type AgentInstance,
   type WhatsAppAutoreplySettings,
+  type WhatsAppCachePreview,
   type WhatsAppStatus,
 } from '../../services/piovra';
 
@@ -175,7 +176,45 @@ const ToggleRow = styled.label`
   }
 `;
 
+const CacheChatCard = styled.div`
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-md);
+  padding: var(--s-3) var(--s-4);
+  background: var(--bg-1);
+`;
+
+const CacheJid = styled.div`
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  word-break: break-all;
+  margin-top: 4px;
+`;
+
+const CacheMsg = styled.div`
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 6px;
+  padding-left: var(--s-3);
+  border-left: 2px solid var(--border-1);
+  font-family: var(--font-mono);
+`;
+
 const POLL_MS = 2_000;
+const CACHE_POLL_MS = 12_000;
+
+function formatWaTs(ts: number): string {
+  if (!ts || ts <= 0) return '—';
+  const ms = ts > 10_000_000_000 ? ts : ts * 1000;
+  try {
+    return new Date(ms).toLocaleString(undefined, {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+  } catch {
+    return '—';
+  }
+}
 
 const WhatsAppPanel: React.FC = () => {
   const [status, setStatus] = useState<WhatsAppStatus | null>(null);
@@ -188,6 +227,8 @@ const WhatsAppPanel: React.FC = () => {
   const [allowFromText, setAllowFromText] = useState('');
   /** True after POST pairing until connected, QR visible, cancel, or error — bridges brief socket gaps. */
   const [pairingStarted, setPairingStarted] = useState(false);
+  const [cachePreview, setCachePreview] = useState<WhatsAppCachePreview | null>(null);
+  const [cacheBusy, setCacheBusy] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async (): Promise<WhatsAppStatus | null> => {
@@ -216,6 +257,29 @@ const WhatsAppPanel: React.FC = () => {
       setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
+
+  const loadCachePreview = useCallback(async (): Promise<void> => {
+    if (!status?.connected) return;
+    setCacheBusy(true);
+    try {
+      const data = await PiovraAPI.getWhatsAppCachePreview();
+      setCachePreview(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCacheBusy(false);
+    }
+  }, [status?.connected]);
+
+  useEffect(() => {
+    if (!status?.connected) {
+      setCachePreview(null);
+      return;
+    }
+    void loadCachePreview();
+    const id = window.setInterval(() => void loadCachePreview(), CACHE_POLL_MS);
+    return () => clearInterval(id);
+  }, [status?.connected, loadCachePreview]);
 
   useEffect(() => {
     void refresh();
@@ -495,6 +559,12 @@ const WhatsAppPanel: React.FC = () => {
         </CardSubtle>
       </CardHeader>
 
+      {status.pairingIssue ? (
+        <Section>
+          <ErrorBox>{status.pairingIssue}</ErrorBox>
+        </Section>
+      ) : null}
+
       {status.connected ? (
         <>
           <Section>
@@ -547,6 +617,79 @@ const WhatsAppPanel: React.FC = () => {
                 cron-driven jobs.
               </li>
             </HelpList>
+          </Section>
+
+          <Section>
+            <CardTitle as="h4">
+              <IconChat />
+              Live cache preview
+            </CardTitle>
+            <Intro>
+              Rolling buffer Piovra keeps for <code>whatsapp.chats.list</code> and{' '}
+              <code>whatsapp.messages.list</code> on this server (not full WhatsApp history).
+              Refreshes every ~{CACHE_POLL_MS / 1000}s while connected.
+            </Intro>
+            <StatusRow>
+              <Button
+                type="button"
+                $variant="secondary"
+                $size="sm"
+                onClick={() => void loadCachePreview()}
+                disabled={cacheBusy || !status.connected}
+              >
+                <IconRefresh />
+                Refresh preview
+              </Button>
+              {cachePreview?.connected ? (
+                <CardSubtle>
+                  {cachePreview.totals.chatCount} chats · {cachePreview.totals.messageCount}{' '}
+                  cached messages
+                </CardSubtle>
+              ) : null}
+              {cacheBusy ? (
+                <CardSubtle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Spinner /> Updating…
+                </CardSubtle>
+              ) : null}
+            </StatusRow>
+            {cachePreview?.note ? <SmallNote>{cachePreview.note}</SmallNote> : null}
+            {cachePreview?.connected && cachePreview.chats.length === 0 ? (
+              <SmallNote>
+                Nothing cached yet — history sync can take a minute after linking. Send a test DM
+                from another phone.
+              </SmallNote>
+            ) : null}
+            {cacheBusy && !cachePreview ? (
+              <SmallNote>Loading preview…</SmallNote>
+            ) : null}
+            <Stack $gap={3}>
+              {(cachePreview?.chats ?? []).map((c) => (
+                <CacheChatCard key={c.jid}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>
+                    {c.name ?? '(unnamed chat)'}{' '}
+                    <Badge>{c.isGroup ? 'group' : 'dm'}</Badge>
+                    {c.unreadCount > 0 ? (
+                      <Badge style={{ marginLeft: 6 }}>{c.unreadCount} unread</Badge>
+                    ) : null}
+                  </div>
+                  <CacheJid>{c.jid}</CacheJid>
+                  <SmallNote style={{ marginTop: 8 }}>
+                    {c.cachedMessageCount} messages cached · last activity{' '}
+                    {formatWaTs(c.lastMessageAt ?? 0)}
+                  </SmallNote>
+                  {c.recent.map((m) => (
+                    <CacheMsg key={m.id}>
+                      <span style={{ color: 'var(--text-3)' }}>
+                        {formatWaTs(m.timestamp)} · {m.fromMe ? 'you' : m.senderLabel ?? 'them'}
+                        {m.contentKind !== 'text' ? ` · [${m.contentKind}]` : ''}
+                      </span>
+                      <br />
+                      {m.textPreview ?? `(${m.contentKind})`}
+                    </CacheMsg>
+                  ))}
+                </CacheChatCard>
+              ))}
+            </Stack>
           </Section>
         </>
       ) : (status.pairingActive || pairingStarted) && status.qrDataUrl ? (

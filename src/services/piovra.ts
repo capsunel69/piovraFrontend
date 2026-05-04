@@ -154,6 +154,34 @@ export interface WhatsAppStatus {
   connected: boolean;
   pairingActive: boolean;
   qrDataUrl: string | null;
+  /** Server-side hint when pairing fails (e.g. datacenter IP blocked). */
+  pairingIssue: string | null;
+}
+
+export interface WhatsAppCachePreviewRow {
+  id: string;
+  fromMe: boolean;
+  textPreview: string | null;
+  contentKind: string;
+  timestamp: number;
+  senderLabel: string | null;
+}
+
+export interface WhatsAppCachePreviewChat {
+  jid: string;
+  name: string | null;
+  isGroup: boolean;
+  unreadCount: number;
+  lastMessageAt: number | null;
+  cachedMessageCount: number;
+  recent: WhatsAppCachePreviewRow[];
+}
+
+export interface WhatsAppCachePreview {
+  connected: boolean;
+  note: string;
+  totals: { chatCount: number; messageCount: number };
+  chats: WhatsAppCachePreviewChat[];
 }
 
 export class WhatsAppConsentRequiredError extends Error {
@@ -283,6 +311,7 @@ export const PiovraAPI = {
   runJobNow: (id: string): Promise<{ ok: true }> => sendJson(`/jobs/${id}/run`, 'POST'),
 
   getWhatsAppStatus: (): Promise<WhatsAppStatus> => getJson('/me/whatsapp'),
+  getWhatsAppCachePreview: (): Promise<WhatsAppCachePreview> => getJson('/me/whatsapp/cache'),
   startWhatsAppPairing: async (opts: { consentAcknowledged: boolean }): Promise<void> => {
     const res = await fetch(`${BASE_URL}/me/whatsapp/pairing`, {
       method: 'POST',
