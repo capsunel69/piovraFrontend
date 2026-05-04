@@ -7,13 +7,15 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { loading, isAuthenticated } = useAuth();
 
+  if (loading) {
+    return null;
+  }
   if (!isAuthenticated) {
     return <LoginScreen />;
   }
-
   return <>{children}</>;
 };
 
-export default ProtectedRoute; 
+export default ProtectedRoute;

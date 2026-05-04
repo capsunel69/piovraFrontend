@@ -9,6 +9,7 @@ import Meetings from './pages/Meetings';
 import Reminders from './pages/Reminders';
 import Notes from './pages/Notes';
 import Agents from './pages/Agents';
+import Admin from './pages/Admin';
 import Timer from './components/timer/Timer';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { ToastProvider } from './components/ui/Toast';
@@ -30,6 +31,7 @@ function App() {
                     <Route path="/reminders" element={<Reminders />} />
                     <Route path="/notes" element={<Notes />} />
                     <Route path="/agents" element={<Agents />} />
+                    <Route path="/admin" element={<Admin />} />
                   </Routes>
                 </Layout>
               </ProtectedRoute>

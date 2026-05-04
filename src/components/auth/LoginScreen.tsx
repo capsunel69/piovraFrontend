@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useAuth } from '../../context/AuthContext';
-import { Button, Input } from '../ui/primitives';
-import { IconLock, IconSpark, IconAlert } from '../ui/icons';
+import { Button } from '../ui/primitives';
+import { IconLock, IconSpark } from '../ui/icons';
 
 const pulseGlow = keyframes`
   0%, 100% { box-shadow: 0 0 30px rgba(76,194,255,0.25), inset 0 0 0 1px rgba(76,194,255,0.2); }
@@ -93,10 +93,28 @@ const Sub = styled.p`
   margin: 0 0 var(--s-5) 0;
 `;
 
-const Form = styled.form`
+const GoogleButton = styled.a`
   display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-md);
+  color: var(--text-1);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    background: var(--bg-4, rgba(255, 255, 255, 0.04));
+    border-color: var(--accent);
+  }
+
+  svg { width: 18px; height: 18px; }
 `;
 
 const Mono = styled.div`
@@ -120,37 +138,8 @@ const Mono = styled.div`
   }
 `;
 
-const ErrorBox = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: var(--danger-soft);
-  border: 1px solid rgba(255,93,108,0.25);
-  border-radius: var(--r-sm);
-  color: var(--danger);
-  font-size: 12px;
-  font-weight: 500;
-
-  svg { width: 14px; height: 14px; }
-`;
-
 const LoginScreen: React.FC = () => {
-  const { login } = useAuth();
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [attempts, setAttempts] = useState(0);
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const ok = login(password);
-    if (!ok) {
-      setAttempts(a => a + 1);
-      setError(`Authentication failed (${attempts + 1}/3)`);
-      setPassword('');
-      setTimeout(() => setError(''), 3000);
-    }
-  };
+  const { googleSignInUrl } = useAuth();
 
   useEffect(() => {
     document.title = 'Capsuna · Sign in';
@@ -167,28 +156,45 @@ const LoginScreen: React.FC = () => {
           </BrandText>
         </Brand>
 
-        <Heading><IconLock /> Authenticate</Heading>
-        <Sub>Enter your access key to enter the control panel.</Sub>
+        <Heading><IconLock /> Sign in</Heading>
+        <Sub>Sign in with your Google account to access the workspace.</Sub>
 
-        <Form onSubmit={submit}>
-          <Input
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="Access key"
-            autoFocus
-          />
-          {error && <ErrorBox><IconAlert /> {error}</ErrorBox>}
-          <Button $variant="primary" type="submit" $block>Continue</Button>
-        </Form>
+        <GoogleButton href={googleSignInUrl}>
+          <GoogleIcon />
+          Continue with Google
+        </GoogleButton>
 
         <Mono>
           <span><span className="dot" />SECURE LINK</span>
-          <span>v1.0 · CPS-{Math.random().toString(36).slice(2, 8).toUpperCase()}</span>
+          <span>v2.0 · piovra</span>
         </Mono>
       </Panel>
     </Stage>
   );
 };
+
+const GoogleIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+    <path
+      fill="#4285F4"
+      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 0 1-2.2 3.32v2.77h3.55c2.08-1.92 3.29-4.74 3.29-8.1Z"
+    />
+    <path
+      fill="#34A853"
+      d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.55-2.77c-.99.66-2.25 1.05-3.73 1.05-2.87 0-5.3-1.94-6.16-4.55H2.18v2.86A11 11 0 0 0 12 23Z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M5.84 14.08A6.6 6.6 0 0 1 5.5 12c0-.72.13-1.42.34-2.08V7.06H2.18A11 11 0 0 0 1 12c0 1.77.43 3.45 1.18 4.94l3.66-2.86Z"
+    />
+    <path
+      fill="#EA4335"
+      d="M12 5.38c1.62 0 3.07.56 4.21 1.64l3.15-3.15C17.45 2.07 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.86C6.7 7.32 9.13 5.38 12 5.38Z"
+    />
+  </svg>
+);
+
+// Stop unused-import warning if we ever need Button elsewhere.
+export { Button };
 
 export default LoginScreen;

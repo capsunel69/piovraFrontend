@@ -11,7 +11,7 @@ import MobileNav, { type MobileNavItem } from './MobileNav';
 import {
   IconDashboard, IconTasks, IconCalendar, IconBell, IconNote,
   IconLogout, IconChevronLeft, IconSpark, IconClock, IconBot,
-  IconMenu,
+  IconMenu, IconLock,
 } from '../ui/icons';
 import { IconButton } from '../ui/primitives';
 
@@ -356,7 +356,7 @@ const StickyLayer = styled.div`
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
-  const { logout } = useAuth();
+  const { signOut, me } = useAuth();
   const { currentDate, setCurrentDate } = useAppContext();
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     return localStorage.getItem('sidebarCollapsed') === '1';
@@ -391,18 +391,25 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return () => window.removeEventListener('resize', onResize);
   }, [mobileNavOpen]);
 
+  const navItems = useMemo<MobileNavItem[]>(() => {
+    if (me?.role === 'admin') {
+      return [...NAV_PRIMARY, { to: '/admin', label: 'Admin', icon: IconLock }];
+    }
+    return NAV_PRIMARY;
+  }, [me?.role]);
+
   const currentLabel = useMemo(() => {
-    const match = NAV_PRIMARY.find(n => n.to === location.pathname);
+    const match = navItems.find(n => n.to === location.pathname);
     return match?.label ?? 'Overview';
-  }, [location.pathname]);
+  }, [location.pathname, navItems]);
 
   useEffect(() => {
     document.title = `${currentLabel} · Capsuna`;
   }, [currentLabel]);
 
   const handleLogout = useCallback(() => {
-    if (window.confirm('Sign out of the control panel?')) logout();
-  }, [logout]);
+    if (window.confirm('Sign out of the control panel?')) void signOut();
+  }, [signOut]);
 
   const closeMobileNav = useCallback(() => {
     setMobileNavOpen(false);
@@ -426,7 +433,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
           <SidebarSectionLabel $collapsed={collapsed}>Workspace</SidebarSectionLabel>
           <Nav>
-            {NAV_PRIMARY.map(item => {
+            {navItems.map(item => {
               const Icon = item.icon;
               const active = location.pathname === item.to;
               return (
@@ -482,10 +489,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </Crumbs>
             </TopbarLeft>
             <TopbarRight>
-              <StatusPill>
-                <span className="dot" />
-                <span>SYSTEMS NOMINAL</span>
-              </StatusPill>
+              {me && (
+                <StatusPill title={me.email}>
+                  {me.pictureUrl && (
+                    <img
+                      src={me.pictureUrl}
+                      alt=""
+                      style={{ width: 16, height: 16, borderRadius: 999 }}
+                    />
+                  )}
+                  <span>{me.name ?? me.email}</span>
+                </StatusPill>
+              )}
               <Clock>
                 <IconClock />
                 <span className="day">{format(currentDate, 'EEE, MMM d')}</span>
@@ -509,7 +524,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <MobileNav
         open={mobileNavOpen}
         onClose={closeMobileNav}
-        items={NAV_PRIMARY}
+        items={navItems}
         activePath={location.pathname}
         onLogout={handleLogout}
         logoutIcon={IconLogout}

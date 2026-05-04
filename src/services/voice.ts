@@ -1,16 +1,17 @@
 /**
- * Voice client for the piovra orchestrator.
+ * Voice client for the Piovra orchestrator.
  *
- * Endpoints (proxied through Netlify, same as the rest of the API):
- *   GET  /voice/capabilities    -> { stt: { available, ... }, tts: { ... } }
- *   POST /voice/stt             -> { text }   (raw audio body, content-type = mime)
- *   POST /voice/tts             -> audio/*   (JSON body { text, voice?, ... })
+ * Endpoints (auth via session cookie):
+ *   GET  /v1/voice/capabilities    -> { stt: { available, ... }, tts: { ... } }
+ *   POST /v1/voice/stt             -> { text }   (raw audio body, content-type = mime)
+ *   POST /v1/voice/tts             -> audio/*   (JSON body { text, voice?, ... })
  *
  * STT is OpenAI's `gpt-4o-mini-transcribe`.
  * TTS is ElevenLabs (defaults to the Anca / Leon voices configured server-side).
  */
 
-const BASE_URL = import.meta.env.VITE_PIOVRA_PROXY_URL ?? '/api/piovra';
+const PIOVRA_BASE_URL = (import.meta.env.VITE_PIOVRA_BASE_URL as string | undefined) ?? '';
+const BASE_URL = `${PIOVRA_BASE_URL}/v1`;
 
 export type VoiceGender = 'feminine' | 'masculine' | 'neutral';
 
@@ -63,7 +64,7 @@ export interface TtsOptions {
 
 export const VoiceAPI = {
   async getCapabilities(signal?: AbortSignal): Promise<VoiceCapabilities> {
-    const res = await fetch(`${BASE_URL}/voice/capabilities`, { signal });
+    const res = await fetch(`${BASE_URL}/voice/capabilities`, { signal, credentials: 'include' });
     if (!res.ok) throw new Error(`Voice capabilities -> ${res.status}`);
     return (await res.json()) as VoiceCapabilities;
   },
@@ -72,6 +73,7 @@ export const VoiceAPI = {
     const qs = opts?.language ? `?language=${encodeURIComponent(opts.language)}` : '';
     const res = await fetch(`${BASE_URL}/voice/stt${qs}`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': audio.type || 'audio/webm' },
       body: audio,
       signal: opts?.signal,
@@ -88,6 +90,7 @@ export const VoiceAPI = {
     const { signal, ...body } = opts;
     const res = await fetch(`${BASE_URL}/voice/tts`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal,

@@ -1,16 +1,17 @@
 /**
- * Thin client for the piovra orchestrator running on the VPS.
+ * Thin client for the Piovra orchestrator.
  *
- * All requests go through a Netlify proxy function (see
- * `netlify/functions/piovra-proxy.js`) so the shared-secret
- * `PIOVRA_API_KEY` never lives in the browser bundle.
+ * All requests target Piovra directly (cross-origin if needed) and rely on
+ * the `piovra_sid` session cookie set by the Google OAuth flow. No
+ * shared-secret API key in the browser anymore.
  *
- * This file intentionally has no UI dependencies — it mirrors the
- * structure of `src/services/api.ts`. The Agents Hub UI (Definitions,
- * Instances, Schedules, Runs, Reports) is built on top of these calls.
+ * This file intentionally has no UI dependencies — it mirrors the structure
+ * of `src/services/api.ts`. The Agents Hub UI (Definitions, Instances,
+ * Schedules, Runs, Reports) is built on top of these calls.
  */
 
-const BASE_URL = import.meta.env.VITE_PIOVRA_PROXY_URL ?? '/api/piovra';
+const PIOVRA_BASE_URL = (import.meta.env.VITE_PIOVRA_BASE_URL as string | undefined) ?? '';
+const BASE_URL = `${PIOVRA_BASE_URL}/v1`;
 
 export type AgentStatus = 'idle' | 'running' | 'paused' | 'error';
 export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
@@ -185,7 +186,7 @@ export interface OrchestrateOptions {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`);
+  const res = await fetch(`${BASE_URL}${path}`, { credentials: 'include' });
   if (!res.ok) throw new Error(`Piovra GET ${path} -> ${res.status}`);
   return res.json();
 }
@@ -197,6 +198,7 @@ async function sendJson<T>(
 ): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
+    credentials: 'include',
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -288,6 +290,7 @@ export const PiovraAPI = {
 
       const res = await fetch(`${BASE_URL}/orchestrate`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
         body: JSON.stringify({
           input: opts.input,

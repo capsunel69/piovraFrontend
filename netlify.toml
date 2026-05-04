@@ -1,19 +1,11 @@
 [build]
   command = "npm run build"
   publish = "dist"
-  functions = "netlify/functions"
 
 [dev]
   command = "npm run dev"
-  functions = "netlify/functions"
   publish = "dist"
 
-[functions]
-  node_bundler = "esbuild"
-  external_node_modules = ["mongoose", "mongodb", "mongodb-connection-string-url", "whatwg-url", "tr46", "webidl-conversions"]
-
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-  force = true 
+# All API calls now go directly to Piovra (configured via VITE_PIOVRA_BASE_URL).
+# No Netlify functions, no MongoDB. Auth is via the piovra_sid cookie set by
+# the Google OAuth flow at /auth/google.
