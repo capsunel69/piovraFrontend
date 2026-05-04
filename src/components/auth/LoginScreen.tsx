@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../ui/primitives';
-import { IconLock, IconSpark } from '../ui/icons';
+import { IconLock } from '../ui/icons';
+import { AppLogoMark } from '../layout/AppLogoMark';
 
 const pulseGlow = keyframes`
   0%, 100% { box-shadow: 0 0 30px rgba(76,194,255,0.25), inset 0 0 0 1px rgba(76,194,255,0.2); }
@@ -57,12 +58,11 @@ const Logo = styled.div`
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, var(--accent), var(--purple));
-  color: #06121d;
+  overflow: hidden;
+  flex-shrink: 0;
+  line-height: 0;
 
-  svg { width: 22px; height: 22px; }
+  img { display: block; width: 100%; height: 100%; object-fit: cover; }
 `;
 
 const BrandText = styled.div`
@@ -149,7 +149,7 @@ const LoginScreen: React.FC = () => {
     <Stage>
       <Panel>
         <Brand>
-          <Logo><IconSpark /></Logo>
+          <Logo><AppLogoMark size={40} /></Logo>
           <BrandText>
             <strong>Piovra</strong>
             <span>workspace</span>

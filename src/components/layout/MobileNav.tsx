@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { IconButton } from '../ui/primitives';
-import { IconSpark, IconX } from '../ui/icons';
+import { IconX } from '../ui/icons';
+import { AppLogoMark } from './AppLogoMark';
 
 /**
  * Always-mounted, portal-rendered mobile navigation drawer.
@@ -66,13 +67,11 @@ const Brand = styled.div`
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    display: grid;
-    place-items: center;
-    background: linear-gradient(135deg, var(--accent, #4cc2ff), var(--purple, #b58aff));
-    color: #06121d;
+    overflow: hidden;
     flex-shrink: 0;
+    line-height: 0;
 
-    svg { width: 18px; height: 18px; }
+    img { display: block; width: 100%; height: 100%; object-fit: cover; }
   }
 
   .name {
@@ -283,7 +282,7 @@ const MobileNav: React.FC<MobileNavProps> = ({
         aria-label="Primary navigation"
       >
         <Brand>
-          <div className="logo"><IconSpark /></div>
+          <div className="logo"><AppLogoMark size={32} /></div>
           <div className="name">
             <strong>Piovra</strong>
             <span>workspace</span>

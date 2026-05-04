@@ -1,7 +1,18 @@
 {
-  "name": "Piovra",
+  "name": "Piovra · Workspace",
   "short_name": "Piovra",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#07090d",
+  "background_color": "#07090d",
   "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
     {
       "src": "/android-chrome-192x192.png",
       "sizes": "192x192",
@@ -12,8 +23,5 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ],
-  "theme_color": "#07090d",
-  "background_color": "#07090d",
-  "display": "standalone"
+  ]
 }

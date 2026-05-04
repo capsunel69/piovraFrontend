@@ -8,9 +8,10 @@ import { useRegisterOverlay } from '../../hooks/useOverlayStack';
 import BackgroundFx from './BackgroundFx';
 import ChatWidget from '../chat/ChatWidget';
 import MobileNav, { type MobileNavItem } from './MobileNav';
+import { AppLogoMark } from './AppLogoMark';
 import {
   IconDashboard, IconTasks, IconCalendar, IconBell, IconNote, IconContacts,
-  IconLogout, IconChevronLeft, IconSpark, IconClock, IconBot,
+  IconLogout, IconChevronLeft, IconClock, IconBot,
   IconMenu, IconLock, IconBook,
 } from '../ui/icons';
 import { IconButton } from '../ui/primitives';
@@ -78,14 +79,12 @@ const Brand = styled.div<{ $collapsed: boolean }>`
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    display: grid;
-    place-items: center;
-    background: linear-gradient(135deg, var(--accent), var(--purple));
-    color: #06121d;
+    overflow: hidden;
     flex-shrink: 0;
-    box-shadow: 0 0 24px var(--accent-glow);
+    line-height: 0;
+    box-shadow: 0 0 20px var(--accent-glow);
 
-    svg { width: 18px; height: 18px; }
+    img { display: block; width: 100%; height: 100%; object-fit: cover; }
   }
 
   .name {
@@ -449,7 +448,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <Shell $collapsed={collapsed}>
         <Sidebar aria-label="Primary navigation">
           <Brand $collapsed={collapsed}>
-            <div className="logo"><IconSpark /></div>
+            <div className="logo"><AppLogoMark size={32} /></div>
             <div className="name">
               <strong>Piovra</strong>
               <span>workspace</span>
