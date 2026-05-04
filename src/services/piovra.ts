@@ -224,7 +224,7 @@ async function getJson<T>(path: string): Promise<T> {
 
 async function sendJson<T>(
   path: string,
-  method: 'POST' | 'PATCH' | 'DELETE',
+  method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
   body?: unknown,
 ): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
