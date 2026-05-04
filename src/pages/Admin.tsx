@@ -233,36 +233,23 @@ const UserText = styled.div`
   }
 `;
 
-const StatStrip = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-`;
-
-const MiniStat = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 10px;
-  min-width: 72px;
-  background: var(--bg-3);
-  border: 1px solid var(--border-1);
-  border-radius: var(--r-sm);
-`;
-
-const MiniStatLabel = styled.span`
-  font-size: 9px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+const WorkspaceCounts = styled.div`
+  font-size: 12px;
+  line-height: 1.35;
   color: var(--text-3);
-`;
+  white-space: nowrap;
 
-const MiniStatVal = styled.span`
-  font-size: 14px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-1);
+  .n {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-1);
+  }
+
+  .sep {
+    margin: 0 5px;
+    opacity: 0.4;
+    user-select: none;
+  }
 `;
 
 const UsageCell = styled.div`
@@ -290,15 +277,11 @@ const MetaMuted = styled.span`
 
 const ActionsStack = styled.div`
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 6px;
-  align-items: stretch;
-
-  @media (min-width: 1100px) {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
+  justify-content: flex-end;
+  align-items: center;
 `;
 
 const EmptyHint = styled.div`
@@ -583,28 +566,35 @@ const Admin: React.FC = () => {
                         </Stack>
                       </td>
                       <td>
-                        <StatStrip>
-                          <MiniStat title="Tasks">
-                            <MiniStatLabel>Tasks</MiniStatLabel>
-                            <MiniStatVal>{u.taskCount}</MiniStatVal>
-                          </MiniStat>
-                          <MiniStat title="Reminders">
-                            <MiniStatLabel>Reminders</MiniStatLabel>
-                            <MiniStatVal>{u.reminderCount}</MiniStatVal>
-                          </MiniStat>
-                          <MiniStat title="Meetings">
-                            <MiniStatLabel>Meetings</MiniStatLabel>
-                            <MiniStatVal>{u.meetingCount}</MiniStatVal>
-                          </MiniStat>
-                          <MiniStat title="Journals">
-                            <MiniStatLabel>Journals</MiniStatLabel>
-                            <MiniStatVal>{u.journalCount}</MiniStatVal>
-                          </MiniStat>
-                          <MiniStat title="Notes">
-                            <MiniStatLabel>Notes</MiniStatLabel>
-                            <MiniStatVal>{u.noteCount}</MiniStatVal>
-                          </MiniStat>
-                        </StatStrip>
+                        <WorkspaceCounts>
+                          <span title="Tasks">
+                            <span className="n">{u.taskCount}</span> tasks
+                          </span>
+                          <span className="sep" aria-hidden>
+                            ·
+                          </span>
+                          <span title="Reminders">
+                            <span className="n">{u.reminderCount}</span> rem
+                          </span>
+                          <span className="sep" aria-hidden>
+                            ·
+                          </span>
+                          <span title="Meetings">
+                            <span className="n">{u.meetingCount}</span> mtg
+                          </span>
+                          <span className="sep" aria-hidden>
+                            ·
+                          </span>
+                          <span title="Journals">
+                            <span className="n">{u.journalCount}</span> jrnl
+                          </span>
+                          <span className="sep" aria-hidden>
+                            ·
+                          </span>
+                          <span title="Notes">
+                            <span className="n">{u.noteCount}</span> notes
+                          </span>
+                        </WorkspaceCounts>
                       </td>
                       <td>
                         <UsageCell>
