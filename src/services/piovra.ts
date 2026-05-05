@@ -227,6 +227,13 @@ export interface WhatsAppSendResponse {
   accepted: boolean;
 }
 
+export interface WhatsAppSummaryResponse {
+  jid: string;
+  summary: string;
+  runId: string | null;
+  basedOn: { messageCount: number; fromTs: number | null; toTs: number | null };
+}
+
 export class WhatsAppConsentRequiredError extends Error {
   readonly disclosure: string;
   constructor(disclosure: string) {
@@ -393,6 +400,8 @@ export const PiovraAPI = {
     sendJson(`/me/whatsapp/chats/${encodeURIComponent(jid)}/settings`, 'PUT', patch),
   draftWhatsAppReply: (jid: string): Promise<WhatsAppDraftResponse> =>
     sendJson(`/me/whatsapp/chats/${encodeURIComponent(jid)}/draft`, 'POST'),
+  summarizeWhatsAppChat: (jid: string): Promise<WhatsAppSummaryResponse> =>
+    sendJson(`/me/whatsapp/chats/${encodeURIComponent(jid)}/summary`, 'POST'),
   sendWhatsAppMessage: (
     jid: string,
     text: string,

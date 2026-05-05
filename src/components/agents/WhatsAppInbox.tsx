@@ -13,6 +13,7 @@ import {
   type WhatsAppCachePreviewChat,
   type WhatsAppChatMessagesResponse,
   type WhatsAppSpamState,
+  type WhatsAppSummaryResponse,
 } from '../../services/piovra';
 
 type Tab = 'inbox' | 'spam' | 'groups';
@@ -326,6 +327,43 @@ const PaneEmpty = styled.div`
   text-align: center;
 `;
 
+const SummaryCard = styled.div`
+  margin: 8px 14px 0;
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--bg-0);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.5;
+  white-space: pre-wrap;
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+  }
+
+  header button {
+    background: none;
+    border: none;
+    color: var(--text-3);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0;
+
+    &:hover { color: var(--text-1); }
+  }
+`;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -377,6 +415,8 @@ const WhatsAppInbox: React.FC<Props> = ({
   const [paneError, setPaneError] = useState<string | null>(null);
   const [draftBusy, setDraftBusy] = useState(false);
   const [sendBusy, setSendBusy] = useState(false);
+  const [summaryBusy, setSummaryBusy] = useState(false);
+  const [summary, setSummary] = useState<WhatsAppSummaryResponse | null>(null);
   const [composerText, setComposerText] = useState('');
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -428,6 +468,7 @@ const WhatsAppInbox: React.FC<Props> = ({
     setPaneData(null);
     setComposerText('');
     setPaneError(null);
+    setSummary(null);
     if (!selectedJid) return;
     void loadPane();
     const id = window.setInterval(() => void loadPane(), SELECTED_POLL_MS);
@@ -484,6 +525,20 @@ const WhatsAppInbox: React.FC<Props> = ({
       setPaneError(e instanceof Error ? e.message : String(e));
     } finally {
       setDraftBusy(false);
+    }
+  };
+
+  const summarize = async (): Promise<void> => {
+    if (!selectedJid) return;
+    setSummaryBusy(true);
+    setPaneError(null);
+    try {
+      const res = await PiovraAPI.summarizeWhatsAppChat(selectedJid);
+      setSummary(res);
+    } catch (e) {
+      setPaneError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSummaryBusy(false);
     }
   };
 
@@ -665,6 +720,20 @@ const WhatsAppInbox: React.FC<Props> = ({
                     type="button"
                     $variant="ghost"
                     $size="sm"
+                    onClick={() => void summarize()}
+                    disabled={summaryBusy || !hasAutoreplyConfigured}
+                    title={
+                      hasAutoreplyConfigured
+                        ? 'Generate a short summary of recent activity in this chat'
+                        : 'Configure the autoreply persona + agent instance below first'
+                    }
+                  >
+                    {summaryBusy ? 'Summarizing…' : 'Summarize'}
+                  </Button>
+                  <Button
+                    type="button"
+                    $variant="ghost"
+                    $size="sm"
                     onClick={() => void loadPane()}
                     disabled={paneBusy}
                   >
@@ -673,6 +742,25 @@ const WhatsAppInbox: React.FC<Props> = ({
                 </PaneActions>
               </PaneTitleRow>
             </PaneHeader>
+
+            {summary ? (
+              <SummaryCard>
+                <header>
+                  <span>
+                    Summary · {summary.basedOn.messageCount} msgs
+                    {summary.basedOn.fromTs
+                      ? ` · ${formatTime(summary.basedOn.fromTs)} → ${formatTime(
+                          summary.basedOn.toTs ?? summary.basedOn.fromTs,
+                        )}`
+                      : ''}
+                  </span>
+                  <button type="button" onClick={() => setSummary(null)}>
+                    dismiss
+                  </button>
+                </header>
+                <div>{summary.summary}</div>
+              </SummaryCard>
+            ) : null}
 
             <MessagesScroll ref={messagesScrollRef}>
               {(paneData?.messages ?? []).length === 0 && !paneBusy ? (

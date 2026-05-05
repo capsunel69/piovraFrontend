@@ -545,20 +545,26 @@ const WhatsAppPanel: React.FC = () => {
                 )}
 
                 <Field>
-                  <Label>Cooldown per chat (seconds)</Label>
+                  <Label>Burst window per chat (seconds)</Label>
                   <Input
                     type="number"
-                    min={5}
-                    max={3600}
+                    min={2}
+                    max={60}
                     value={autoreply.cooldownSeconds}
                     onChange={(e) =>
                       setAutoreply({
                         ...autoreply,
-                        cooldownSeconds: Number(e.target.value) || 30,
+                        cooldownSeconds: Number(e.target.value) || 4,
                       })
                     }
                     style={{ maxWidth: 140 }}
                   />
+                  <SmallNote>
+                    After the first message arrives, we wait this long for more from the
+                    same chat — any follow-ups inside the window get folded into ONE
+                    reply. Reply is sent with a length-proportional typing delay so it
+                    doesn&apos;t feel instant. Try 4–8s.
+                  </SmallNote>
                 </Field>
 
                 <ToggleRow>
