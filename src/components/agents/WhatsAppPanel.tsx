@@ -68,7 +68,12 @@ Expresii uzuale:
 - "nu asa"
 - "prea complicat"
 - "fa-l mai simplu"
-- "exact asa dar..."`;
+- "exact asa dar..."
+
+Reguli pentru autoreply:
+- Raspunsul tau (ce scrii ca mesaj final) e trimis exact asa pe WhatsApp.
+- Daca mesajul primit e spam, nesemnificativ, automat (notificare, link gol, sticker descris ca text), raspunde fix cu cuvantul NOREPLY si nimic altceva.
+- Niciodata nu raspunde cu meta-comentarii gen "ca asistent...". Doar mesajul, ca si cum ai scrie tu de pe telefon.`;
 
 // ---------------------------------------------------------------------------
 // Styled
@@ -448,8 +453,8 @@ const WhatsAppPanel: React.FC = () => {
             <Intro>
               When enabled, every inbound DM that passes the policy below triggers a single
               agent run on the selected instance. Reactions, stickers, voice and other media are
-              ignored. The agent only sends a reply if its definition includes{' '}
-              <code>whatsapp.messages.send</code>.
+              ignored. The agent's final text is sent verbatim as the reply — answer with the
+              single token <code>NOREPLY</code> to skip an inbound silently.
             </Intro>
 
             <form onSubmit={(e) => void onSubmitAutoreply(e)}>
@@ -508,8 +513,8 @@ const WhatsAppPanel: React.FC = () => {
                     ))}
                   </Select>
                   <SmallNote>
-                    Definition must include <code>whatsapp.messages.send</code> for the agent to
-                    actually reply.
+                    Any instance works — the bridge sends the agent's final text directly, no
+                    extra skill needed on the definition.
                   </SmallNote>
                 </Field>
 
