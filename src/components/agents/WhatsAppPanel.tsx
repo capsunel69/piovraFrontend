@@ -16,7 +16,13 @@ import {
   Stack,
   Textarea,
 } from '../ui/primitives';
-import { IconChat, IconClock, IconRefresh, IconSend } from '../ui/icons';
+import {
+  IconChat,
+  IconChevronDown,
+  IconChevronRight,
+  IconRefresh,
+  IconSend,
+} from '../ui/icons';
 import {
   PiovraAPI,
   WhatsAppConsentRequiredError,
@@ -25,6 +31,48 @@ import {
   type WhatsAppCachePreview,
   type WhatsAppStatus,
 } from '../../services/piovra';
+import WhatsAppInbox from './WhatsAppInbox';
+
+// ---------------------------------------------------------------------------
+// Default Romanian persona for the autoreply agent. Surfaced via "Use default
+// persona" so users don't have to copy/paste from a doc.
+// ---------------------------------------------------------------------------
+
+const DEFAULT_RO_PERSONA = `Esti un creator / builder din Europa de Est care lucreaza cu tech, automatizari si content.
+
+Gandesti in sisteme, nu in idei.
+
+Preferi viteza in loc de perfectiune si iteratii rapide in loc de planuri lungi.
+
+Vorbesti casual, natural, in romana fara diacritice, uneori prescurtat.
+
+Eviti fluff-ul, nu iti plac raspunsurile vagi si vrei lucruri care chiar functioneaza in realitate.
+
+Dai raspunsuri scurte, clare si aplicabile.
+
+Te duci direct la solutie, nu explici teorie inutila.
+
+Daca ceva nu e clar, faci o presupunere rezonabila si mergi mai departe.
+
+Iti rafinezi raspunsurile rapid pe baza de feedback (gen: "nu asa", "mai simplu", "fix asta dar...").
+
+Stil:
+- propozitii scurte sau medii
+- uneori fragmentat
+- fara introduceri lungi
+- fara ton formal
+
+Expresii uzuale:
+- "ok"
+- "bun"
+- "nu asa"
+- "prea complicat"
+- "fa-l mai simplu"
+- "exact asa dar..."`;
+
+// ---------------------------------------------------------------------------
+// Styled
+// ---------------------------------------------------------------------------
 
 const Section = styled.div`
   padding: var(--s-5);
@@ -86,27 +134,6 @@ const StatusRow = styled.div`
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s-3);
-`;
-
-const HelpList = styled.ul`
-  margin: 0;
-  padding-left: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12.5px;
-  color: var(--text-3);
-  line-height: 1.5;
-
-  code {
-    font-family: var(--font-mono);
-    background: var(--bg-1);
-    border: 1px solid var(--border-1);
-    border-radius: 4px;
-    padding: 1px 5px;
-    font-size: 11.5px;
-    color: var(--text-2);
-  }
 `;
 
 const ErrorBox = styled.div`
@@ -176,45 +203,29 @@ const ToggleRow = styled.label`
   }
 `;
 
-const CacheChatCard = styled.div`
-  border: 1px solid var(--border-1);
-  border-radius: var(--r-md);
-  padding: var(--s-3) var(--s-4);
-  background: var(--bg-1);
-`;
+/** Compact, chevron-toggled section header for collapsible cards. */
+const CollapseHeader = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border-1);
+  padding: var(--s-4) var(--s-5);
+  cursor: pointer;
+  color: var(--text-1);
+  text-align: left;
 
-const CacheJid = styled.div`
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-3);
-  word-break: break-all;
-  margin-top: 4px;
-`;
+  &:hover { background: var(--bg-1); }
 
-const CacheMsg = styled.div`
-  font-size: 12px;
-  color: var(--text-2);
-  margin-top: 6px;
-  padding-left: var(--s-3);
-  border-left: 2px solid var(--border-1);
-  font-family: var(--font-mono);
+  .left { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+  .right { display: flex; align-items: center; gap: 8px; }
 `;
 
 const POLL_MS = 2_000;
 const CACHE_POLL_MS = 12_000;
-
-function formatWaTs(ts: number): string {
-  if (!ts || ts <= 0) return '—';
-  const ms = ts > 10_000_000_000 ? ts : ts * 1000;
-  try {
-    return new Date(ms).toLocaleString(undefined, {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    });
-  } catch {
-    return '—';
-  }
-}
 
 const WhatsAppPanel: React.FC = () => {
   const [status, setStatus] = useState<WhatsAppStatus | null>(null);
@@ -229,6 +240,7 @@ const WhatsAppPanel: React.FC = () => {
   const [pairingStarted, setPairingStarted] = useState(false);
   const [cachePreview, setCachePreview] = useState<WhatsAppCachePreview | null>(null);
   const [cacheBusy, setCacheBusy] = useState(false);
+  const [autoreplyOpen, setAutoreplyOpen] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async (): Promise<WhatsAppStatus | null> => {
@@ -396,182 +408,250 @@ const WhatsAppPanel: React.FC = () => {
     );
   }
 
-  const renderAutoreply = (): React.ReactNode => {
+  const hasAutoreplyConfigured = Boolean(
+    autoreply && autoreply.instanceId && autoreply.replyPrompt.trim(),
+  );
+
+  const renderAutoreplyCard = (): React.ReactNode => {
     if (!autoreply || !status?.connected) return null;
     return (
       <Card style={{ marginTop: 'var(--s-4)' }}>
-        <CardHeader>
-          <CardTitle>
+        <CollapseHeader
+          type="button"
+          onClick={() => setAutoreplyOpen((v) => !v)}
+          aria-expanded={autoreplyOpen}
+        >
+          <span className="left">
             <IconSend />
-            Autoreply
-          </CardTitle>
-          <CardSubtle>
+            Autoreply persona
             {autoreply.enabled ? (
               <Badge $variant="success">on</Badge>
             ) : (
               <Badge>off</Badge>
             )}
-          </CardSubtle>
-        </CardHeader>
-        <Section>
-          <Intro>
-            When enabled, every inbound message that passes the policy below triggers a single
-            agent run on the selected instance. The agent only sends a reply if its definition
-            includes <code>whatsapp.messages.send</code>; the prompt below is appended to the
-            run input alongside the inbound message details.
-          </Intro>
+            {!hasAutoreplyConfigured ? (
+              <Badge $variant="warning">needs setup</Badge>
+            ) : null}
+          </span>
+          <span className="right">
+            {autoreply.updatedAt ? (
+              <CardSubtle style={{ fontSize: 11 }}>
+                saved {new Date(autoreply.updatedAt).toLocaleString()}
+              </CardSubtle>
+            ) : null}
+            {autoreplyOpen ? <IconChevronDown /> : <IconChevronRight />}
+          </span>
+        </CollapseHeader>
 
-          <form onSubmit={(e) => void onSubmitAutoreply(e)}>
-            <Stack $gap={3}>
-              <Field>
-                <Label>Reply policy prompt</Label>
-                <Textarea
-                  rows={5}
-                  placeholder="You are my WhatsApp autoreply assistant. Reply briefly in the sender's language. Only reply if the message looks like a question or scheduling request. Otherwise call no tools."
-                  value={autoreply.replyPrompt}
-                  onChange={(e) =>
-                    setAutoreply({ ...autoreply, replyPrompt: e.target.value })
-                  }
-                />
-              </Field>
+        {autoreplyOpen ? (
+          <Section>
+            <Intro>
+              When enabled, every inbound DM that passes the policy below triggers a single
+              agent run on the selected instance. Reactions, stickers, voice and other media are
+              ignored. The agent only sends a reply if its definition includes{' '}
+              <code>whatsapp.messages.send</code>.
+            </Intro>
 
-              <Field>
-                <Label>Agent instance</Label>
-                <Select
-                  value={autoreply.instanceId ?? ''}
-                  onChange={(e) =>
-                    setAutoreply({
-                      ...autoreply,
-                      instanceId: e.target.value || null,
-                    })
-                  }
-                >
-                  <option value="">— select instance —</option>
-                  {instances.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {i.name}
-                    </option>
-                  ))}
-                </Select>
-                <SmallNote>
-                  The instance's definition must include <code>whatsapp.messages.send</code> for
-                  the agent to actually reply.
-                </SmallNote>
-              </Field>
-
-              <ToggleRow>
-                <input
-                  type="checkbox"
-                  checked={autoreply.dmOnly}
-                  onChange={(e) => setAutoreply({ ...autoreply, dmOnly: e.target.checked })}
-                />
-                <span>Direct messages only (recommended — ignore group chats)</span>
-              </ToggleRow>
-
-              {!autoreply.dmOnly && (
+            <form onSubmit={(e) => void onSubmitAutoreply(e)}>
+              <Stack $gap={3}>
                 <Field>
-                  <Label>Allowlist (one jid per line)</Label>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 4,
+                    }}
+                  >
+                    <Label style={{ marginBottom: 0 }}>Reply policy prompt (persona)</Label>
+                    <Button
+                      type="button"
+                      $variant="ghost"
+                      $size="sm"
+                      onClick={() =>
+                        setAutoreply({ ...autoreply, replyPrompt: DEFAULT_RO_PERSONA })
+                      }
+                    >
+                      Use default persona
+                    </Button>
+                  </div>
                   <Textarea
-                    rows={3}
-                    placeholder={'1234567890@s.whatsapp.net\n9876543210-1700000000@g.us'}
-                    value={allowFromText}
-                    onChange={(e) => setAllowFromText(e.target.value)}
-                    style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                    rows={10}
+                    placeholder="Describe how the agent should write replies (tone, language, length, when to ignore)..."
+                    value={autoreply.replyPrompt}
+                    onChange={(e) =>
+                      setAutoreply({ ...autoreply, replyPrompt: e.target.value })
+                    }
                   />
                   <SmallNote>
-                    Empty allowlist + DM-only off would let any sender trigger the agent — leave
-                    DM-only on or list trusted jids here.
+                    The full persona is sent as the per-run instruction. The agent also receives
+                    the last 10 text messages of the chat as conversation history.
                   </SmallNote>
                 </Field>
-              )}
 
-              <Field>
-                <Label>Cooldown per chat (seconds)</Label>
-                <Input
-                  type="number"
-                  min={5}
-                  max={3600}
-                  value={autoreply.cooldownSeconds}
-                  onChange={(e) =>
-                    setAutoreply({
-                      ...autoreply,
-                      cooldownSeconds: Number(e.target.value) || 30,
-                    })
-                  }
-                  style={{ maxWidth: 140 }}
-                />
-              </Field>
+                <Field>
+                  <Label>Agent instance</Label>
+                  <Select
+                    value={autoreply.instanceId ?? ''}
+                    onChange={(e) =>
+                      setAutoreply({
+                        ...autoreply,
+                        instanceId: e.target.value || null,
+                      })
+                    }
+                  >
+                    <option value="">— select instance —</option>
+                    {instances.map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.name}
+                      </option>
+                    ))}
+                  </Select>
+                  <SmallNote>
+                    Definition must include <code>whatsapp.messages.send</code> for the agent to
+                    actually reply.
+                  </SmallNote>
+                </Field>
 
-              <ToggleRow>
-                <input
-                  type="checkbox"
-                  checked={autoreply.enabled}
-                  onChange={(e) => setAutoreply({ ...autoreply, enabled: e.target.checked })}
-                />
-                <span>
-                  <strong>Enable autoreply</strong> — agent runs trigger automatically on
-                  inbound messages.
-                </span>
-              </ToggleRow>
+                <ToggleRow>
+                  <input
+                    type="checkbox"
+                    checked={autoreply.dmOnly}
+                    onChange={(e) => setAutoreply({ ...autoreply, dmOnly: e.target.checked })}
+                  />
+                  <span>Direct messages only (recommended — the bridge ignores groups anyway)</span>
+                </ToggleRow>
 
-              <StatusRow>
-                <Button
-                  type="submit"
-                  $variant="primary"
-                  $size="md"
-                  disabled={
-                    busy === 'autoreply' ||
-                    (autoreply.enabled &&
-                      (!autoreply.instanceId || !autoreply.replyPrompt.trim()))
-                  }
-                >
-                  {busy === 'autoreply' ? 'Saving…' : 'Save autoreply settings'}
-                </Button>
-                {autoreply.updatedAt ? (
-                  <CardSubtle>
-                    Last saved {new Date(autoreply.updatedAt).toLocaleString()}
-                  </CardSubtle>
-                ) : null}
-              </StatusRow>
-            </Stack>
-          </form>
-        </Section>
+                {!autoreply.dmOnly && (
+                  <Field>
+                    <Label>Allowlist (one jid per line)</Label>
+                    <Textarea
+                      rows={3}
+                      placeholder={'1234567890@s.whatsapp.net\n9876543210-1700000000@g.us'}
+                      value={allowFromText}
+                      onChange={(e) => setAllowFromText(e.target.value)}
+                      style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                    />
+                    <SmallNote>
+                      Empty allowlist + DM-only off would let any sender trigger the agent —
+                      leave DM-only on or list trusted jids here.
+                    </SmallNote>
+                  </Field>
+                )}
+
+                <Field>
+                  <Label>Cooldown per chat (seconds)</Label>
+                  <Input
+                    type="number"
+                    min={5}
+                    max={3600}
+                    value={autoreply.cooldownSeconds}
+                    onChange={(e) =>
+                      setAutoreply({
+                        ...autoreply,
+                        cooldownSeconds: Number(e.target.value) || 30,
+                      })
+                    }
+                    style={{ maxWidth: 140 }}
+                  />
+                </Field>
+
+                <ToggleRow>
+                  <input
+                    type="checkbox"
+                    checked={autoreply.enabled}
+                    onChange={(e) => setAutoreply({ ...autoreply, enabled: e.target.checked })}
+                  />
+                  <span>
+                    <strong>Enable autoreply</strong> — agent runs trigger automatically on
+                    inbound DMs (text only).
+                  </span>
+                </ToggleRow>
+
+                <StatusRow>
+                  <Button
+                    type="submit"
+                    $variant="primary"
+                    $size="md"
+                    disabled={
+                      busy === 'autoreply' ||
+                      (autoreply.enabled &&
+                        (!autoreply.instanceId || !autoreply.replyPrompt.trim()))
+                    }
+                  >
+                    {busy === 'autoreply' ? 'Saving…' : 'Save autoreply settings'}
+                  </Button>
+                </StatusRow>
+              </Stack>
+            </form>
+          </Section>
+        ) : null}
       </Card>
     );
   };
 
   return (
     <>
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <IconChat />
-          WhatsApp connection
-        </CardTitle>
-        <CardSubtle>
-          {status.connected ? (
-            <Badge $variant="success">connected</Badge>
-          ) : status.pairingActive || pairingStarted ? (
-            <Badge>pairing…</Badge>
-          ) : (
-            <Badge>disconnected</Badge>
-          )}
-        </CardSubtle>
-      </CardHeader>
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <IconChat />
+            WhatsApp connection
+          </CardTitle>
+          <CardSubtle>
+            {status.connected ? (
+              <Badge $variant="success">connected</Badge>
+            ) : status.pairingActive || pairingStarted ? (
+              <Badge>pairing…</Badge>
+            ) : (
+              <Badge>disconnected</Badge>
+            )}
+          </CardSubtle>
+        </CardHeader>
 
-      {status.pairingIssue ? (
-        <Section>
-          <ErrorBox>{status.pairingIssue}</ErrorBox>
-        </Section>
-      ) : null}
+        {status.pairingIssue ? (
+          <Section>
+            <ErrorBox>{status.pairingIssue}</ErrorBox>
+          </Section>
+        ) : null}
 
-      {status.connected ? (
-        <>
+        {status.connected ? (
+          <Section>
+            <StatusRow>
+              <span style={{ fontSize: 12.5, color: 'var(--text-2)', flex: 1 }}>
+                Linked. Inbound DMs are mirrored to the inbox below; the autoreply persona +
+                per-chat overrides decide what (if anything) the agent answers.
+              </span>
+              <Button
+                type="button"
+                $variant="ghost"
+                $size="sm"
+                onClick={() => void refresh()}
+              >
+                <IconRefresh />
+                Status
+              </Button>
+              <Button
+                type="button"
+                $variant="danger"
+                $size="sm"
+                onClick={() => void disconnect()}
+                disabled={busy === 'disconnect'}
+              >
+                {busy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
+              </Button>
+            </StatusRow>
+            {error ? <ErrorBox>{error}</ErrorBox> : null}
+          </Section>
+        ) : (status.pairingActive || pairingStarted) && status.qrDataUrl ? (
           <Section>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>
-              WhatsApp is linked to Piovra for this account. Agents with WhatsApp skills enabled
-              on their definition can now read your chats and (when authorised) send replies.
+              {status.scanReminder}
             </p>
+            <QrFrame>
+              <img src={status.qrDataUrl} alt="WhatsApp pairing QR code" />
+            </QrFrame>
+            <CardSubtle>QR refreshes automatically until your phone scans it.</CardSubtle>
             <StatusRow>
               <Button
                 type="button"
@@ -584,213 +664,108 @@ const WhatsAppPanel: React.FC = () => {
               </Button>
               <Button
                 type="button"
+                $variant="ghost"
+                $size="sm"
+                onClick={() => void disconnect()}
+                disabled={busy === 'disconnect'}
+              >
+                {busy === 'disconnect' ? 'Cancelling…' : 'Cancel pairing'}
+              </Button>
+            </StatusRow>
+            {error ? <ErrorBox>{error}</ErrorBox> : null}
+          </Section>
+        ) : status.pairingActive || pairingStarted ? (
+          <Section>
+            <EmptyState>
+              <Spinner /> Generating QR code…
+            </EmptyState>
+            {error ? <ErrorBox>{error}</ErrorBox> : null}
+          </Section>
+        ) : status.requiresConsentForQrPairing ? (
+          <Section>
+            <Disclosure>{status.disclosure}</Disclosure>
+            <ConsentRow>
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+              />
+              <span>
+                I understand and want Piovra to access this WhatsApp account.
+              </span>
+            </ConsentRow>
+            <StatusRow>
+              <Button
+                type="button"
+                $variant="primary"
+                $size="md"
+                onClick={() => void startPairing()}
+                disabled={!consent || busy === 'pair'}
+              >
+                {busy === 'pair' ? 'Starting…' : 'Start pairing'}
+              </Button>
+              <CardSubtle>
+                You'll see a QR code to scan from WhatsApp → Settings → Linked Devices.
+              </CardSubtle>
+            </StatusRow>
+            {error ? <ErrorBox>{error}</ErrorBox> : null}
+          </Section>
+        ) : (
+          <Section>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>
+              A previous WhatsApp session is saved but the socket isn't currently open. Reopen
+              it to resume agent access; you can also disconnect to wipe the saved session and
+              re-pair from scratch.
+            </p>
+            <StatusRow>
+              <Button
+                type="button"
+                $variant="primary"
+                $size="md"
+                onClick={() => void startPairing()}
+                disabled={busy === 'pair'}
+              >
+                {busy === 'pair' ? 'Starting…' : 'Reconnect'}
+              </Button>
+              <Button
+                type="button"
                 $variant="danger"
                 $size="sm"
                 onClick={() => void disconnect()}
                 disabled={busy === 'disconnect'}
               >
-                {busy === 'disconnect' ? 'Disconnecting…' : 'Disconnect WhatsApp'}
+                {busy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
               </Button>
             </StatusRow>
             {error ? <ErrorBox>{error}</ErrorBox> : null}
           </Section>
+        )}
+      </Card>
 
-          <Section>
-            <CardTitle as="h4">
-              <IconClock />
-              How agents use this
-            </CardTitle>
-            <HelpList>
-              <li>
-                <strong>Periodic summaries</strong> — create a <code>Schedule</code> with an
-                instance whose definition includes <code>whatsapp.chats.list</code> and{' '}
-                <code>whatsapp.messages.list</code>. The schedule's <em>input</em> is the
-                summarization prompt (which chats, tone, length).
-              </li>
-              <li>
-                <strong>Autoreply</strong> — needs <code>whatsapp.messages.send</code> on the
-                definition plus a configured reply prompt; only enable on definitions you trust
-                to act on incoming messages.
-              </li>
-              <li>
-                Reports from scheduled runs appear under the <code>Reports</code> tab, like other
-                cron-driven jobs.
-              </li>
-            </HelpList>
-          </Section>
+      {renderAutoreplyCard()}
 
-          <Section>
-            <CardTitle as="h4">
+      {status.connected ? (
+        <Card style={{ marginTop: 'var(--s-4)' }}>
+          <CardHeader>
+            <CardTitle>
               <IconChat />
-              Live cache preview
+              Inbox
             </CardTitle>
-            <Intro>
-              Rolling buffer Piovra keeps for <code>whatsapp.chats.list</code> and{' '}
-              <code>whatsapp.messages.list</code> on this server (not full WhatsApp history).
-              Refreshes every ~{CACHE_POLL_MS / 1000}s while connected.
-            </Intro>
-            <StatusRow>
-              <Button
-                type="button"
-                $variant="secondary"
-                $size="sm"
-                onClick={() => void loadCachePreview()}
-                disabled={cacheBusy || !status.connected}
-              >
-                <IconRefresh />
-                Refresh preview
-              </Button>
-              {cachePreview?.connected ? (
-                <CardSubtle>
-                  {cachePreview.totals.chatCount} chats · {cachePreview.totals.messageCount}{' '}
-                  cached messages
-                </CardSubtle>
-              ) : null}
-              {cacheBusy ? (
-                <CardSubtle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Spinner /> Updating…
-                </CardSubtle>
-              ) : null}
-            </StatusRow>
-            {cachePreview?.note ? <SmallNote>{cachePreview.note}</SmallNote> : null}
-            {cachePreview?.connected && cachePreview.chats.length === 0 ? (
-              <SmallNote>
-                Nothing cached yet — history sync can take a minute after linking. Send a test DM
-                from another phone.
-              </SmallNote>
-            ) : null}
-            {cacheBusy && !cachePreview ? (
-              <SmallNote>Loading preview…</SmallNote>
-            ) : null}
-            <Stack $gap={3}>
-              {(cachePreview?.chats ?? []).map((c) => (
-                <CacheChatCard key={c.jid}>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>
-                    {c.name ?? '(unnamed chat)'}{' '}
-                    <Badge>{c.isGroup ? 'group' : 'dm'}</Badge>
-                    {c.unreadCount > 0 ? (
-                      <Badge style={{ marginLeft: 6 }}>{c.unreadCount} unread</Badge>
-                    ) : null}
-                  </div>
-                  <CacheJid>{c.jid}</CacheJid>
-                  <SmallNote style={{ marginTop: 8 }}>
-                    {c.cachedMessageCount} messages cached · last activity{' '}
-                    {formatWaTs(c.lastMessageAt ?? 0)}
-                  </SmallNote>
-                  {c.recent.map((m) => (
-                    <CacheMsg key={m.id}>
-                      <span style={{ color: 'var(--text-3)' }}>
-                        {formatWaTs(m.timestamp)} · {m.fromMe ? 'you' : m.senderLabel ?? 'them'}
-                        {m.contentKind !== 'text' ? ` · [${m.contentKind}]` : ''}
-                      </span>
-                      <br />
-                      {m.textPreview ?? `(${m.contentKind})`}
-                    </CacheMsg>
-                  ))}
-                </CacheChatCard>
-              ))}
-            </Stack>
-          </Section>
-        </>
-      ) : (status.pairingActive || pairingStarted) && status.qrDataUrl ? (
-        <Section>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>
-            {status.scanReminder}
-          </p>
-          <QrFrame>
-            <img src={status.qrDataUrl} alt="WhatsApp pairing QR code" />
-          </QrFrame>
-          <CardSubtle>QR refreshes automatically until your phone scans it.</CardSubtle>
-          <StatusRow>
-            <Button
-              type="button"
-              $variant="secondary"
-              $size="sm"
-              onClick={() => void refresh()}
-            >
-              <IconRefresh />
-              Refresh
-            </Button>
-            <Button
-              type="button"
-              $variant="ghost"
-              $size="sm"
-              onClick={() => void disconnect()}
-              disabled={busy === 'disconnect'}
-            >
-              {busy === 'disconnect' ? 'Cancelling…' : 'Cancel pairing'}
-            </Button>
-          </StatusRow>
-          {error ? <ErrorBox>{error}</ErrorBox> : null}
-        </Section>
-      ) : status.pairingActive || pairingStarted ? (
-        <Section>
-          <EmptyState>
-            <Spinner /> Generating QR code…
-          </EmptyState>
-          {error ? <ErrorBox>{error}</ErrorBox> : null}
-        </Section>
-      ) : status.requiresConsentForQrPairing ? (
-        <Section>
-          <Disclosure>{status.disclosure}</Disclosure>
-          <ConsentRow>
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
+            <CardSubtle>What agents see + manual review</CardSubtle>
+          </CardHeader>
+          <Section style={{ padding: 'var(--s-4)' }}>
+            <WhatsAppInbox
+              chats={cachePreview?.chats ?? []}
+              cacheBusy={cacheBusy}
+              totals={cachePreview?.totals ?? null}
+              onRefreshCache={loadCachePreview}
+              onChatsMutated={loadCachePreview}
+              hasAutoreplyConfigured={hasAutoreplyConfigured}
             />
-            <span>
-              I understand and want Piovra to access this WhatsApp account.
-            </span>
-          </ConsentRow>
-          <StatusRow>
-            <Button
-              type="button"
-              $variant="primary"
-              $size="md"
-              onClick={() => void startPairing()}
-              disabled={!consent || busy === 'pair'}
-            >
-              {busy === 'pair' ? 'Starting…' : 'Start pairing'}
-            </Button>
-            <CardSubtle>
-              You'll see a QR code to scan from WhatsApp → Settings → Linked Devices.
-            </CardSubtle>
-          </StatusRow>
-          {error ? <ErrorBox>{error}</ErrorBox> : null}
-        </Section>
-      ) : (
-        <Section>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>
-            A previous WhatsApp session is saved but the socket isn't currently open. Reopen
-            it to resume agent access; you can also disconnect to wipe the saved session and
-            re-pair from scratch.
-          </p>
-          <StatusRow>
-            <Button
-              type="button"
-              $variant="primary"
-              $size="md"
-              onClick={() => void startPairing()}
-              disabled={busy === 'pair'}
-            >
-              {busy === 'pair' ? 'Starting…' : 'Reconnect'}
-            </Button>
-            <Button
-              type="button"
-              $variant="danger"
-              $size="sm"
-              onClick={() => void disconnect()}
-              disabled={busy === 'disconnect'}
-            >
-              {busy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
-            </Button>
-          </StatusRow>
-          {error ? <ErrorBox>{error}</ErrorBox> : null}
-        </Section>
-      )}
-    </Card>
-    {renderAutoreply()}
+            {cachePreview?.note ? <SmallNote>{cachePreview.note}</SmallNote> : null}
+          </Section>
+        </Card>
+      ) : null}
     </>
   );
 };

@@ -167,13 +167,21 @@ export interface WhatsAppCachePreviewRow {
   senderLabel: string | null;
 }
 
+export type WhatsAppChatType = 'group' | 'dm' | 'broadcast';
+export type WhatsAppSpamState = 'unknown' | 'allowed' | 'blocked';
+
 export interface WhatsAppCachePreviewChat {
   jid: string;
   name: string | null;
   isGroup: boolean;
+  chatType: WhatsAppChatType;
   unreadCount: number;
   lastMessageAt: number | null;
   cachedMessageCount: number;
+  hasTextMessages: boolean;
+  looksLikeSpam: boolean;
+  autoreplyMuted: boolean;
+  spamState: WhatsAppSpamState;
   recent: WhatsAppCachePreviewRow[];
 }
 
@@ -182,6 +190,41 @@ export interface WhatsAppCachePreview {
   note: string;
   totals: { chatCount: number; messageCount: number };
   chats: WhatsAppCachePreviewChat[];
+}
+
+export interface WhatsAppChatMessage {
+  id: string;
+  fromMe: boolean;
+  participant: string | null;
+  pushName: string | null;
+  timestamp: number;
+  text: string | null;
+  contentKind: string;
+}
+
+export interface WhatsAppChatSettings {
+  autoreplyMuted: boolean;
+  spamState: WhatsAppSpamState;
+}
+
+export interface WhatsAppChatMessagesResponse {
+  jid: string;
+  chatType: WhatsAppChatType;
+  settings: WhatsAppChatSettings;
+  messages: WhatsAppChatMessage[];
+}
+
+export interface WhatsAppDraftResponse {
+  jid: string;
+  draft: string;
+  runId: string;
+  basedOnMessageId: string;
+}
+
+export interface WhatsAppSendResponse {
+  jid: string;
+  id: string | null;
+  accepted: boolean;
 }
 
 export class WhatsAppConsentRequiredError extends Error {
@@ -335,6 +378,30 @@ export const PiovraAPI = {
     patch: WhatsAppAutoreplyPatch,
   ): Promise<WhatsAppAutoreplySettings> =>
     sendJson('/me/whatsapp/autoreply', 'PUT', patch),
+
+  getWhatsAppChatMessages: (
+    jid: string,
+    limit = 80,
+  ): Promise<WhatsAppChatMessagesResponse> =>
+    getJson(
+      `/me/whatsapp/chats/${encodeURIComponent(jid)}/messages?limit=${limit}`,
+    ),
+  setWhatsAppChatSettings: (
+    jid: string,
+    patch: Partial<WhatsAppChatSettings>,
+  ): Promise<WhatsAppChatSettings & { jid: string }> =>
+    sendJson(`/me/whatsapp/chats/${encodeURIComponent(jid)}/settings`, 'PUT', patch),
+  draftWhatsAppReply: (jid: string): Promise<WhatsAppDraftResponse> =>
+    sendJson(`/me/whatsapp/chats/${encodeURIComponent(jid)}/draft`, 'POST'),
+  sendWhatsAppMessage: (
+    jid: string,
+    text: string,
+    quotedMessageId?: string,
+  ): Promise<WhatsAppSendResponse> =>
+    sendJson(`/me/whatsapp/chats/${encodeURIComponent(jid)}/send`, 'POST', {
+      text,
+      quotedMessageId,
+    }),
 
   /**
    * Start an orchestration turn and stream events.
