@@ -190,7 +190,7 @@ const Chat: React.FC = () => {
   const {
     activeChannel, isAdmin, totalUnread, searchQuery, setSearchQuery, deleteChannel,
     notificationsSupported, notificationsPermission, notificationsEnabled,
-    enableNotifications, disableNotifications,
+    enableNotifications, disableNotifications, testNotification,
   } = useWorkChat();
   const [showPinned, setShowPinned] = useState(false);
   const [mobileSidebar, setMobileSidebar] = useState(true);
@@ -316,22 +316,49 @@ const Chat: React.FC = () => {
                       <Badge $variant={showPinned ? 'neutral' : 'accent'}>{pinnedCount}</Badge>
                     )}
                   </Button>
-                  {isAdmin && (
-                    <Menu
-                      ariaLabel="Channel options"
-                      align="right"
-                      trigger={
-                        <IconButton
-                          type="button"
-                          $size="sm"
-                          $variant="ghost"
-                          aria-label="Channel options"
-                        >
-                          <IconMoreVertical />
-                        </IconButton>
-                      }
-                      items={[
-                        {
+                  <Menu
+                    ariaLabel="Channel options"
+                    align="right"
+                    trigger={
+                      <IconButton
+                        type="button"
+                        $size="sm"
+                        $variant="ghost"
+                        aria-label="Channel options"
+                      >
+                        <IconMoreVertical />
+                      </IconButton>
+                    }
+                    items={[
+                      ...(notificationsSupported
+                        ? [{
+                          id: 'test-notif',
+                          label: 'Send test notification',
+                          icon: <IconBell />,
+                          onSelect: () => {
+                            if (notificationsPermission !== 'granted') {
+                              void enableNotifications().then((perm) => {
+                                if (perm === 'granted') {
+                                  testNotification();
+                                } else if (perm === 'denied') {
+                                  window.alert(
+                                    'Notifications are blocked for this site. Enable them in your browser settings, then try again.',
+                                  );
+                                }
+                              });
+                              return;
+                            }
+                            const ok = testNotification();
+                            if (!ok) {
+                              window.alert(
+                                'Could not display a notification. On macOS, also check System Settings → Notifications and make sure your browser app is allowed to send notifications.',
+                              );
+                            }
+                          },
+                        }]
+                        : []),
+                      ...(isAdmin
+                        ? [{
                           id: 'delete',
                           label: 'Delete channel',
                           icon: <IconTrash />,
@@ -342,10 +369,10 @@ const Chat: React.FC = () => {
                             );
                             if (ok) void deleteChannel(activeChannel.id);
                           },
-                        },
-                      ]}
-                    />
-                  )}
+                        }]
+                        : []),
+                    ]}
+                  />
                 </TopActions>
               </>
             ) : (

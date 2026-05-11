@@ -98,3 +98,31 @@ export function showMessageNotification(opts: ShowMessageOpts): void {
     /* Firing notifications can throw in odd browser states — never crash. */
   }
 }
+
+/**
+ * Fire a generic confirmation / test notification.
+ *
+ * Useful for verifying that the OS-level (e.g. macOS Notification Center)
+ * permission is actually granted — site-level permission is necessary but
+ * not sufficient. Returns false when not supported / permission missing.
+ */
+export function showTestNotification(opts: { title?: string; body?: string } = {}): boolean {
+  if (!isSupported()) return false;
+  if (Notification.permission !== 'granted') return false;
+  try {
+    const n = new Notification(opts.title ?? 'Chat notifications enabled', {
+      body:
+        opts.body
+          ?? "You'll get a ping when teammates message you in another channel or while this tab is in the background.",
+      icon: '/favicon.svg',
+      tag: 'chat:test',
+    });
+    n.onclick = () => {
+      try { window.focus(); } catch { /* noop */ }
+      n.close();
+    };
+    return true;
+  } catch {
+    return false;
+  }
+}

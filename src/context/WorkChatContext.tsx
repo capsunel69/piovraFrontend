@@ -50,6 +50,8 @@ interface WorkChatContextValue {
   notificationsEnabled: boolean;
   enableNotifications: () => Promise<notify.NotificationsPermission>;
   disableNotifications: () => void;
+  /** Fire a "test" desktop notification — returns false if not possible. */
+  testNotification: () => boolean;
 }
 
 const WorkChatContext = createContext<WorkChatContextValue | null>(null);
@@ -599,6 +601,10 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (perm === 'granted') {
       notify.setEnabledStored(true);
       setNotificationsEnabledState(true);
+      // Fire a confirmation so the user immediately sees whether the OS-level
+      // permission is also granted (a common Mac gotcha: site allows it but
+      // the browser app itself is muted in System Settings → Notifications).
+      notify.showTestNotification();
     }
     return perm;
   }, []);
@@ -606,6 +612,13 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const disableNotifications = useCallback((): void => {
     notify.setEnabledStored(false);
     setNotificationsEnabledState(false);
+  }, []);
+
+  const testNotification = useCallback((): boolean => {
+    return notify.showTestNotification({
+      title: 'Test notification',
+      body: 'If you can see this, desktop notifications are working.',
+    });
   }, []);
 
   /* Re-sync permission when tab is refocused (user might've changed it in
@@ -630,7 +643,7 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     loadError, loading,
     searchQuery, setSearchQuery,
     notificationsSupported, notificationsPermission, notificationsEnabled,
-    enableNotifications, disableNotifications,
+    enableNotifications, disableNotifications, testNotification,
   }), [
     me, isAdmin,
     channels, activeChannelId, activeChannel, setActiveChannel,
@@ -640,7 +653,7 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     loadError, loading,
     searchQuery,
     notificationsSupported, notificationsPermission, notificationsEnabled,
-    enableNotifications, disableNotifications,
+    enableNotifications, disableNotifications, testNotification,
   ]);
 
   return <WorkChatContext.Provider value={value}>{children}</WorkChatContext.Provider>;
