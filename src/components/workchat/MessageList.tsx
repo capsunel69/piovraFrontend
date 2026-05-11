@@ -7,11 +7,16 @@ import MessageItem from './MessageItem';
 const Wrap = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: var(--s-3) 0 var(--s-3);
+  padding: var(--s-2) 0 var(--s-4);
   display: flex;
   flex-direction: column;
   min-height: 0;
   scroll-behavior: smooth;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, transparent 32%, transparent 100%);
+
+  @media (prefers-reduced-motion: reduce) {
+    scroll-behavior: auto;
+  }
 `;
 
 const DayDivider = styled.div`

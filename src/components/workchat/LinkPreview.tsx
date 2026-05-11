@@ -16,7 +16,7 @@ const Card = styled.a`
   border-radius: var(--r-sm);
   text-decoration: none;
   color: inherit;
-  max-width: 480px;
+  max-width: min(480px, 100%);
   transition: background .15s, border-color .15s;
 
   &:hover {
