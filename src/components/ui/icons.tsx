@@ -273,3 +273,56 @@ export const IconChat = make(
     <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z" />
   </>
 );
+
+export const IconHash = make(
+  <>
+    <line x1="4" y1="9" x2="20" y2="9" />
+    <line x1="4" y1="15" x2="20" y2="15" />
+    <line x1="10" y1="3" x2="8" y2="21" />
+    <line x1="16" y1="3" x2="14" y2="21" />
+  </>
+);
+
+export const IconPin = make(
+  <>
+    <path d="M12 2v6" />
+    <path d="M7 8h10l-1 6H8L7 8z" />
+    <path d="M12 14v8" />
+  </>
+);
+
+export const IconSmile = make(
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+    <line x1="9" y1="9" x2="9.01" y2="9" />
+    <line x1="15" y1="9" x2="15.01" y2="9" />
+  </>
+);
+
+export const IconGif = make(
+  <>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="M9 9v6" />
+    <path d="M7.5 12h1.5" />
+    <path d="M13 9v6" />
+    <path d="M17 9h-3v6" />
+    <path d="M14 12h2" />
+  </>
+);
+
+export const IconReact = make(
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+    <path d="M16 8l-1.5 1.5" />
+    <path d="M9.5 9.5L8 8" />
+  </>
+);
+
+export const IconReply = make(
+  <>
+    <polyline points="9 17 4 12 9 7" />
+    <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+  </>
+);

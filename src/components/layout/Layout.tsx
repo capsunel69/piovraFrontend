@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { format } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { useAppContext } from '../../context/AppContext';
+import { useWorkChat } from '../../context/WorkChatContext';
 import { useRegisterOverlay } from '../../hooks/useOverlayStack';
 import BackgroundFx from './BackgroundFx';
 import ChatWidget from '../chat/ChatWidget';
@@ -11,7 +12,7 @@ import MobileNav, { type MobileNavItem } from './MobileNav';
 import { AppLogoMark } from './AppLogoMark';
 import {
   IconDashboard, IconTasks, IconCalendar, IconBell, IconNote, IconContacts,
-  IconLogout, IconChevronLeft, IconClock, IconBot,
+  IconLogout, IconChevronLeft, IconClock, IconBot, IconChat,
   IconMenu, IconLock, IconBook,
 } from '../ui/icons';
 import { IconButton } from '../ui/primitives';
@@ -25,6 +26,7 @@ const NAV_PRIMARY: MobileNavItem[] = [
   { to: '/reminders', label: 'Reminders', icon: IconBell },
   { to: '/notes',     label: 'Notes',     icon: IconNote },
   { to: '/contacts',  label: 'Contacts',  icon: IconContacts },
+  { to: '/chat',      label: 'Chat',      icon: IconChat },
   { to: '/agents',    label: 'Agents',    icon: IconBot },
 ];
 
@@ -150,7 +152,34 @@ const NavLinkStyled = styled(Link)<{ $active: boolean; $collapsed: boolean }>`
   `}
 
   svg { width: 18px; height: 18px; flex-shrink: 0; }
-  .label { display: ${p => p.$collapsed ? 'none' : 'inline'}; }
+  .label { display: ${p => p.$collapsed ? 'none' : 'inline'}; flex: 1; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    background: var(--accent);
+    color: #06121d;
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+
+  ${p => p.$collapsed && `
+    .badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      min-width: 14px;
+      height: 14px;
+      padding: 0 4px;
+      font-size: 9px;
+    }
+  `}
 `;
 
 const SidebarFooter = styled.div`
@@ -381,6 +410,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const { signOut, me } = useAuth();
   const { currentDate, setCurrentDate } = useAppContext();
+  const { totalUnread } = useWorkChat();
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     return localStorage.getItem('sidebarCollapsed') === '1';
   });
@@ -460,6 +490,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             {navItems.map(item => {
               const Icon = item.icon;
               const active = location.pathname === item.to;
+              const showBadge = item.to === '/chat' && totalUnread > 0 && !active;
               return (
                 <NavLinkStyled
                   key={item.to}
@@ -470,6 +501,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 >
                   <Icon />
                   <span className="label">{item.label}</span>
+                  {showBadge && (
+                    <span className="badge" aria-label={`${totalUnread} unread messages`}>
+                      {totalUnread > 99 ? '99+' : totalUnread}
+                    </span>
+                  )}
                 </NavLinkStyled>
               );
             })}
