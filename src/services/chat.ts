@@ -210,42 +210,60 @@ export async function fetchLinkPreview(url: string): Promise<LinkPreviewData> {
   }
 }
 
-/* ── GIF search (Tenor) ────────────────────────────────────────────────── */
+/* ── GIF search (GIPHY) ────────────────────────────────────────────────── */
 
-const TENOR_KEY = (import.meta.env.VITE_TENOR_API_KEY as string | undefined) ?? '';
-export const gifSearchEnabled = Boolean(TENOR_KEY);
+/* Tenor stopped accepting new API clients in Jan 2026, so we now use GIPHY.
+ * The legacy `VITE_TENOR_API_KEY` env var is ignored. */
 
-interface TenorMediaFormat { url: string; dims: [number, number] }
-interface TenorResult {
+const GIPHY_KEY = (import.meta.env.VITE_GIPHY_API_KEY as string | undefined) ?? '';
+export const gifSearchEnabled = Boolean(GIPHY_KEY);
+
+interface GiphyImage { url: string; width: string; height: string }
+interface GiphyResult {
   id: string;
-  content_description?: string;
-  media_formats?: {
-    gif?: TenorMediaFormat;
-    tinygif?: TenorMediaFormat;
-    nanogif?: TenorMediaFormat;
+  title?: string;
+  alt_text?: string;
+  images: {
+    fixed_height?: GiphyImage;
+    fixed_height_small?: GiphyImage;
+    fixed_width?: GiphyImage;
+    original?: GiphyImage;
+    downsized?: GiphyImage;
   };
 }
 
+function toNum(v: string | undefined, fallback: number): number {
+  const n = v ? Number(v) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 export async function searchGifs(query: string, limit = 24): Promise<ChatGifAttachment[]> {
-  if (!TENOR_KEY) return [];
+  if (!GIPHY_KEY) return [];
   const q = query.trim();
+  const params = new URLSearchParams({
+    api_key: GIPHY_KEY,
+    limit: String(limit),
+    rating: 'pg-13',
+    bundle: 'messaging_non_clips',
+  });
+  if (q) params.set('q', q);
   const url = q
-    ? `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}&key=${TENOR_KEY}&client_key=piovra-work&limit=${limit}&media_filter=gif,tinygif&contentfilter=high`
-    : `https://tenor.googleapis.com/v2/featured?key=${TENOR_KEY}&client_key=piovra-work&limit=${limit}&media_filter=gif,tinygif&contentfilter=high`;
+    ? `https://api.giphy.com/v1/gifs/search?${params.toString()}`
+    : `https://api.giphy.com/v1/gifs/trending?${params.toString()}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`tenor ${res.status}`);
-  const json = (await res.json()) as { results?: TenorResult[] };
-  return (json.results ?? [])
+  if (!res.ok) throw new Error(`giphy ${res.status}`);
+  const json = (await res.json()) as { data?: GiphyResult[] };
+  return (json.data ?? [])
     .map((r) => {
-      const full = r.media_formats?.gif;
-      const preview = r.media_formats?.tinygif ?? r.media_formats?.nanogif ?? full;
+      const full = r.images.fixed_height ?? r.images.downsized ?? r.images.original;
+      const preview = r.images.fixed_height_small ?? r.images.fixed_width ?? full;
       if (!full || !preview) return null;
       return {
         url: full.url,
         previewUrl: preview.url,
-        width: full.dims?.[0] ?? 200,
-        height: full.dims?.[1] ?? 200,
-        alt: r.content_description ?? 'GIF',
+        width: toNum(full.width, 200),
+        height: toNum(full.height, 200),
+        alt: r.alt_text ?? r.title ?? 'GIF',
       } satisfies ChatGifAttachment;
     })
     .filter((g): g is ChatGifAttachment => g !== null);

@@ -19,16 +19,16 @@ interface Props {
   highlight?: string;
 }
 
-const AVATAR = 28;
+const AVATAR = 30;
+const AVATAR_GAP = 8;
 
 const Row = styled.div<{ $mine: boolean; $grouped: boolean }>`
   display: flex;
   flex-direction: ${(p) => (p.$mine ? 'row-reverse' : 'row')};
   align-items: flex-end;
-  gap: 8px;
+  gap: ${AVATAR_GAP}px;
   width: 100%;
   padding: ${(p) => (p.$grouped ? '1px var(--s-4)' : '6px var(--s-4) 1px')};
-  position: relative;
 
   &:hover .msg-menu {
     opacity: 1;
@@ -44,6 +44,7 @@ const Row = styled.div<{ $mine: boolean; $grouped: boolean }>`
 const AvatarSlot = styled.div`
   width: ${AVATAR}px;
   flex-shrink: 0;
+  align-self: flex-end;
 `;
 
 const Avatar = styled.div<{ $src: string | null }>`
@@ -51,7 +52,6 @@ const Avatar = styled.div<{ $src: string | null }>`
   height: ${AVATAR}px;
   border-radius: 999px;
   background: var(--bg-4);
-  border: 1px solid var(--border-2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -68,103 +68,85 @@ const Avatar = styled.div<{ $src: string | null }>`
     `}
 `;
 
-const BubbleWrap = styled.div<{ $mine: boolean }>`
+const Column = styled.div<{ $mine: boolean }>`
   position: relative;
-  max-width: min(72%, 520px);
-  min-width: 64px;
   display: flex;
   flex-direction: column;
   align-items: ${(p) => (p.$mine ? 'flex-end' : 'flex-start')};
+  max-width: min(72%, 560px);
+  min-width: 0;
 `;
 
-/* Bubble with a single notched corner (tail) on the sender side. */
-const Bubble = styled.div<{ $mine: boolean; $tail: boolean; $pinned: boolean }>`
+/* No CSS triangle — sender's top corner is squared off (4px), the rest are rounded. */
+const Bubble = styled.div<{ $mine: boolean; $first: boolean; $pinned: boolean; $hasText: boolean }>`
   position: relative;
   padding: 6px 10px 4px;
+  border-radius: 12px;
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.42;
   color: var(--text-1);
-  border-radius: 8px;
-  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.25);
   word-wrap: break-word;
   overflow-wrap: anywhere;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
 
   ${(p) =>
     p.$mine
       ? css`
-          background: linear-gradient(180deg, rgba(76, 194, 255, 0.22) 0%, rgba(76, 194, 255, 0.14) 100%);
-          border: 1px solid rgba(76, 194, 255, 0.32);
+          background: #1f3e52;
         `
       : css`
           background: var(--bg-3);
-          border: 1px solid var(--border-2);
         `}
 
   ${(p) =>
-    p.$tail &&
+    p.$first &&
     p.$mine &&
     css`
-      border-top-right-radius: 2px;
-      &::after {
-        content: '';
-        position: absolute;
-        top: -1px;
-        right: -7px;
-        width: 8px;
-        height: 12px;
-        background: rgba(76, 194, 255, 0.22);
-        border-top: 1px solid rgba(76, 194, 255, 0.32);
-        border-right: 1px solid rgba(76, 194, 255, 0.32);
-        clip-path: polygon(0 0, 100% 0, 0 100%);
-      }
+      border-top-right-radius: 4px;
     `}
 
   ${(p) =>
-    p.$tail &&
+    p.$first &&
     !p.$mine &&
     css`
-      border-top-left-radius: 2px;
-      &::after {
-        content: '';
-        position: absolute;
-        top: -1px;
-        left: -7px;
-        width: 8px;
-        height: 12px;
-        background: var(--bg-3);
-        border-top: 1px solid var(--border-2);
-        border-left: 1px solid var(--border-2);
-        clip-path: polygon(0 0, 100% 0, 100% 100%);
-      }
+      border-top-left-radius: 4px;
     `}
 
   ${(p) =>
     p.$pinned &&
     css`
-      box-shadow: 0 0 0 1px var(--accent-soft), 0 1px 0.5px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 0 0 1px rgba(76, 194, 255, 0.45), 0 1px 1px rgba(0, 0, 0, 0.18);
     `}
+
+  /* Reserve space for the inline footer (time + ticks) on the last line. */
+  ${(p) => p.$hasText && css`
+    & > .msg-text::after {
+      content: '';
+      display: inline-block;
+      width: ${p.$mine ? '74px' : '54px'};
+      height: 1px;
+    }
+  `}
 `;
 
-const AuthorLine = styled.div<{ $mine: boolean }>`
+const AuthorLine = styled.div`
   font-size: 12px;
   font-weight: 700;
-  color: ${(p) => (p.$mine ? 'var(--accent)' : 'var(--text-1)')};
-  margin-bottom: 1px;
+  color: #4cc2ff;
+  margin-bottom: 2px;
   user-select: none;
 `;
 
 const Body = styled.div`
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.42;
   color: var(--text-1);
   white-space: pre-wrap;
   word-wrap: break-word;
   overflow-wrap: anywhere;
-  /* Trailing space so the footer time can sit under the last line. */
-  padding-bottom: 16px;
 
   a {
-    color: var(--accent);
+    color: #82d3ff;
     text-decoration: none;
     &:hover { text-decoration: underline; }
   }
@@ -182,21 +164,22 @@ const Gif = styled.img`
   max-width: 100%;
   max-height: 240px;
   margin-top: 4px;
-  border-radius: 6px;
-  border: 1px solid var(--border-1);
+  border-radius: 8px;
 `;
 
-const Footer = styled.div`
+const Footer = styled.div<{ $mine: boolean }>`
   position: absolute;
-  bottom: 4px;
   right: 8px;
+  bottom: 3px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: 10.5px;
-  color: var(--text-4);
+  color: ${(p) => (p.$mine ? 'rgba(255, 255, 255, 0.5)' : 'var(--text-4)')};
   font-variant-numeric: tabular-nums;
   pointer-events: none;
+  user-select: none;
+  line-height: 1;
 
   svg {
     width: 14px;
@@ -206,15 +189,16 @@ const Footer = styled.div`
 
 const SeenTick = styled.span<{ $seen: boolean }>`
   display: inline-flex;
-  color: ${(p) => (p.$seen ? '#4cc2ff' : 'var(--text-4)')};
+  color: ${(p) => (p.$seen ? '#53bdeb' : 'rgba(255, 255, 255, 0.55)')};
 `;
 
 const PinBadge = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  margin-bottom: 2px;
   font-size: 10px;
-  color: var(--accent);
+  color: #4cc2ff;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 700;
@@ -222,21 +206,10 @@ const PinBadge = styled.span`
   svg { width: 10px; height: 10px; }
 `;
 
-const HeadRow = styled.div<{ $mine: boolean }>`
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-bottom: 1px;
-  ${(p) =>
-    p.$mine
-      ? css`flex-direction: row-reverse;`
-      : css`flex-direction: row;`}
-`;
-
 const MenuBtnWrap = styled.div<{ $mine: boolean }>`
   position: absolute;
-  top: 2px;
-  ${(p) => (p.$mine ? 'left: -28px;' : 'right: -28px;')}
+  top: 0;
+  ${(p) => (p.$mine ? 'left: -32px;' : 'right: -32px;')}
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.12s ease;
@@ -264,7 +237,7 @@ const Pill = styled.button<{ $mine: boolean }>`
   border-radius: 999px;
   font-size: 11px;
   cursor: pointer;
-  color: ${(p) => (p.$mine ? 'var(--accent)' : 'var(--text-2)')};
+  color: ${(p) => (p.$mine ? '#4cc2ff' : 'var(--text-2)')};
   background: ${(p) => (p.$mine ? 'var(--accent-soft)' : 'var(--bg-2)')};
   border: 1px solid ${(p) => (p.$mine ? 'rgba(76, 194, 255, 0.35)' : 'var(--border-1)')};
   transition: border-color 0.12s ease;
@@ -274,10 +247,9 @@ const Pill = styled.button<{ $mine: boolean }>`
 
 const EmojiPop = styled.div<{ $mine: boolean }>`
   position: absolute;
-  top: -8px;
-  ${(p) => (p.$mine ? 'right: 100%;' : 'left: 100%;')}
+  top: 0;
+  ${(p) => (p.$mine ? 'right: 100%; margin-right: 8px;' : 'left: 100%; margin-left: 8px;')}
   z-index: 70;
-  ${(p) => (p.$mine ? 'margin-right: 8px;' : 'margin-left: 8px;')}
 `;
 
 const PreviewWrap = styled.div<{ $mine: boolean }>`
@@ -317,7 +289,13 @@ function linkifyAndHighlight(text: string, query: string): React.ReactNode[] {
   let key = 0;
   text.replace(URL_RE, (match, _g1, offset) => {
     const o = offset as number;
-    if (o > last) out.push(<React.Fragment key={`t-${key++}`}>{highlightInString(text.slice(last, o), query)}</React.Fragment>);
+    if (o > last) {
+      out.push(
+        <React.Fragment key={`t-${key++}`}>
+          {highlightInString(text.slice(last, o), query)}
+        </React.Fragment>,
+      );
+    }
     out.push(
       <a key={`a-${key++}`} href={match} target="_blank" rel="noopener noreferrer">
         {highlightInString(match, query)}
@@ -327,7 +305,11 @@ function linkifyAndHighlight(text: string, query: string): React.ReactNode[] {
     return match;
   });
   if (last < text.length) {
-    out.push(<React.Fragment key={`t-${key++}`}>{highlightInString(text.slice(last), query)}</React.Fragment>);
+    out.push(
+      <React.Fragment key={`t-${key++}`}>
+        {highlightInString(text.slice(last), query)}
+      </React.Fragment>,
+    );
   }
   return out;
 }
@@ -358,6 +340,7 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highl
 
   const initial = (message.authorName?.[0] ?? '?').toUpperCase();
   const grouped = !showAuthor;
+  const hasText = Boolean(message.text);
 
   const menuItems = [
     {
@@ -391,19 +374,24 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highl
     <Row $mine={Boolean(isMine)} $grouped={grouped}>
       {!isMine && (
         <AvatarSlot>
-          {showAuthor ? (
+          {showAuthor && (
             <Avatar
               $src={message.authorPictureUrl}
               title={`${message.authorName} · ${createdAt.toLocaleString()}`}
             >
               {!message.authorPictureUrl && initial}
             </Avatar>
-          ) : null}
+          )}
         </AvatarSlot>
       )}
 
-      <BubbleWrap $mine={Boolean(isMine)}>
-        <Bubble $mine={Boolean(isMine)} $tail={showAuthor} $pinned={isPinned}>
+      <Column $mine={Boolean(isMine)}>
+        <Bubble
+          $mine={Boolean(isMine)}
+          $first={showAuthor}
+          $pinned={isPinned}
+          $hasText={hasText}
+        >
           <MenuBtnWrap $mine={Boolean(isMine)} className="msg-menu">
             <Menu
               ariaLabel="Message actions"
@@ -434,22 +422,16 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highl
             </div>
           </MenuBtnWrap>
 
-          {showAuthor && !isMine && (
-            <HeadRow $mine={Boolean(isMine)}>
-              <AuthorLine $mine={Boolean(isMine)}>{message.authorName}</AuthorLine>
-              {isPinned && (
-                <PinBadge title="Pinned"><IconPin /> Pinned</PinBadge>
-              )}
-            </HeadRow>
+          {isPinned && showAuthor && (
+            <PinBadge title="Pinned"><IconPin /> Pinned</PinBadge>
           )}
-          {showAuthor && isMine && isPinned && (
-            <HeadRow $mine={Boolean(isMine)}>
-              <PinBadge title="Pinned"><IconPin /> Pinned</PinBadge>
-            </HeadRow>
+          {showAuthor && !isMine && (
+            <AuthorLine>{message.authorName}</AuthorLine>
           )}
 
-          {message.text && <Body>{linkifyAndHighlight(message.text, highlight ?? '')}</Body>}
-          {!message.text && message.gif && <div style={{ paddingBottom: 16 }} />}
+          {hasText && (
+            <Body className="msg-text">{linkifyAndHighlight(message.text, highlight ?? '')}</Body>
+          )}
           {message.gif && (
             <Gif
               src={message.gif.url}
@@ -459,7 +441,7 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highl
             />
           )}
 
-          <Footer title={createdAt.toLocaleString()}>
+          <Footer $mine={Boolean(isMine)} title={createdAt.toLocaleString()}>
             <span>{timeLabel}</span>
             {isMine && (
               <SeenTick $seen={seenByOthers} title={seenByOthers ? 'Seen' : 'Sent'}>
@@ -495,7 +477,7 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highl
             )}
           </PreviewWrap>
         )}
-      </BubbleWrap>
+      </Column>
     </Row>
   );
 };

@@ -7,24 +7,12 @@ import MessageItem from './MessageItem';
 const Wrap = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: var(--s-2) 0 var(--s-4);
+  padding: var(--s-3) 0 var(--s-4);
   display: flex;
   flex-direction: column;
   min-height: 0;
   scroll-behavior: smooth;
-
-  /* WhatsApp-style subtle wallpaper using a low-contrast geometric pattern. */
-  background-color: var(--bg-0, #0b1018);
-  background-image:
-    radial-gradient(circle at 20% 12%, rgba(76, 194, 255, 0.04) 0, transparent 35%),
-    radial-gradient(circle at 80% 78%, rgba(76, 194, 255, 0.03) 0, transparent 40%),
-    repeating-linear-gradient(
-      45deg,
-      rgba(255, 255, 255, 0.012) 0,
-      rgba(255, 255, 255, 0.012) 1px,
-      transparent 1px,
-      transparent 14px
-    );
+  background: var(--bg-0, #0b1018);
 
   @media (prefers-reduced-motion: reduce) {
     scroll-behavior: auto;

@@ -113,7 +113,7 @@ const GifPicker: React.FC<Props> = ({ onSelect }) => {
       <SearchBox>
         <Input
           autoFocus
-          placeholder={enabled ? 'Search Tenor GIFs…' : 'GIFs unavailable'}
+          placeholder={enabled ? 'Search GIPHY…' : 'GIFs unavailable'}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           disabled={!enabled}
@@ -122,8 +122,8 @@ const GifPicker: React.FC<Props> = ({ onSelect }) => {
       <Scroll>
         {!enabled ? (
           <Hint>
-            GIF search needs a Tenor API key.<br />
-            Set <code>VITE_TENOR_API_KEY</code> in your <code>.env</code> to enable it.
+            GIF search needs a GIPHY API key.<br />
+            Set <code>VITE_GIPHY_API_KEY</code> in your <code>.env</code> to enable it.
           </Hint>
         ) : err ? (
           <Hint>{err}</Hint>
@@ -141,7 +141,7 @@ const GifPicker: React.FC<Props> = ({ onSelect }) => {
           </Grid>
         )}
       </Scroll>
-      {enabled && <Footer>Powered by Tenor</Footer>}
+      {enabled && <Footer>Powered by GIPHY</Footer>}
     </Wrap>
   );
 };
