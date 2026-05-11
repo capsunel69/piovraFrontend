@@ -5,6 +5,7 @@ import {
 } from '../components/ui/primitives';
 import {
   IconChat, IconHash, IconPin, IconUsers, IconSearch, IconX, IconMoreVertical, IconTrash,
+  IconBell, IconBellOff,
 } from '../components/ui/icons';
 import { useWorkChat } from '../context/WorkChatContext';
 import ChannelList from '../components/workchat/ChannelList';
@@ -188,6 +189,8 @@ const ClearBtn = styled.button`
 const Chat: React.FC = () => {
   const {
     activeChannel, isAdmin, totalUnread, searchQuery, setSearchQuery, deleteChannel,
+    notificationsSupported, notificationsPermission, notificationsEnabled,
+    enableNotifications, disableNotifications,
   } = useWorkChat();
   const [showPinned, setShowPinned] = useState(false);
   const [mobileSidebar, setMobileSidebar] = useState(true);
@@ -259,6 +262,37 @@ const Chat: React.FC = () => {
                 </ChannelTitle>
                 {activeChannel.topic && <TopicLine>{activeChannel.topic}</TopicLine>}
                 <TopActions>
+                  {notificationsSupported && (
+                    <IconButton
+                      type="button"
+                      $variant={notificationsEnabled ? 'primary' : 'ghost'}
+                      $size="sm"
+                      onClick={() => {
+                        if (notificationsEnabled) {
+                          disableNotifications();
+                          return;
+                        }
+                        void enableNotifications().then((perm) => {
+                          if (perm === 'denied') {
+                            window.alert(
+                              'Desktop notifications are blocked for this site. Enable them in your browser settings to receive chat notifications.',
+                            );
+                          }
+                        });
+                      }}
+                      title={
+                        notificationsPermission === 'denied'
+                          ? 'Notifications blocked — change in browser settings'
+                          : notificationsEnabled
+                            ? 'Mute desktop notifications'
+                            : 'Enable desktop notifications'
+                      }
+                      aria-pressed={notificationsEnabled}
+                      aria-label="Toggle desktop notifications"
+                    >
+                      {notificationsEnabled ? <IconBell /> : <IconBellOff />}
+                    </IconButton>
+                  )}
                   <IconButton
                     type="button"
                     $variant={showSearch ? 'primary' : 'ghost'}
