@@ -38,6 +38,10 @@ interface WorkChatContextValue {
   loadError: string | null;
   /** True until the first channel list resolves. */
   loading: boolean;
+
+  /** Free-text filter applied to the active channel's messages. */
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
 }
 
 const WorkChatContext = createContext<WorkChatContextValue | null>(null);
@@ -88,6 +92,7 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [unreadByChannel, setUnreadByChannel] = useState<Record<string, number>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   /* Track whether the chat page is mounted (we poll faster when it is). */
   const isVisibleRef = useRef(false);
@@ -393,6 +398,9 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     [channels, activeChannelId],
   );
 
+  /* Reset search when channel changes. */
+  useEffect(() => { setSearchQuery(''); }, [activeChannelId]);
+
   const value = useMemo<WorkChatContextValue>(() => ({
     me, isAdmin,
     channels, activeChannelId, activeChannel, setActiveChannel,
@@ -400,6 +408,7 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     createChannel, deleteChannel, updateChannelTopic,
     unreadByChannel, totalUnread, reads, markActiveChannelRead,
     loadError, loading,
+    searchQuery, setSearchQuery,
   }), [
     me, isAdmin,
     channels, activeChannelId, activeChannel, setActiveChannel,
@@ -407,6 +416,7 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     createChannel, deleteChannel, updateChannelTopic,
     unreadByChannel, totalUnread, reads, markActiveChannelRead,
     loadError, loading,
+    searchQuery,
   ]);
 
   return <WorkChatContext.Provider value={value}>{children}</WorkChatContext.Provider>;

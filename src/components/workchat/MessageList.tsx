@@ -12,7 +12,19 @@ const Wrap = styled.div`
   flex-direction: column;
   min-height: 0;
   scroll-behavior: smooth;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, transparent 32%, transparent 100%);
+
+  /* WhatsApp-style subtle wallpaper using a low-contrast geometric pattern. */
+  background-color: var(--bg-0, #0b1018);
+  background-image:
+    radial-gradient(circle at 20% 12%, rgba(76, 194, 255, 0.04) 0, transparent 35%),
+    radial-gradient(circle at 80% 78%, rgba(76, 194, 255, 0.03) 0, transparent 40%),
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.012) 0,
+      rgba(255, 255, 255, 0.012) 1px,
+      transparent 1px,
+      transparent 14px
+    );
 
   @media (prefers-reduced-motion: reduce) {
     scroll-behavior: auto;
@@ -21,20 +33,19 @@ const Wrap = styled.div`
 
 const DayDivider = styled.div`
   display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  padding: var(--s-3) var(--s-4);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-3);
+  justify-content: center;
+  margin: var(--s-3) 0 var(--s-2);
 
-  &::before, &::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border-1);
+  & > span {
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    color: var(--text-3);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 3px 10px;
+    border-radius: 999px;
   }
 `;
 
@@ -53,10 +64,29 @@ const Hint = styled.div`
   margin-top: 6px;
 `;
 
+const SearchSummary = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border-1);
+  padding: 6px var(--s-4);
+  font-size: 12px;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+
+  strong {
+    color: var(--text-1);
+    font-weight: 600;
+  }
+`;
+
 const GROUPING_WINDOW_MS = 5 * 60 * 1000;
 
 const MessageList: React.FC = () => {
-  const { messages, activeChannel, me, reads } = useWorkChat();
+  const { messages, activeChannel, me, reads, searchQuery } = useWorkChat();
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastLenRef = useRef(0);
 
@@ -76,7 +106,6 @@ const MessageList: React.FC = () => {
     lastLenRef.current = messages.length;
   }, [messages]);
 
-  /* Read receipts: latest message that anyone besides me has read. */
   const seenCutoff = useMemo(() => {
     if (!me) return null;
     const others = reads.filter((r) => r.channelId === activeChannel?.id);
@@ -86,6 +115,12 @@ const MessageList: React.FC = () => {
       null,
     );
   }, [reads, activeChannel?.id, me]);
+
+  const trimmed = searchQuery.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!trimmed) return messages;
+    return messages.filter((m) => m.text.toLowerCase().includes(trimmed));
+  }, [messages, trimmed]);
 
   if (!activeChannel) {
     return <Empty>Select a channel to start chatting.</Empty>;
@@ -104,8 +139,21 @@ const MessageList: React.FC = () => {
 
   return (
     <Wrap ref={scrollRef}>
-      {messages.map((m, i) => {
-        const prev = messages[i - 1];
+      {trimmed && (
+        <SearchSummary>
+          {filtered.length === 0 ? (
+            <span>No results for <strong>"{searchQuery}"</strong></span>
+          ) : (
+            <span>
+              <strong>{filtered.length}</strong>
+              {filtered.length === 1 ? ' result' : ' results'} for <strong>"{searchQuery}"</strong>
+            </span>
+          )}
+        </SearchSummary>
+      )}
+
+      {filtered.map((m, i) => {
+        const prev = filtered[i - 1];
         const showDay = !prev || !isSameDay(new Date(prev.createdAt), new Date(m.createdAt));
         const sameAuthor =
           prev &&
@@ -121,9 +169,16 @@ const MessageList: React.FC = () => {
         return (
           <React.Fragment key={m.id}>
             {showDay && (
-              <DayDivider>{format(new Date(m.createdAt), 'EEEE, MMM d')}</DayDivider>
+              <DayDivider>
+                <span>{format(new Date(m.createdAt), 'EEEE, MMM d')}</span>
+              </DayDivider>
             )}
-            <MessageItem message={m} showAuthor={showAuthor} seenByOthers={seenByOthers} />
+            <MessageItem
+              message={m}
+              showAuthor={showAuthor}
+              seenByOthers={seenByOthers}
+              highlight={trimmed}
+            />
           </React.Fragment>
         );
       })}

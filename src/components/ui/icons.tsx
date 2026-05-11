@@ -326,3 +326,18 @@ export const IconReply = make(
     <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
   </>
 );
+
+export const IconMoreVertical = make(
+  <>
+    <circle cx="12" cy="5" r="1.5" />
+    <circle cx="12" cy="12" r="1.5" />
+    <circle cx="12" cy="19" r="1.5" />
+  </>
+);
+
+export const IconCheckDouble = make(
+  <>
+    <polyline points="2 12 7 17 14 8" />
+    <polyline points="10 12 15 17 22 8" />
+  </>
+);

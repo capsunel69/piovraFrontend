@@ -1,42 +1,38 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import styled, { css } from 'styled-components';
-import { format, formatDistanceToNow, isSameDay } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import { IconButton } from '../ui/primitives';
-import { IconPin, IconSmile, IconTrash, IconCheck } from '../ui/icons';
+import {
+  IconPin, IconSmile, IconTrash, IconCheck, IconCheckDouble, IconMoreVertical,
+} from '../ui/icons';
 import { detectLinks } from '../../services/chat';
 import { useWorkChat } from '../../context/WorkChatContext';
 import LinkPreview from './LinkPreview';
 import EmojiPicker from './EmojiPicker';
+import Menu from './Menu';
 import type { ChatMessage } from '../../types';
 
 interface Props {
   message: ChatMessage;
   showAuthor: boolean;
   seenByOthers: boolean;
+  highlight?: string;
 }
 
-const AVATAR = 36;
-const GUTTER = 12;
+const AVATAR = 28;
 
-const OutRow = styled.div<{ $mine: boolean; $grouped: boolean }>`
+const Row = styled.div<{ $mine: boolean; $grouped: boolean }>`
   display: flex;
-  flex-direction: row;
-  justify-content: ${(p) => (p.$mine ? 'flex-end' : 'flex-start')};
+  flex-direction: ${(p) => (p.$mine ? 'row-reverse' : 'row')};
   align-items: flex-end;
-  gap: ${GUTTER}px;
+  gap: 8px;
   width: 100%;
-  padding: ${(p) => (p.$grouped ? '3px var(--s-4)' : '10px var(--s-4) 6px')};
+  padding: ${(p) => (p.$grouped ? '1px var(--s-4)' : '6px var(--s-4) 1px')};
   position: relative;
 
-  &:hover .bubble-tools {
+  &:hover .msg-menu {
     opacity: 1;
     pointer-events: auto;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .bubble-tools {
-      transition: none;
-    }
   }
 
   @media (max-width: 520px) {
@@ -45,13 +41,9 @@ const OutRow = styled.div<{ $mine: boolean; $grouped: boolean }>`
   }
 `;
 
-const AvatarRail = styled.div`
+const AvatarSlot = styled.div`
   width: ${AVATAR}px;
   flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-bottom: 2px;
 `;
 
 const Avatar = styled.div<{ $src: string | null }>`
@@ -64,10 +56,9 @@ const Avatar = styled.div<{ $src: string | null }>`
   align-items: center;
   justify-content: center;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  flex-shrink: 0;
 
   ${(p) =>
     p.$src &&
@@ -77,244 +68,274 @@ const Avatar = styled.div<{ $src: string | null }>`
     `}
 `;
 
-const TimeInRail = styled.div`
-  font-size: 10px;
-  color: var(--text-4);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-  margin-top: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-
-  ${OutRow}:hover & {
-    opacity: 1;
-  }
-`;
-
-const SpacerRail = styled.div`
-  width: ${AVATAR}px;
-  flex-shrink: 0;
-`;
-
-const BubbleColumn = styled.div<{ $mine: boolean }>`
+const BubbleWrap = styled.div<{ $mine: boolean }>`
+  position: relative;
+  max-width: min(72%, 520px);
+  min-width: 64px;
   display: flex;
   flex-direction: column;
   align-items: ${(p) => (p.$mine ? 'flex-end' : 'flex-start')};
-  max-width: min(78%, 520px);
-  min-width: 0;
+`;
+
+/* Bubble with a single notched corner (tail) on the sender side. */
+const Bubble = styled.div<{ $mine: boolean; $tail: boolean; $pinned: boolean }>`
   position: relative;
-`;
-
-const MetaRow = styled.div<{ $mine: boolean }>`
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-2);
-  flex-wrap: wrap;
-  margin-bottom: 4px;
-  max-width: 100%;
-  ${(p) =>
-    p.$mine
-      ? css`
-          justify-content: flex-end;
-          flex-direction: row-reverse;
-        `
-      : css`
-          justify-content: flex-start;
-        `}
-`;
-
-const Author = styled.span`
-  font-size: 12.5px;
-  font-weight: 600;
+  padding: 6px 10px 4px;
+  font-size: 14px;
+  line-height: 1.4;
   color: var(--text-1);
-`;
-
-const TimeStamp = styled.span`
-  font-size: 11px;
-  color: var(--text-4);
-`;
-
-const PinTag = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10px;
-  color: var(--accent);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-
-  svg {
-    width: 10px;
-    height: 10px;
-  }
-`;
-
-const Bubble = styled.div<{ $mine: boolean }>`
-  position: relative;
-  border-radius: ${(p) => (p.$mine ? '14px 14px 4px 14px' : '14px 14px 14px 4px')};
-  padding: 10px 14px 10px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.25);
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
 
   ${(p) =>
     p.$mine
       ? css`
-          background: linear-gradient(
-            165deg,
-            rgba(76, 194, 255, 0.16) 0%,
-            rgba(76, 194, 255, 0.07) 100%
-          );
-          border: 1px solid rgba(76, 194, 255, 0.28);
+          background: linear-gradient(180deg, rgba(76, 194, 255, 0.22) 0%, rgba(76, 194, 255, 0.14) 100%);
+          border: 1px solid rgba(76, 194, 255, 0.32);
         `
       : css`
           background: var(--bg-3);
           border: 1px solid var(--border-2);
         `}
 
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  ${(p) =>
+    p.$tail &&
+    p.$mine &&
+    css`
+      border-top-right-radius: 2px;
+      &::after {
+        content: '';
+        position: absolute;
+        top: -1px;
+        right: -7px;
+        width: 8px;
+        height: 12px;
+        background: rgba(76, 194, 255, 0.22);
+        border-top: 1px solid rgba(76, 194, 255, 0.32);
+        border-right: 1px solid rgba(76, 194, 255, 0.32);
+        clip-path: polygon(0 0, 100% 0, 0 100%);
+      }
+    `}
 
-  &:hover {
-    border-color: ${(p) => (p.$mine ? 'rgba(76, 194, 255, 0.45)' : 'var(--border-3)')};
-    box-shadow: ${(p) =>
-      p.$mine ? '0 0 0 1px rgba(76, 194, 255, 0.12)' : '0 1px 0 rgba(0, 0, 0, 0.25)'};
-  }
+  ${(p) =>
+    p.$tail &&
+    !p.$mine &&
+    css`
+      border-top-left-radius: 2px;
+      &::after {
+        content: '';
+        position: absolute;
+        top: -1px;
+        left: -7px;
+        width: 8px;
+        height: 12px;
+        background: var(--bg-3);
+        border-top: 1px solid var(--border-2);
+        border-left: 1px solid var(--border-2);
+        clip-path: polygon(0 0, 100% 0, 100% 100%);
+      }
+    `}
+
+  ${(p) =>
+    p.$pinned &&
+    css`
+      box-shadow: 0 0 0 1px var(--accent-soft), 0 1px 0.5px rgba(0, 0, 0, 0.25);
+    `}
 `;
 
-const BubbleBody = styled.div`
+const AuthorLine = styled.div<{ $mine: boolean }>`
+  font-size: 12px;
+  font-weight: 700;
+  color: ${(p) => (p.$mine ? 'var(--accent)' : 'var(--text-1)')};
+  margin-bottom: 1px;
+  user-select: none;
+`;
+
+const Body = styled.div`
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.4;
   color: var(--text-1);
   white-space: pre-wrap;
   word-wrap: break-word;
   overflow-wrap: anywhere;
+  /* Trailing space so the footer time can sit under the last line. */
+  padding-bottom: 16px;
 
   a {
     color: var(--accent);
     text-decoration: none;
-    &:hover {
-      text-decoration: underline;
-    }
+    &:hover { text-decoration: underline; }
+  }
+
+  mark {
+    background: rgba(255, 213, 79, 0.32);
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 2px;
   }
 `;
 
-const BubbleFooterTime = styled.div<{ $mine: boolean }>`
-  margin-top: 6px;
-  font-size: 10px;
-  color: var(--text-4);
-  font-variant-numeric: tabular-nums;
-  ${(p) => (p.$mine ? 'text-align: right;' : 'text-align: left;')}
-`;
-
-const GifMedia = styled.img`
+const Gif = styled.img`
   display: block;
   max-width: 100%;
-  max-height: 220px;
-  margin-top: 6px;
-  border-radius: var(--r-sm);
+  max-height: 240px;
+  margin-top: 4px;
+  border-radius: 6px;
   border: 1px solid var(--border-1);
 `;
 
-const BelowBubble = styled.div<{ $mine: boolean }>`
-  width: 100%;
-  max-width: 100%;
-  margin-top: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: ${(p) => (p.$mine ? 'flex-end' : 'flex-start')};
+const Footer = styled.div`
+  position: absolute;
+  bottom: 4px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
 `;
 
-const Reactions = styled.div<{ $mine: boolean }>`
+const SeenTick = styled.span<{ $seen: boolean }>`
+  display: inline-flex;
+  color: ${(p) => (p.$seen ? '#4cc2ff' : 'var(--text-4)')};
+`;
+
+const PinBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+
+  svg { width: 10px; height: 10px; }
+`;
+
+const HeadRow = styled.div<{ $mine: boolean }>`
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 1px;
+  ${(p) =>
+    p.$mine
+      ? css`flex-direction: row-reverse;`
+      : css`flex-direction: row;`}
+`;
+
+const MenuBtnWrap = styled.div<{ $mine: boolean }>`
+  position: absolute;
+  top: 2px;
+  ${(p) => (p.$mine ? 'left: -28px;' : 'right: -28px;')}
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`;
+
+const ReactRow = styled.div<{ $mine: boolean }>`
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 3px;
+  margin-top: 4px;
   justify-content: ${(p) => (p.$mine ? 'flex-end' : 'flex-start')};
+  max-width: 100%;
 `;
 
 const Pill = styled.button<{ $mine: boolean }>`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 10px;
+  gap: 3px;
+  height: 22px;
+  padding: 0 8px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   cursor: pointer;
   color: ${(p) => (p.$mine ? 'var(--accent)' : 'var(--text-2)')};
   background: ${(p) => (p.$mine ? 'var(--accent-soft)' : 'var(--bg-2)')};
   border: 1px solid ${(p) => (p.$mine ? 'rgba(76, 194, 255, 0.35)' : 'var(--border-1)')};
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: border-color 0.12s ease;
 
-  &:hover {
-    border-color: var(--accent);
-  }
+  &:hover { border-color: var(--accent); }
 `;
 
-const Tools = styled.div<{ $mine: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: ${(p) => (p.$mine ? 'flex-end' : 'flex-start')};
-  gap: 2px;
-  margin: -4px -6px 6px;
-  padding: 2px 0;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
-  min-height: 28px;
-`;
-
-const PopAnchor = styled.div`
-  position: relative;
-`;
-
-const PopoverWrap = styled.div<{ $mine: boolean }>`
+const EmojiPop = styled.div<{ $mine: boolean }>`
   position: absolute;
-  top: 100%;
-  margin-top: 6px;
-  z-index: 50;
-  ${(p) => (p.$mine ? 'right: 0;' : 'left: 0;')}
+  top: -8px;
+  ${(p) => (p.$mine ? 'right: 100%;' : 'left: 100%;')}
+  z-index: 70;
+  ${(p) => (p.$mine ? 'margin-right: 8px;' : 'margin-left: 8px;')}
 `;
 
-const SeenLine = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+const PreviewWrap = styled.div<{ $mine: boolean }>`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
   margin-top: 4px;
-  font-size: 11px;
-  color: var(--text-4);
-
-  svg {
-    width: 11px;
-    height: 11px;
-    color: var(--success);
-  }
+  align-items: ${(p) => (p.$mine ? 'flex-end' : 'flex-start')};
 `;
 
 const URL_RE = /(https?:\/\/[^\s<>"']+)/gi;
 
-function linkify(text: string): React.ReactNode[] {
+function highlightInString(text: string, query: string): React.ReactNode[] {
+  if (!query) return [text];
+  const out: React.ReactNode[] = [];
+  const lower = text.toLowerCase();
+  const needle = query.toLowerCase();
+  let i = 0;
+  let key = 0;
+  while (i < text.length) {
+    const idx = lower.indexOf(needle, i);
+    if (idx === -1) {
+      out.push(text.slice(i));
+      break;
+    }
+    if (idx > i) out.push(text.slice(i, idx));
+    out.push(<mark key={`m-${key++}`}>{text.slice(idx, idx + needle.length)}</mark>);
+    i = idx + needle.length;
+  }
+  return out;
+}
+
+function linkifyAndHighlight(text: string, query: string): React.ReactNode[] {
   const out: React.ReactNode[] = [];
   let last = 0;
   let key = 0;
   text.replace(URL_RE, (match, _g1, offset) => {
     const o = offset as number;
-    if (o > last) out.push(text.slice(last, o));
+    if (o > last) out.push(<React.Fragment key={`t-${key++}`}>{highlightInString(text.slice(last, o), query)}</React.Fragment>);
     out.push(
-      <a key={key++} href={match} target="_blank" rel="noopener noreferrer">
-        {match}
+      <a key={`a-${key++}`} href={match} target="_blank" rel="noopener noreferrer">
+        {highlightInString(match, query)}
       </a>,
     );
     last = o + match.length;
     return match;
   });
-  if (last < text.length) out.push(text.slice(last));
+  if (last < text.length) {
+    out.push(<React.Fragment key={`t-${key++}`}>{highlightInString(text.slice(last), query)}</React.Fragment>);
+  }
   return out;
 }
 
-const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers }) => {
+const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highlight }) => {
   const { me, isAdmin, toggleReaction, pinMessage, unpinMessage, deleteMessage } = useWorkChat();
   const [showEmoji, setShowEmoji] = useState(false);
-  const popRef = useRef<HTMLDivElement>(null);
+  const emojiRef = useRef<HTMLDivElement>(null);
 
   const links = useMemo(() => detectLinks(message.text), [message.text]);
   const isMine = me?.id === message.authorId;
@@ -322,10 +343,8 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers }) => 
 
   useEffect(() => {
     if (!showEmoji) return;
-    const onDoc = (e: MouseEvent) => {
-      if (popRef.current && !popRef.current.contains(e.target as Node)) {
-        setShowEmoji(false);
-      }
+    const onDoc = (e: MouseEvent): void => {
+      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) setShowEmoji(false);
     };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -335,115 +354,128 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers }) => 
   const today = new Date();
   const timeLabel = isSameDay(createdAt, today)
     ? format(createdAt, 'HH:mm')
-    : format(createdAt, 'MMM d, HH:mm');
+    : format(createdAt, 'MMM d HH:mm');
 
   const initial = (message.authorName?.[0] ?? '?').toUpperCase();
   const grouped = !showAuthor;
 
+  const menuItems = [
+    {
+      id: 'react',
+      label: 'Add reaction',
+      icon: <IconSmile />,
+      onSelect: () => setShowEmoji(true),
+    },
+    ...(isAdmin
+      ? [{
+        id: 'pin',
+        label: isPinned ? 'Unpin' : 'Pin message',
+        icon: <IconPin />,
+        onSelect: () => void (isPinned ? unpinMessage(message.id) : pinMessage(message.id)),
+      }]
+      : []),
+    ...(isMine || isAdmin
+      ? [{
+        id: 'delete',
+        label: 'Delete',
+        icon: <IconTrash />,
+        danger: true,
+        onSelect: () => {
+          if (window.confirm('Delete this message?')) void deleteMessage(message.id);
+        },
+      }]
+      : []),
+  ];
+
   return (
-    <OutRow $mine={Boolean(isMine)} $grouped={grouped}>
-      {!isMine &&
-        (showAuthor ? (
-          <AvatarRail>
-            <Avatar $src={message.authorPictureUrl} title={`${message.authorName} · ${createdAt.toLocaleString()}`}>
+    <Row $mine={Boolean(isMine)} $grouped={grouped}>
+      {!isMine && (
+        <AvatarSlot>
+          {showAuthor ? (
+            <Avatar
+              $src={message.authorPictureUrl}
+              title={`${message.authorName} · ${createdAt.toLocaleString()}`}
+            >
               {!message.authorPictureUrl && initial}
             </Avatar>
-            {!grouped && (
-              <TimeInRail title={createdAt.toLocaleString()}>{format(createdAt, 'HH:mm')}</TimeInRail>
-            )}
-          </AvatarRail>
-        ) : (
-          <SpacerRail aria-hidden />
-        ))}
+          ) : null}
+        </AvatarSlot>
+      )}
 
-      <BubbleColumn $mine={Boolean(isMine)}>
-        {showAuthor && (
-          <MetaRow $mine={Boolean(isMine)}>
-            {!isMine && <Author>{message.authorName}</Author>}
-            {isMine && <Author>You</Author>}
-            <TimeStamp title={createdAt.toLocaleString()}>
-              {timeLabel} · {formatDistanceToNow(createdAt, { addSuffix: true })}
-            </TimeStamp>
-            {isPinned && (
-              <PinTag>
-                <IconPin /> Pinned
-              </PinTag>
-            )}
-          </MetaRow>
-        )}
-
-        <Bubble $mine={Boolean(isMine)}>
-          <Tools className="bubble-tools" $mine={Boolean(isMine)}>
-            <PopAnchor ref={popRef}>
-              <IconButton
-                type="button"
-                $size="sm"
-                $variant="ghost"
-                onClick={() => setShowEmoji((v) => !v)}
-                title="Add reaction"
-              >
-                <IconSmile />
-              </IconButton>
+      <BubbleWrap $mine={Boolean(isMine)}>
+        <Bubble $mine={Boolean(isMine)} $tail={showAuthor} $pinned={isPinned}>
+          <MenuBtnWrap $mine={Boolean(isMine)} className="msg-menu">
+            <Menu
+              ariaLabel="Message actions"
+              align={isMine ? 'left' : 'right'}
+              trigger={
+                <IconButton
+                  type="button"
+                  $size="sm"
+                  $variant="ghost"
+                  aria-label="Message actions"
+                >
+                  <IconMoreVertical />
+                </IconButton>
+              }
+              items={menuItems}
+            />
+            <div ref={emojiRef}>
               {showEmoji && (
-                <PopoverWrap $mine={Boolean(isMine)}>
+                <EmojiPop $mine={Boolean(isMine)}>
                   <EmojiPicker
                     onSelect={(e) => {
                       void toggleReaction(message.id, e);
                       setShowEmoji(false);
                     }}
                   />
-                </PopoverWrap>
+                </EmojiPop>
               )}
-            </PopAnchor>
-            {isAdmin && (
-              <IconButton
-                type="button"
-                $size="sm"
-                $variant="ghost"
-                onClick={() => void (isPinned ? unpinMessage(message.id) : pinMessage(message.id))}
-                title={isPinned ? 'Unpin message' : 'Pin message'}
-                style={isPinned ? { color: 'var(--accent)' } : undefined}
-              >
-                <IconPin />
-              </IconButton>
-            )}
-            {(isMine || isAdmin) && (
-              <IconButton
-                type="button"
-                $size="sm"
-                $variant="ghost"
-                onClick={() => {
-                  if (window.confirm('Delete this message?')) void deleteMessage(message.id);
-                }}
-                title="Delete message"
-              >
-                <IconTrash />
-              </IconButton>
-            )}
-          </Tools>
-          {message.text && <BubbleBody>{linkify(message.text)}</BubbleBody>}
+            </div>
+          </MenuBtnWrap>
+
+          {showAuthor && !isMine && (
+            <HeadRow $mine={Boolean(isMine)}>
+              <AuthorLine $mine={Boolean(isMine)}>{message.authorName}</AuthorLine>
+              {isPinned && (
+                <PinBadge title="Pinned"><IconPin /> Pinned</PinBadge>
+              )}
+            </HeadRow>
+          )}
+          {showAuthor && isMine && isPinned && (
+            <HeadRow $mine={Boolean(isMine)}>
+              <PinBadge title="Pinned"><IconPin /> Pinned</PinBadge>
+            </HeadRow>
+          )}
+
+          {message.text && <Body>{linkifyAndHighlight(message.text, highlight ?? '')}</Body>}
+          {!message.text && message.gif && <div style={{ paddingBottom: 16 }} />}
           {message.gif && (
-            <GifMedia
+            <Gif
               src={message.gif.url}
               alt={message.gif.alt}
               width={message.gif.width}
               height={message.gif.height}
             />
           )}
-          {grouped && (
-            <BubbleFooterTime $mine={Boolean(isMine)} title={createdAt.toLocaleString()}>
-              {timeLabel}
-            </BubbleFooterTime>
-          )}
+
+          <Footer title={createdAt.toLocaleString()}>
+            <span>{timeLabel}</span>
+            {isMine && (
+              <SeenTick $seen={seenByOthers} title={seenByOthers ? 'Seen' : 'Sent'}>
+                {seenByOthers ? <IconCheckDouble /> : <IconCheck />}
+              </SeenTick>
+            )}
+          </Footer>
         </Bubble>
 
-        {(links.length > 0 || Object.keys(message.reactions).length > 0 || (isMine && seenByOthers)) && (
-          <BelowBubble $mine={Boolean(isMine)}>
+        {(links.length > 0 || Object.keys(message.reactions).length > 0) && (
+          <PreviewWrap $mine={Boolean(isMine)}>
             {links.slice(0, 2).map((u) => (
               <LinkPreview key={u} url={u} />
             ))}
             {Object.keys(message.reactions).length > 0 && (
-              <Reactions $mine={Boolean(isMine)}>
+              <ReactRow $mine={Boolean(isMine)}>
                 {Object.entries(message.reactions).map(([emoji, users]) => {
                   const mineReact = me ? users.includes(me.id) : false;
                   return (
@@ -459,17 +491,12 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers }) => 
                     </Pill>
                   );
                 })}
-              </Reactions>
+              </ReactRow>
             )}
-            {isMine && seenByOthers && (
-              <SeenLine title="Seen by others">
-                <IconCheck /> Seen
-              </SeenLine>
-            )}
-          </BelowBubble>
+          </PreviewWrap>
         )}
-      </BubbleColumn>
-    </OutRow>
+      </BubbleWrap>
+    </Row>
   );
 };
 
