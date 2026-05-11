@@ -1,301 +1,168 @@
 /**
- * Work-chat service.
+ * Work-chat REST client. All chat state lives on the Piovra server now.
  *
- * Designed as a thin transport layer so the UI doesn't care whether messages
- * live in localStorage (current) or a future Piovra REST + WebSocket layer.
+ * Calls go to `/v1/chat/*` with the `piovra_sid` session cookie. The UI
+ * polls (`fetchUnreadSummary`, `listMessages?since=…`) to pick up new
+ * messages; an SSE/WS upgrade is the natural next step.
  *
- * Today's backend = localStorage with a BroadcastChannel pub/sub so multiple
- * tabs / windows on the same browser see live updates. When Piovra ships
- * chat endpoints (`/v1/chat/channels`, `/v1/chat/messages`, SSE/WS), only this
- * file changes: `subscribe`, `listChannels`, `sendMessage`, etc. become
- * network calls; the UI / context stays untouched.
+ * Link previews and GIF search are kept on the client because they're
+ * third-party network calls that don't need to hit our server.
  */
 
-import { v4 as uuidv4 } from 'uuid';
 import type {
   ChatChannel,
   ChatMessage,
   ChannelReadState,
   LinkPreviewData,
   ChatGifAttachment,
-  ChatUser,
 } from '../types';
 
-const LS_KEYS = {
-  channels: 'workchat.channels',
-  messages: 'workchat.messages',
-  reads: 'workchat.reads',
-  linkPreviews: 'workchat.linkPreviews',
-} as const;
+const PIOVRA_BASE_URL = (import.meta.env.VITE_PIOVRA_BASE_URL as string | undefined) ?? '';
+const BASE = `${PIOVRA_BASE_URL}/v1/chat`;
 
-const BROADCAST_NAME = 'workchat';
-
-type ChatEvent =
-  | { type: 'channels.changed' }
-  | { type: 'messages.changed'; channelId: string }
-  | { type: 'reads.changed' };
-
-type Listener = (e: ChatEvent) => void;
-
-const listeners = new Set<Listener>();
-let bc: BroadcastChannel | null = null;
-
-const supportsBroadcast = typeof window !== 'undefined' && 'BroadcastChannel' in window;
-if (supportsBroadcast) {
-  bc = new BroadcastChannel(BROADCAST_NAME);
-  bc.onmessage = (ev) => {
-    const data = ev.data as ChatEvent | undefined;
-    if (data) emit(data, false);
-  };
-}
-
-function emit(e: ChatEvent, alsoBroadcast = true): void {
-  for (const l of listeners) {
-    try { l(e); } catch (err) { console.warn('[chat] listener failed', err); }
+async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    credentials: 'include',
+    headers: init.body
+      ? { 'Content-Type': 'application/json', ...(init.headers ?? {}) }
+      : (init.headers ?? undefined),
+    ...init,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    let parsed: { error?: string } | null = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { /* plain text */ }
+    const msg = parsed?.error ?? text ?? `chat ${init.method ?? 'GET'} ${path} -> ${res.status}`;
+    throw new ChatApiError(res.status, msg);
   }
-  if (alsoBroadcast && bc) bc.postMessage(e);
+  if (res.status === 204) return undefined as T;
+  return res.json();
 }
 
-function read<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
+export class ChatApiError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
   }
 }
 
-function write<T>(key: string, value: T): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (err) {
-    console.warn(`[chat] failed writing ${key}`, err);
-  }
+/* ── Channels ──────────────────────────────────────────────────────────── */
+
+export function listChannels(): Promise<ChatChannel[]> {
+  return http<ChatChannel[]>('/channels');
 }
 
-/* ── Public API ────────────────────────────────────────────────────── */
-
-export function subscribe(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => { listeners.delete(listener); };
+export function createChannel(input: { name: string; topic?: string }): Promise<ChatChannel> {
+  return http<ChatChannel>('/channels', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
-export function listChannels(): ChatChannel[] {
-  const list = read<ChatChannel[]>(LS_KEYS.channels, []);
-  return list.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+export function updateChannel(id: string, patch: { topic?: string }): Promise<ChatChannel> {
+  return http<ChatChannel>(`/channels/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
 }
 
-export function createChannel(input: {
-  name: string;
-  topic?: string;
-  createdBy: string;
-}): ChatChannel {
-  const cleaned = input.name.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
-  if (!cleaned) throw new Error('Channel name must contain letters or numbers.');
-  const channels = listChannels();
-  if (channels.some((c) => c.name === cleaned)) {
-    throw new Error(`A channel called #${cleaned} already exists.`);
-  }
-  const ch: ChatChannel = {
-    id: uuidv4(),
-    name: cleaned,
-    topic: input.topic?.trim() ?? '',
-    createdBy: input.createdBy,
-    createdAt: new Date().toISOString(),
-    pinnedMessageIds: [],
-  };
-  write(LS_KEYS.channels, [...channels, ch]);
-  emit({ type: 'channels.changed' });
-  return ch;
+export function deleteChannel(id: string): Promise<void> {
+  return http<void>(`/channels/${id}`, { method: 'DELETE' });
 }
 
-export function updateChannel(id: string, patch: Partial<Pick<ChatChannel, 'topic'>>): void {
-  const channels = listChannels().map((c) => (c.id === id ? { ...c, ...patch } : c));
-  write(LS_KEYS.channels, channels);
-  emit({ type: 'channels.changed' });
-}
+/* ── Messages ──────────────────────────────────────────────────────────── */
 
-export function deleteChannel(id: string): void {
-  const channels = listChannels().filter((c) => c.id !== id);
-  write(LS_KEYS.channels, channels);
-  const all = readAllMessages();
-  delete all[id];
-  write(LS_KEYS.messages, all);
-  emit({ type: 'channels.changed' });
-  emit({ type: 'messages.changed', channelId: id });
-}
-
-function readAllMessages(): Record<string, ChatMessage[]> {
-  return read<Record<string, ChatMessage[]>>(LS_KEYS.messages, {});
-}
-
-export function listMessages(channelId: string): ChatMessage[] {
-  return readAllMessages()[channelId] ?? [];
+export function listMessages(
+  channelId: string,
+  opts: { since?: string; limit?: number } = {},
+): Promise<ChatMessage[]> {
+  const qs = new URLSearchParams();
+  if (opts.since) qs.set('since', opts.since);
+  if (opts.limit !== undefined) qs.set('limit', String(opts.limit));
+  const q = qs.toString();
+  return http<ChatMessage[]>(`/channels/${channelId}/messages${q ? `?${q}` : ''}`);
 }
 
 export function sendMessage(input: {
   channelId: string;
-  author: ChatUser;
   text: string;
   gif?: ChatGifAttachment;
-}): ChatMessage {
-  const msg: ChatMessage = {
-    id: uuidv4(),
-    channelId: input.channelId,
-    authorId: input.author.id,
-    authorName: input.author.name,
-    authorPictureUrl: input.author.pictureUrl,
-    text: input.text,
-    gif: input.gif,
-    createdAt: new Date().toISOString(),
-    reactions: {},
-  };
-  const all = readAllMessages();
-  all[input.channelId] = [...(all[input.channelId] ?? []), msg];
-  write(LS_KEYS.messages, all);
-  emit({ type: 'messages.changed', channelId: input.channelId });
-  return msg;
+}): Promise<ChatMessage> {
+  return http<ChatMessage>(`/channels/${input.channelId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ text: input.text, gif: input.gif }),
+  });
 }
 
-export function deleteMessage(channelId: string, messageId: string): void {
-  const all = readAllMessages();
-  const list = all[channelId];
-  if (!list) return;
-  all[channelId] = list.filter((m) => m.id !== messageId);
-  write(LS_KEYS.messages, all);
-
-  const channels = listChannels().map((c) =>
-    c.id === channelId
-      ? { ...c, pinnedMessageIds: c.pinnedMessageIds.filter((id) => id !== messageId) }
-      : c,
-  );
-  write(LS_KEYS.channels, channels);
-
-  emit({ type: 'messages.changed', channelId });
-  emit({ type: 'channels.changed' });
+export function deleteMessage(channelId: string, messageId: string): Promise<void> {
+  return http<void>(`/channels/${channelId}/messages/${messageId}`, { method: 'DELETE' });
 }
 
 export function toggleReaction(
   channelId: string,
   messageId: string,
   emoji: string,
-  userId: string,
-): void {
-  const all = readAllMessages();
-  const list = all[channelId];
-  if (!list) return;
-  all[channelId] = list.map((m) => {
-    if (m.id !== messageId) return m;
-    const cur = new Set(m.reactions[emoji] ?? []);
-    if (cur.has(userId)) cur.delete(userId);
-    else cur.add(userId);
-    const nextReactions = { ...m.reactions };
-    if (cur.size === 0) delete nextReactions[emoji];
-    else nextReactions[emoji] = [...cur];
-    return { ...m, reactions: nextReactions };
-  });
-  write(LS_KEYS.messages, all);
-  emit({ type: 'messages.changed', channelId });
-}
-
-export function pinMessage(channelId: string, messageId: string, pinnerId: string): void {
-  const channels = listChannels();
-  const ch = channels.find((c) => c.id === channelId);
-  if (!ch) return;
-  if (ch.pinnedMessageIds.includes(messageId)) return;
-  const nextChannels = channels.map((c) =>
-    c.id === channelId
-      ? { ...c, pinnedMessageIds: [messageId, ...c.pinnedMessageIds] }
-      : c,
-  );
-  write(LS_KEYS.channels, nextChannels);
-
-  const all = readAllMessages();
-  if (all[channelId]) {
-    all[channelId] = all[channelId].map((m) =>
-      m.id === messageId
-        ? { ...m, pinnedAt: new Date().toISOString(), pinnedBy: pinnerId }
-        : m,
-    );
-    write(LS_KEYS.messages, all);
-  }
-
-  emit({ type: 'channels.changed' });
-  emit({ type: 'messages.changed', channelId });
-}
-
-export function unpinMessage(channelId: string, messageId: string): void {
-  const channels = listChannels().map((c) =>
-    c.id === channelId
-      ? { ...c, pinnedMessageIds: c.pinnedMessageIds.filter((id) => id !== messageId) }
-      : c,
-  );
-  write(LS_KEYS.channels, channels);
-
-  const all = readAllMessages();
-  if (all[channelId]) {
-    all[channelId] = all[channelId].map((m) =>
-      m.id === messageId ? { ...m, pinnedAt: undefined, pinnedBy: undefined } : m,
-    );
-    write(LS_KEYS.messages, all);
-  }
-
-  emit({ type: 'channels.changed' });
-  emit({ type: 'messages.changed', channelId });
-}
-
-/* ── Read receipts ─────────────────────────────────────────────────── */
-
-function readsKey(userId: string): string {
-  return `${LS_KEYS.reads}:${userId}`;
-}
-
-export function getReads(userId: string): ChannelReadState[] {
-  return read<ChannelReadState[]>(readsKey(userId), []);
-}
-
-export function markChannelRead(userId: string, channelId: string, at = new Date().toISOString()): void {
-  const cur = getReads(userId);
-  const idx = cur.findIndex((r) => r.channelId === channelId);
-  if (idx >= 0) {
-    if (cur[idx].lastReadAt >= at) return;
-    cur[idx] = { channelId, lastReadAt: at };
-  } else {
-    cur.push({ channelId, lastReadAt: at });
-  }
-  write(readsKey(userId), cur);
-  emit({ type: 'reads.changed' });
-}
-
-/* ── Seeding ───────────────────────────────────────────────────────── */
-
-/** Create a default `#general` channel the first time the workspace loads. */
-export function ensureDefaultChannel(adminId: string): ChatChannel {
-  const existing = listChannels();
-  if (existing.length > 0) return existing[0];
-  return createChannel({
-    name: 'general',
-    topic: 'Team-wide chatter.',
-    createdBy: adminId,
+): Promise<ChatMessage> {
+  return http<ChatMessage>(`/channels/${channelId}/messages/${messageId}/reactions`, {
+    method: 'POST',
+    body: JSON.stringify({ emoji }),
   });
 }
 
-/* ── Link preview (Microlink, free tier, no key) ───────────────────── */
-
-const LINK_PREVIEW_TTL_MS = 6 * 60 * 60 * 1000; // 6h cache
-
-interface LinkPreviewCacheEntry {
-  fetchedAt: number;
-  data: LinkPreviewData;
+export function pinMessage(
+  channelId: string,
+  messageId: string,
+): Promise<{ channel: ChatChannel; message: ChatMessage }> {
+  return http(`/channels/${channelId}/messages/${messageId}/pin`, { method: 'POST' });
 }
+
+export function unpinMessage(
+  channelId: string,
+  messageId: string,
+): Promise<{ channel: ChatChannel; message: ChatMessage }> {
+  return http(`/channels/${channelId}/messages/${messageId}/unpin`, { method: 'POST' });
+}
+
+/* ── Reads / unread ────────────────────────────────────────────────────── */
+
+export function listReads(): Promise<ChannelReadState[]> {
+  return http<ChannelReadState[]>('/reads');
+}
+
+export function markChannelRead(channelId: string, lastReadAt: string): Promise<ChannelReadState> {
+  return http<ChannelReadState>(`/channels/${channelId}/read`, {
+    method: 'PUT',
+    body: JSON.stringify({ lastReadAt }),
+  });
+}
+
+export interface UnreadSummaryRow {
+  channelId: string;
+  unreadCount: number;
+  latestAt: string | null;
+}
+
+export function fetchUnreadSummary(): Promise<UnreadSummaryRow[]> {
+  return http<UnreadSummaryRow[]>('/unread');
+}
+
+/* ── Link preview (Microlink, free tier) ───────────────────────────────── */
+
+const LS_PREVIEW_CACHE = 'workchat.linkPreviews';
+const LINK_PREVIEW_TTL_MS = 6 * 60 * 60 * 1000;
+
+interface LinkPreviewCacheEntry { fetchedAt: number; data: LinkPreviewData }
 
 function readPreviewCache(): Record<string, LinkPreviewCacheEntry> {
-  return read<Record<string, LinkPreviewCacheEntry>>(LS_KEYS.linkPreviews, {});
+  try {
+    const raw = localStorage.getItem(LS_PREVIEW_CACHE);
+    return raw ? (JSON.parse(raw) as Record<string, LinkPreviewCacheEntry>) : {};
+  } catch {
+    return {};
+  }
 }
 
 function writePreviewCache(c: Record<string, LinkPreviewCacheEntry>): void {
-  write(LS_KEYS.linkPreviews, c);
+  try { localStorage.setItem(LS_PREVIEW_CACHE, JSON.stringify(c)); } catch { /* quota */ }
 }
 
 export function detectLinks(text: string): string[] {
@@ -309,9 +176,7 @@ export function detectLinks(text: string): string[] {
 export async function fetchLinkPreview(url: string): Promise<LinkPreviewData> {
   const cache = readPreviewCache();
   const hit = cache[url];
-  if (hit && Date.now() - hit.fetchedAt < LINK_PREVIEW_TTL_MS) {
-    return hit.data;
-  }
+  if (hit && Date.now() - hit.fetchedAt < LINK_PREVIEW_TTL_MS) return hit.data;
   try {
     const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}`);
     if (!res.ok) throw new Error(`microlink ${res.status}`);
@@ -337,12 +202,7 @@ export async function fetchLinkPreview(url: string): Promise<LinkPreviewData> {
     return data;
   } catch {
     const failed: LinkPreviewData = {
-      url,
-      title: null,
-      description: null,
-      image: null,
-      siteName: null,
-      failed: true,
+      url, title: null, description: null, image: null, siteName: null, failed: true,
     };
     cache[url] = { fetchedAt: Date.now(), data: failed };
     writePreviewCache(cache);
@@ -350,10 +210,9 @@ export async function fetchLinkPreview(url: string): Promise<LinkPreviewData> {
   }
 }
 
-/* ── GIF search (Tenor — requires VITE_TENOR_API_KEY) ──────────────── */
+/* ── GIF search (Tenor) ────────────────────────────────────────────────── */
 
 const TENOR_KEY = (import.meta.env.VITE_TENOR_API_KEY as string | undefined) ?? '';
-
 export const gifSearchEnabled = Boolean(TENOR_KEY);
 
 interface TenorMediaFormat { url: string; dims: [number, number] }
