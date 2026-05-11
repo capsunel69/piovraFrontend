@@ -8,11 +8,19 @@
  *
  * When the tab is focused and viewing the same channel the message
  * arrived in, we suppress the notification (matches WhatsApp/Slack).
+ *
+ * NOTE: the *app icon* shown by macOS on the left of the notification is
+ * the sending app's icon (the browser) and cannot be changed via this API.
+ * Installing the site as a PWA is the only way to make that icon Piovra.
  */
 
 import type { ChatMessage, ChatChannel } from '../types';
 
 const LS_ENABLED_KEY = 'workchat.notifications.enabled';
+
+/** PNG version of the Piovra logo — renders sharper than the SVG on macOS. */
+const PIOVRA_ICON = '/android-chrome-192x192.png';
+const PIOVRA_BADGE = '/favicon-96x96.png';
 
 export type NotificationsPermission = 'default' | 'granted' | 'denied' | 'unsupported';
 
@@ -82,12 +90,14 @@ export function showMessageNotification(opts: ShowMessageOpts): void {
   const body = buildBody(message);
 
   try {
-    const n = new Notification(title, {
+    const opts: NotificationOptions & { badge?: string } = {
       body,
-      icon: message.authorPictureUrl ?? '/favicon.svg',
+      icon: message.authorPictureUrl ?? PIOVRA_ICON,
+      badge: PIOVRA_BADGE,
       tag: `chat:${message.channelId}`,
       silent: false,
-    });
+    };
+    const n = new Notification(title, opts);
 
     n.onclick = () => {
       try { window.focus(); } catch { /* noop */ }
@@ -110,13 +120,15 @@ export function showTestNotification(opts: { title?: string; body?: string } = {
   if (!isSupported()) return false;
   if (Notification.permission !== 'granted') return false;
   try {
-    const n = new Notification(opts.title ?? 'Chat notifications enabled', {
+    const nOpts: NotificationOptions & { badge?: string } = {
       body:
         opts.body
           ?? "You'll get a ping when teammates message you in another channel or while this tab is in the background.",
-      icon: '/favicon.svg',
+      icon: PIOVRA_ICON,
+      badge: PIOVRA_BADGE,
       tag: 'chat:test',
-    });
+    };
+    const n = new Notification(opts.title ?? 'Piovra Chat', nOpts);
     n.onclick = () => {
       try { window.focus(); } catch { /* noop */ }
       n.close();
