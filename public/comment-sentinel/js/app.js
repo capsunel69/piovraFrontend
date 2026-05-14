@@ -169,6 +169,21 @@ document.addEventListener('DOMContentLoaded', async function() {
 
   var IS_EMBEDDED = document.documentElement.classList.contains('cs-embedded');
 
+  // Hide sections requested by the host (e.g. admin-only tabs for non-admins).
+  try {
+    var hideParam = new URL(window.location.href).searchParams.get('hide') || '';
+    if (hideParam) {
+      hideParam.split(',').forEach(function(name) {
+        var key = name.trim();
+        if (!key) return;
+        var nav = document.querySelector('#main-nav [data-page="' + key + '"]');
+        if (nav) nav.style.display = 'none';
+        var pg = document.getElementById('page-' + key);
+        if (pg) pg.classList.add('cs-hidden-page');
+      });
+    }
+  } catch (_) { /* ignore */ }
+
   function postToParent(page) {
     if (!IS_EMBEDDED || window.parent === window) return;
     try { window.parent.postMessage({ type: 'cs:page', page: page }, '*'); } catch (_) {}

@@ -583,7 +583,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </Topbar>
 
           <Content $flush={location.pathname === '/comment-sentinel'}>
-            <BackgroundFx sidebarCollapsed={collapsed} />
+            {location.pathname !== '/comment-sentinel' && (
+              <BackgroundFx sidebarCollapsed={collapsed} />
+            )}
             {location.pathname === '/comment-sentinel' ? (
               children
             ) : (

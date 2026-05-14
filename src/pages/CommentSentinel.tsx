@@ -5,6 +5,7 @@ import {
   IconCommentSentinel, IconDashboard, IconSearch, IconNote, IconSpark,
   IconSettings, IconLock, IconRefresh, IconBot, IconImage,
 } from '../components/ui/icons';
+import { useAuth } from '../context/AuthContext';
 
 const PIOVRA_BASE_URL = (import.meta.env.VITE_PIOVRA_BASE_URL as string | undefined) ?? '';
 
@@ -27,9 +28,10 @@ interface SectionDef {
   icon: IconCmp;
   group: 'overview' | 'collect' | 'analyze' | 'configure';
   hint: string;
+  adminOnly?: boolean;
 }
 
-const SECTIONS: SectionDef[] = [
+const ALL_SECTIONS: SectionDef[] = [
   { id: 'home',          label: 'Home',          icon: IconCommentSentinel, group: 'overview',  hint: 'Welcome & shortcuts' },
   { id: 'scraper',       label: 'Scraper',       icon: IconRefresh,         group: 'collect',   hint: 'Pull comments from social platforms' },
   { id: 'import',        label: 'Import CSV',    icon: IconImage,           group: 'collect',   hint: 'Bulk-import comments from a CSV file' },
@@ -38,11 +40,8 @@ const SECTIONS: SectionDef[] = [
   { id: 'entity-report', label: 'Entity Report', icon: IconNote,            group: 'analyze',   hint: 'Auto-extract entities, themes & sentiment' },
   { id: 'training',      label: 'AI Training',   icon: IconBot,             group: 'configure', hint: 'Teach the classifier with examples' },
   { id: 'settings',      label: 'Settings',      icon: IconSettings,        group: 'configure', hint: 'Project, categories & defaults' },
-  { id: 'keys',          label: 'API Keys',      icon: IconLock,            group: 'configure', hint: 'Per-user keys (OpenAI, ScrapeCreators, Apify)' },
+  { id: 'keys',          label: 'API Keys',      icon: IconLock,            group: 'configure', hint: 'Per-user keys (OpenAI, ScrapeCreators, Apify)', adminOnly: true },
 ];
-
-const isSection = (v: string | null): v is SectionId =>
-  !!v && SECTIONS.some((s) => s.id === v);
 
 /* ── Layout ───────────────────────────────────────────────────────────── */
 
@@ -190,6 +189,18 @@ const Frame = styled.iframe`
 
 const CommentSentinel: React.FC = () => {
   const [params, setParams] = useSearchParams();
+  const { me } = useAuth();
+  const isAdmin = me?.role === 'admin';
+
+  const sections = useMemo<SectionDef[]>(
+    () => ALL_SECTIONS.filter((s) => !s.adminOnly || isAdmin),
+    [isAdmin],
+  );
+  const isSection = useCallback(
+    (v: string | null): v is SectionId => !!v && sections.some((s) => s.id === v),
+    [sections],
+  );
+
   const initialSection: SectionId = isSection(params.get('tab')) ? (params.get('tab') as SectionId) : 'home';
   const [section, setSection] = useState<SectionId>(initialSection);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -199,6 +210,7 @@ const CommentSentinel: React.FC = () => {
     const qs = new URLSearchParams();
     qs.set('embed', '1');
     qs.set('page', initialSection);
+    if (!isAdmin) qs.set('hide', 'keys');
     const pio = PIOVRA_BASE_URL.trim().replace(/\/$/, '');
     if (pio) qs.set('pio', pio);
     return `${base}?${qs.toString()}`;
@@ -231,9 +243,9 @@ const CommentSentinel: React.FC = () => {
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [params, section, setParams]);
+  }, [params, section, setParams, isSection]);
 
-  const currentHint = SECTIONS.find((s) => s.id === section)?.hint ?? '';
+  const currentHint = sections.find((s) => s.id === section)?.hint ?? '';
 
   return (
     <PageWrap>
@@ -251,8 +263,8 @@ const CommentSentinel: React.FC = () => {
         </HeaderRow>
 
         <TabBar role="tablist" aria-label="Comment Sentinel sections">
-          {SECTIONS.map((s, i) => {
-            const prevGroup = i > 0 ? SECTIONS[i - 1].group : s.group;
+          {sections.map((s, i) => {
+            const prevGroup = i > 0 ? sections[i - 1].group : s.group;
             const Icon = s.icon;
             return (
               <React.Fragment key={s.id}>
