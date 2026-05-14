@@ -381,9 +381,9 @@ const EntityReport = {
           '</div>' +
         '</div>' +
         '<div class="flex items-center gap-1 flex-shrink-0">' +
-          (r.status === 'complete' ? '<button class="btn-ghost text-[11px]" onclick="EntityReport.viewReport(' + r.id + ')">View</button>' : '') +
-          (r.status === 'complete' ? '<button class="btn-ghost text-[11px]" title="Download PDF" onclick="EntityReport.downloadPdf(' + r.id + ')"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></button>' : '') +
-          '<button class="btn-ghost text-[11px] text-red-400 hover:text-red-300" onclick="EntityReport.deleteReport(' + r.id + ')">Delete</button>' +
+          (r.status === 'complete' ? '<button class="btn-ghost text-[11px]" onclick="EntityReport.viewReport(\'' + r.id + '\')">View</button>' : '') +
+          (r.status === 'complete' ? '<button class="btn-ghost text-[11px]" title="Download PDF" onclick="EntityReport.downloadPdf(\'' + r.id + '\')"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></button>' : '') +
+          '<button class="btn-ghost text-[11px] text-red-400 hover:text-red-300" onclick="EntityReport.deleteReport(\'' + r.id + '\')">Delete</button>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -576,12 +576,12 @@ const EntityReport = {
       ? '<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-white/[0.04] text-slate-300 border border-white/[0.06]" title="Model used for this analysis">' + escapeHtml(data.model_used) + (data.reanalyzed ? ' &middot; re-run' : '') + '</span>'
       : '';
     const reanalyzeBtn = r.has_raw_data
-      ? '<button class="btn-ghost text-xs" onclick="EntityReport.reanalyzeReport(' + r.id + ')" title="Re-run entity extraction & sentiment using the model currently set in Settings, on the videos/comments stored with this report">Re-analyze</button>'
+      ? '<button class="btn-ghost text-xs" onclick="EntityReport.reanalyzeReport(\'' + r.id + '\')" title="Re-run entity extraction & sentiment using the model currently set in Settings, on the videos/comments stored with this report">Re-analyze</button>'
       : '<span class="text-[10px] text-slate-500 italic" title="This report predates re-analyze support">no stored data</span>';
     const ingestBtn = r.has_raw_data
-      ? '<button class="btn-ghost text-xs" onclick="EntityReport.ingestReport(' + r.id + ')" title="Copy this report\'s videos & comments into the main DB so they appear in Explorer / Dashboard / AI Training">Push to main DB</button>'
+      ? '<button class="btn-ghost text-xs" onclick="EntityReport.ingestReport(\'' + r.id + '\')" title="Copy this report\'s videos & comments into the main DB so they appear in Explorer / Dashboard / AI Training">Push to main DB</button>'
       : '';
-    const pdfBtn = '<button class="btn-secondary text-xs" onclick="EntityReport.downloadPdf(' + r.id + ')" title="Download this report as a styled PDF">' +
+    const pdfBtn = '<button class="btn-secondary text-xs" onclick="EntityReport.downloadPdf(\'' + r.id + '\')" title="Download this report as a styled PDF">' +
       '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>' +
       'PDF</button>';
 

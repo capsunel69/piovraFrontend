@@ -31,7 +31,7 @@ async function showImportComments(sourceId, sourceName, page) {
             (r.confidence ? '<span class="text-[10px] text-slate-600">' + Math.round(r.confidence * 100) + '%</span>' : '') +
             (r.comment_date ? '<span class="text-[10px] text-slate-600">' + timeAgo(r.comment_date) + '</span>' : '') +
           '</div>' +
-          '<select class="bg-white/[0.03] border border-white/[0.08] rounded-lg text-[10px] text-slate-300 px-2 py-1 cursor-pointer" onchange="reassignComment(' + r.id + ',this.value,this)" data-current="' + (r.category_id || '') + '">' +
+          '<select class="bg-white/[0.03] border border-white/[0.08] rounded-lg text-[10px] text-slate-300 px-2 py-1 cursor-pointer" onchange="reassignComment(\'' + r.id + '\',this.value,this)" data-current="' + (r.category_id || '') + '">' +
             catOptions.replace('value="' + (r.category_id || '') + '"', 'value="' + (r.category_id || '') + '" selected') +
           '</select>' +
         '</div>' +
@@ -42,11 +42,11 @@ async function showImportComments(sourceId, sourceName, page) {
     var nextDisabled = _importCommentsState.page >= totalPages ? ' opacity-30 pointer-events-none' : '';
 
     var pagination = '<div class="flex items-center justify-between mt-4">' +
-      '<button class="btn-ghost text-xs' + prevDisabled + '" onclick="showImportComments(' + sourceId + ',\'' + escapeHtml(sourceName).replace(/'/g, "\\'") + '\',' + (_importCommentsState.page - 1) + ')">' +
+      '<button class="btn-ghost text-xs' + prevDisabled + '" onclick="showImportComments(\'' + sourceId + '\',\'' + escapeHtml(sourceName).replace(/'/g, "\\'") + '\',' + (_importCommentsState.page - 1) + ')">' +
         '<svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>Previous' +
       '</button>' +
       '<span class="text-xs text-slate-500">Page ' + _importCommentsState.page + ' of ' + totalPages + ' (' + data.total + ' comments)</span>' +
-      '<button class="btn-ghost text-xs' + nextDisabled + '" onclick="showImportComments(' + sourceId + ',\'' + escapeHtml(sourceName).replace(/'/g, "\\'") + '\',' + (_importCommentsState.page + 1) + ')">' +
+      '<button class="btn-ghost text-xs' + nextDisabled + '" onclick="showImportComments(\'' + sourceId + '\',\'' + escapeHtml(sourceName).replace(/'/g, "\\'") + '\',' + (_importCommentsState.page + 1) + ')">' +
         'Next<svg class="w-3.5 h-3.5 inline ml-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>' +
       '</button>' +
     '</div>';
@@ -67,10 +67,11 @@ async function showImportComments(sourceId, sourceName, page) {
 
 async function reassignComment(commentId, categoryId, selectEl) {
   try {
-    await API.put('/comments/' + commentId + '/category', { categoryId: categoryId ? parseInt(categoryId) : null });
+    var catId = categoryId ? categoryId : null;
+    await API.put('/comments/' + commentId + '/category', { categoryId: catId });
     var badge = selectEl.closest('.p-3').querySelector('[class*="font-semibold"], .text-slate-400');
     if (badge && categoryId) {
-      var cat = _importCommentsState.categories.find(function(c) { return c.id === parseInt(categoryId); });
+      var cat = _importCommentsState.categories.find(function(c) { return String(c.id) === String(categoryId); });
       if (cat) {
         badge.textContent = cat.name;
         badge.style.background = cat.color;
@@ -348,16 +349,16 @@ async function loadHomePage() {
                 '</div>' +
                 '<p class="text-sm text-white mt-1.5 truncate">' + escapeHtml(s.filename) + '</p>' +
                 '<div class="flex items-center gap-3 mt-1">' +
-                  '<button class="text-xs text-slate-500 hover:text-brand-400 transition-colors cursor-pointer" onclick="event.stopPropagation();showImportComments(' + s.id + ',\'' + escapeHtml(s.filename).replace(/'/g, "\\'") + '\')">' + (s.total_comments || 0) + ' comments</button>' +
+                  '<button class="text-xs text-slate-500 hover:text-brand-400 transition-colors cursor-pointer" onclick="event.stopPropagation();showImportComments(\'' + s.id + '\',\'' + escapeHtml(s.filename).replace(/'/g, "\\'") + '\')">' + (s.total_comments || 0) + ' comments</button>' +
                   (s.source_url ? '<a href="' + escapeHtml(s.source_url) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="inline-flex items-center gap-1 text-[10px] text-brand-400 hover:text-brand-300 transition-colors"><svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>Open source</a>' : '') +
                 '</div>' +
               '</div>' +
               '<div class="flex flex-col gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">' +
-                '<button class="text-[10px] text-slate-400 hover:text-white px-2 py-1 rounded-lg border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04] flex items-center gap-1 transition-all" onclick="event.stopPropagation();renameImport(' + s.id + ',this)" title="Edit title">' +
+                '<button class="text-[10px] text-slate-400 hover:text-white px-2 py-1 rounded-lg border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04] flex items-center gap-1 transition-all" onclick="event.stopPropagation();renameImport(\'' + s.id + '\',this)" title="Edit title">' +
                   '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>' +
                   'Edit' +
                 '</button>' +
-                '<button class="text-[10px] text-red-400 hover:text-red-300 px-2 py-1 rounded-lg border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/5 flex items-center gap-1 transition-all" onclick="event.stopPropagation();deleteImport(' + s.id + ',this)" title="Delete import">' +
+                '<button class="text-[10px] text-red-400 hover:text-red-300 px-2 py-1 rounded-lg border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/5 flex items-center gap-1 transition-all" onclick="event.stopPropagation();deleteImport(\'' + s.id + '\',this)" title="Delete import">' +
                   '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>' +
                   'Delete' +
                 '</button>' +

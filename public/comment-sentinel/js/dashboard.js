@@ -231,7 +231,7 @@ const Dashboard = {
           '</div>' +
         '</div>' +
         '<div class="flex items-center gap-2">' +
-          '<button class="btn-ghost text-xs" onclick="document.querySelector(\'[data-page=entity-report]\').click(); setTimeout(function(){ EntityReport.viewReport(' + report.id + '); }, 120);">View full report →</button>' +
+          '<button class="btn-ghost text-xs" onclick="document.querySelector(\'[data-page=entity-report]\').click(); setTimeout(function(){ EntityReport.viewReport(\'' + report.id + '\'); }, 120);">View full report →</button>' +
         '</div>' +
       '</div>' +
       '<div class="mt-4 space-y-2">' + rows + '</div>';
@@ -384,7 +384,7 @@ const Dashboard = {
     document.querySelectorAll('.import-select-cb').forEach(function(c) { c.checked = checked; });
     this._selectedImports.clear();
     if (checked) {
-      document.querySelectorAll('.import-select-cb').forEach(function(c) { this._selectedImports.add(parseInt(c.value)); }.bind(this));
+      document.querySelectorAll('.import-select-cb').forEach(function(c) { this._selectedImports.add(c.value); }.bind(this));
     }
     this._updateImportActionButtons();
   },
@@ -492,7 +492,7 @@ const Dashboard = {
 
       return '<div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.08] transition-all group">' +
         '<div class="flex items-start gap-3">' +
-          '<input type="checkbox" class="import-select-cb mt-1 rounded border-slate-600 flex-shrink-0" value="' + i.id + '" onchange="Dashboard.toggleImportSelect(' + i.id + ',this)">' +
+          '<input type="checkbox" class="import-select-cb mt-1 rounded border-slate-600 flex-shrink-0" value="' + i.id + '" onchange="Dashboard.toggleImportSelect(\'' + i.id + '\',this)">' +
           '<div class="flex-1 min-w-0">' +
             '<div class="flex items-center gap-2">' +
               '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded ' + pClass + '">' + escapeHtml(pLabel) + '</span>' +
@@ -501,21 +501,21 @@ const Dashboard = {
             '</div>' +
             '<p class="text-sm text-white mt-1.5 truncate">' + escapeHtml(i.filename) + '</p>' +
             '<div class="flex items-center gap-3 mt-1">' +
-              '<button class="text-xs text-slate-500 hover:text-brand-400 transition-colors cursor-pointer" onclick="event.stopPropagation();showImportComments(' + i.id + ',\'' + escapeHtml(i.filename).replace(/'/g, "\\'") + '\')">' + (i.total_comments || 0) + ' comments</button>' +
+              '<button class="text-xs text-slate-500 hover:text-brand-400 transition-colors cursor-pointer" onclick="event.stopPropagation();showImportComments(\'' + i.id + '\',\'' + escapeHtml(i.filename).replace(/'/g, "\\'") + '\')">' + (i.total_comments || 0) + ' comments</button>' +
               (i.source_url ? '<a href="' + escapeHtml(i.source_url) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="inline-flex items-center gap-1 text-[10px] text-brand-400 hover:text-brand-300 transition-colors" title="' + escapeHtml(i.source_url) + '"><svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>Open source</a>' : '') +
             '</div>' +
             platformBreakdown +
           '</div>' +
           '<div class="flex flex-col gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">' +
-            '<button class="text-[10px] text-slate-400 hover:text-white px-2 py-1 rounded-lg border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04] flex items-center gap-1 transition-all" onclick="event.stopPropagation();renameImport(' + i.id + ',this)" title="Edit title">' +
+            '<button class="text-[10px] text-slate-400 hover:text-white px-2 py-1 rounded-lg border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04] flex items-center gap-1 transition-all" onclick="event.stopPropagation();renameImport(\'' + i.id + '\',this)" title="Edit title">' +
               '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>' +
               'Edit' +
             '</button>' +
-            '<button class="text-[10px] text-brand-400 hover:text-brand-300 px-2 py-1 rounded-lg border border-brand-500/20 hover:border-brand-500/40 hover:bg-brand-500/5 flex items-center gap-1 transition-all" onclick="event.stopPropagation();Dashboard.reExtractThemes(' + i.id + ',this)" title="Re-extract themes for this import">' +
+            '<button class="text-[10px] text-brand-400 hover:text-brand-300 px-2 py-1 rounded-lg border border-brand-500/20 hover:border-brand-500/40 hover:bg-brand-500/5 flex items-center gap-1 transition-all" onclick="event.stopPropagation();Dashboard.reExtractThemes(\'' + i.id + '\',this)" title="Re-extract themes for this import">' +
               '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>' +
               'Themes' +
             '</button>' +
-            '<button class="text-[10px] text-red-400 hover:text-red-300 px-2 py-1 rounded-lg border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/5 flex items-center gap-1 transition-all" onclick="event.stopPropagation();deleteImport(' + i.id + ',this)" title="Delete import">' +
+            '<button class="text-[10px] text-red-400 hover:text-red-300 px-2 py-1 rounded-lg border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/5 flex items-center gap-1 transition-all" onclick="event.stopPropagation();deleteImport(\'' + i.id + '\',this)" title="Delete import">' +
               '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>' +
               'Delete' +
             '</button>' +

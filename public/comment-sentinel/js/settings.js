@@ -155,7 +155,7 @@ const Settings = {
               '<svg class="w-3 h-3 mr-1 opacity-50" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>' +
               count +
             '</span>' +
-            '<button class="btn-ghost text-red-400 hover:text-red-300 hover:bg-red-500/10" onclick="Settings.deleteCategory(' + c.id + ')">Delete</button>' +
+            '<button class="btn-ghost text-red-400 hover:text-red-300 hover:bg-red-500/10" onclick="Settings.deleteCategory(\'' + c.id + '\')">Delete</button>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -266,7 +266,7 @@ const Settings = {
         var kws = await API.get('/categories/' + cat.id + '/keywords');
         if (!kws.length) continue;
         html += '<div class="mb-4"><div class="flex items-center gap-2 mb-2"><div class="w-2.5 h-2.5 rounded-full" style="background:' + cat.color + '"></div><span class="text-xs font-semibold text-slate-300">' + escapeHtml(cat.name) + '</span><span class="text-[10px] text-slate-600">' + kws.length + ' keywords</span></div><div class="flex flex-wrap gap-1.5">' +
-          kws.map(function(kw) { return '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/[0.06] text-xs ' + Settings.weightColor(kw.weight) + '">' + escapeHtml(kw.keyword) + '<span class="font-bold opacity-60 tabular-nums">' + kw.weight + '</span><button class="text-red-400/50 hover:text-red-300 ml-0.5 text-sm leading-none" onclick="Settings.deleteKeyword(' + kw.id + ')">&times;</button></span>'; }).join('') +
+          kws.map(function(kw) { return '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/[0.06] text-xs ' + Settings.weightColor(kw.weight) + '">' + escapeHtml(kw.keyword) + '<span class="font-bold opacity-60 tabular-nums">' + kw.weight + '</span><button class="text-red-400/50 hover:text-red-300 ml-0.5 text-sm leading-none" onclick="Settings.deleteKeyword(\'' + kw.id + '\')">&times;</button></span>'; }).join('') +
           '</div></div>';
       }
       var empty = '<div class="text-center py-6"><svg class="w-10 h-10 text-slate-700 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg><p class="text-slate-500 text-sm">No keywords defined yet. Add keywords above to enable rule-based classification.</p></div>';
@@ -351,7 +351,7 @@ const Settings = {
   },
 
   async addKeyword() {
-    var catId = parseInt(document.getElementById('keyword-category').dataset.value);
+    var catId = document.getElementById('keyword-category').dataset.value || null;
     var keyword = document.getElementById('keyword-text').value.trim();
     var weight = parseFloat(document.getElementById('keyword-weight').value) || 1.0;
     if (!catId || !keyword) return Toast.warning('Select a category and enter a keyword');

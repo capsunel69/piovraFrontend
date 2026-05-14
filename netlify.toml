@@ -6,6 +6,19 @@
   command = "npm run dev"
   publish = "dist"
 
-# All API calls now go directly to Piovra (configured via VITE_PIOVRA_BASE_URL).
+# Comment Sentinel embedded SPA assets must keep their own paths.
+[[redirects]]
+  from = "/comment-sentinel/*"
+  to = "/comment-sentinel/:splat"
+  status = 200
+
+# SPA fallback — every other unknown path goes to the React shell so deep
+# links like /comment-sentinel, /tasks?foo=bar, etc. work on hard refresh.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# All API calls go directly to Piovra (configured via VITE_PIOVRA_BASE_URL).
 # No Netlify functions, no MongoDB. Auth is via the piovra_sid cookie set by
 # the Google OAuth flow at /auth/google.

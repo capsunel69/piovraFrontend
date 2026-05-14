@@ -26,7 +26,7 @@ const Training = {
         '<div class="flex items-center gap-2 mt-2">' + categoryBadge(ex.category_name, ex.category_color) +
         (ex.user_reasoning ? '<span class="text-[11px] text-slate-500">' + escapeHtml(truncate(ex.user_reasoning, 60)) + '</span>' : '') +
         '</div></div>' +
-        '<button class="btn-ghost text-red-400 hover:text-red-300 hover:bg-red-500/10 flex-shrink-0" onclick="Training.deleteExample(' + ex.id + ')">Delete</button>' +
+        '<button class="btn-ghost text-red-400 hover:text-red-300 hover:bg-red-500/10 flex-shrink-0" onclick="Training.deleteExample(\'' + ex.id + '\')">Delete</button>' +
         '</div>';
       }).join('') + '</div>';
     } catch (err) { Toast.error('Failed to load training examples'); }
@@ -35,7 +35,7 @@ const Training = {
   async addExample() {
     const commentText = document.getElementById('training-comment').value.trim();
     const contextText = document.getElementById('training-context').value.trim();
-    const categoryId = parseInt(document.getElementById('training-category').dataset.value);
+    const categoryId = document.getElementById('training-category').dataset.value || null;
     const reasoning = document.getElementById('training-reasoning').value.trim();
     if (!commentText) return Toast.warning('Enter a comment text');
     if (!categoryId) return Toast.warning('Select a category');

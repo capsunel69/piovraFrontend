@@ -68,7 +68,7 @@ const Importer = {
       const sources = await API.get('/import/history');
       const el = document.getElementById('import-history');
       if (!sources.length) { el.innerHTML = '<p class="text-slate-500 text-sm">No imports yet.</p>'; return; }
-      el.innerHTML = '<div class="space-y-1">' + sources.map(function(s) { return '<div class="flex items-center justify-between py-3 px-3 rounded-lg hover:bg-white/[0.02] transition-colors"><div class="flex-1 min-w-0"><p class="text-sm text-white truncate">' + escapeHtml(s.filename) + '</p><div class="flex gap-3 text-xs text-slate-500 mt-1"><span>' + (s.total_comments || 0) + ' total</span><span>' + (s.classified_count || 0) + ' classified</span><span>' + (s.platform || 'csv') + '</span><span>' + timeAgo(s.imported_at) + '</span></div></div><button class="btn-ghost text-red-400 hover:text-red-300 hover:bg-red-500/10" onclick="Importer.deleteSource(' + s.id + ')">Delete</button></div>'; }).join('') + '</div>';
+      el.innerHTML = '<div class="space-y-1">' + sources.map(function(s) { return '<div class="flex items-center justify-between py-3 px-3 rounded-lg hover:bg-white/[0.02] transition-colors"><div class="flex-1 min-w-0"><p class="text-sm text-white truncate">' + escapeHtml(s.filename) + '</p><div class="flex gap-3 text-xs text-slate-500 mt-1"><span>' + (s.total_comments || 0) + ' total</span><span>' + (s.classified_count || 0) + ' classified</span><span>' + (s.platform || 'csv') + '</span><span>' + timeAgo(s.imported_at) + '</span></div></div><button class="btn-ghost text-red-400 hover:text-red-300 hover:bg-red-500/10" onclick="Importer.deleteSource(\'' + s.id + '\')">Delete</button></div>'; }).join('') + '</div>';
     } catch {}
   },
 

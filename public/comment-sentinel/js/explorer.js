@@ -66,7 +66,7 @@ const Explorer = {
           '<td><div class="flex items-center gap-1.5">' + categoryBadge(r.category_name, r.category_color) + classifiedIcon + '</div></td>' +
           '<td>' + confidenceBar(r.confidence) + '</td>' +
           '<td class="text-center"><span class="text-[10px] text-slate-500 capitalize">' + (r.platform || '') + '</span></td>' +
-          '<td><div class="flex gap-1.5"><button class="text-xs text-brand-400 hover:text-brand-300 px-2 py-1 rounded-lg hover:bg-brand-500/10 transition-colors" onclick="Explorer.showDetail(' + r.id + ')">View</button><button class="text-xs text-amber-400 hover:text-amber-300 px-2 py-1 rounded-lg hover:bg-amber-500/10 transition-colors" onclick="Explorer.trainFromComment(' + r.id + ')">Train</button></div></td>' +
+          '<td><div class="flex gap-1.5"><button class="text-xs text-brand-400 hover:text-brand-300 px-2 py-1 rounded-lg hover:bg-brand-500/10 transition-colors" onclick="Explorer.showDetail(\'' + r.id + '\')">View</button><button class="text-xs text-amber-400 hover:text-amber-300 px-2 py-1 rounded-lg hover:bg-amber-500/10 transition-colors" onclick="Explorer.trainFromComment(\'' + r.id + '\')">Train</button></div></td>' +
         '</tr>';
       }).join('') +
       '</tbody></table>';
@@ -94,7 +94,7 @@ const Explorer = {
         (c.ai_reasoning ? '<div><span class="text-xs font-medium text-slate-500 uppercase tracking-wider">AI Reasoning</span><p class="text-slate-400 text-sm mt-1 leading-relaxed">' + escapeHtml(c.ai_reasoning) + '</p></div>' : '') +
         (c.post_context ? '<div><span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Context</span><p class="text-slate-400 text-sm mt-1">' + escapeHtml(truncate(c.post_context, 300)) + '</p></div>' : '') +
         '</div>' +
-        '<div class="flex gap-2 mt-6"><button class="btn-secondary" onclick="Modal.hide()">Close</button><button class="btn-primary" onclick="Explorer.reclassifySingle(' + c.id + ')">Re-classify (AI)</button></div>'
+        '<div class="flex gap-2 mt-6"><button class="btn-secondary" onclick="Modal.hide()">Close</button><button class="btn-primary" onclick="Explorer.reclassifySingle(\'' + c.id + '\')">Re-classify (AI)</button></div>'
       );
     } catch (err) { Toast.error(err.message); }
   },

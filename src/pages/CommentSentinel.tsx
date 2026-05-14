@@ -206,7 +206,7 @@ const CommentSentinel: React.FC = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const src = useMemo(() => {
-    const base = '/comment-sentinel/index.html';
+    const base = '/comment-sentinel/embed.html';
     const qs = new URLSearchParams();
     qs.set('embed', '1');
     qs.set('page', initialSection);
