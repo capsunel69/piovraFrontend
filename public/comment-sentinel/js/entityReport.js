@@ -232,6 +232,7 @@ const EntityReport = {
 
     this._runLogStartedAt = Date.now();
     this._runLogSeen = new Set();
+    this._runLogFinalized = false;
     document.getElementById('er-run-log-elapsed').textContent = '0s';
     this._runLogTimer = setInterval(() => {
       const s = Math.round((Date.now() - this._runLogStartedAt) / 1000);
@@ -270,6 +271,13 @@ const EntityReport = {
       this._runLogStartedAt = evt.ts || Date.now();
     }
 
+    // After a page refresh mid-run, the HTTP POST that originally launched the
+    // run is gone, so the SSE channel is the only thing that can transition
+    // the UI out of "running" state when the server emits done/error.
+    if (evt.level === 'done' || evt.level === 'error') {
+      this._runLogFinalize(evt);
+    }
+
     const t = new Date(evt.ts || Date.now());
     const hh = String(t.getHours()).padStart(2, '0');
     const mm = String(t.getMinutes()).padStart(2, '0');
@@ -292,6 +300,22 @@ const EntityReport = {
       '<span class="flex-1 break-words">' + escapeHtml(evt.msg || '') + '</span>';
     stream.appendChild(line);
     stream.scrollTop = stream.scrollHeight;
+  },
+
+  _runLogFinalize(evt) {
+    if (this._runLogFinalized) return;
+    this._runLogFinalized = true;
+    const status = evt.level === 'done' ? 'complete' : 'failed';
+    const summary = evt.msg || (status === 'complete' ? 'Run complete' : 'Run failed');
+    this.finishRunLog(status, summary);
+    this.state.running = false;
+    this.updateRunButton();
+    const reportId = evt.reportId || evt.report_id || null;
+    this.loadReports().then(() => {
+      if (status === 'complete' && reportId) {
+        return this.viewReport(reportId);
+      }
+    }).catch(() => {});
   },
 
   finishRunLog(status, summary) {
