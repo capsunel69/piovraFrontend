@@ -375,14 +375,17 @@ const Clock = styled.div`
   }
 `;
 
-const Content = styled.main`
+const Content = styled.main<{ $flush?: boolean }>`
   flex: 1;
-  overflow: auto;
+  overflow: ${p => (p.$flush ? 'hidden' : 'auto')};
   position: relative;
   isolation: isolate;
   -webkit-overflow-scrolling: touch;
   /* Main column scrolls over the fixed BackgroundFx; keep chrome transparent here. */
   background: transparent;
+  display: ${p => (p.$flush ? 'flex' : 'block')};
+  flex-direction: column;
+  min-height: 0;
 `;
 
 const ContentInner = styled.div`
@@ -579,7 +582,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </TopbarRight>
           </Topbar>
 
-          <Content>
+          <Content $flush={location.pathname === '/comment-sentinel'}>
             <BackgroundFx sidebarCollapsed={collapsed} />
             {location.pathname === '/comment-sentinel' ? (
               children

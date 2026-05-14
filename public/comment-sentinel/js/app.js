@@ -167,6 +167,13 @@ document.addEventListener('DOMContentLoaded', async function() {
   document.documentElement.classList.remove('sidebar-init-collapsed');
   document.getElementById('btn-sidebar-toggle').addEventListener('click', toggleSidebar);
 
+  var IS_EMBEDDED = document.documentElement.classList.contains('cs-embedded');
+
+  function postToParent(page) {
+    if (!IS_EMBEDDED || window.parent === window) return;
+    try { window.parent.postMessage({ type: 'cs:page', page: page }, '*'); } catch (_) {}
+  }
+
   function navigateTo(page) {
     document.querySelectorAll('.page-container').forEach(function(p) { p.classList.remove('active'); });
     document.querySelectorAll('#main-nav .nav-link').forEach(function(l) { l.classList.remove('active'); });
@@ -174,8 +181,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     var navEl = document.querySelector('#main-nav [data-page="' + page + '"]');
     if (pageEl) pageEl.classList.add('active');
     if (navEl) navEl.classList.add('active');
-    localStorage.setItem('cs-active-page', page);
+    if (!IS_EMBEDDED) localStorage.setItem('cs-active-page', page);
+    postToParent(page);
   }
+  window.csNavigateTo = navigateTo;
 
   document.querySelectorAll('#main-nav .nav-link[data-page]').forEach(function(link) {
     link.addEventListener('click', function() {
@@ -184,9 +193,29 @@ document.addEventListener('DOMContentLoaded', async function() {
     }.bind(link));
   });
 
-  var savedPage = localStorage.getItem('cs-active-page');
-  if (savedPage && document.getElementById('page-' + savedPage)) {
-    navigateTo(savedPage);
+  // Parent → iframe navigation.
+  window.addEventListener('message', function(ev) {
+    var d = ev && ev.data;
+    if (!d || typeof d !== 'object') return;
+    if (d.type === 'cs:navigate' && typeof d.page === 'string') {
+      navigateTo(d.page);
+    }
+  });
+
+  if (IS_EMBEDDED) {
+    try {
+      var initial = new URL(window.location.href).searchParams.get('page');
+      if (initial && document.getElementById('page-' + initial)) {
+        navigateTo(initial);
+      } else {
+        postToParent('home');
+      }
+    } catch (_) { /* ignore */ }
+  } else {
+    var savedPage = localStorage.getItem('cs-active-page');
+    if (savedPage && document.getElementById('page-' + savedPage)) {
+      navigateTo(savedPage);
+    }
   }
 
   try {

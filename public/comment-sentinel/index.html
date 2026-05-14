@@ -7,6 +7,7 @@
   <link rel="icon" type="image/png" href="/comment-sentinel/icon.png">
   <script>(function(){var t=localStorage.getItem('cs-theme');if(t)document.documentElement.setAttribute('data-theme',t)})()</script>
   <script>(function(){if(localStorage.getItem('cs-sidebar-collapsed')==='true')document.documentElement.classList.add('sidebar-init-collapsed')})()</script>
+  <script>(function(){try{var u=new URL(window.location.href);if(u.searchParams.get('embed')==='1'){document.documentElement.classList.add('cs-embedded');document.documentElement.setAttribute('data-theme','dark');}}catch(_){}})()</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -215,6 +216,17 @@
       }
       .sidebar.collapsed .nav-link:hover::after { opacity: 1; }
     }
+  </style>
+  <style id="cs-embed-overrides">
+    /* Embed mode: hide chrome so the host (Capsuna) provides the shell. */
+    html.cs-embedded body { background: transparent !important; }
+    html.cs-embedded #bg-effects { display: none !important; }
+    html.cs-embedded #sidebar { display: none !important; }
+    html.cs-embedded .main-content { margin-left: 0 !important; }
+    html.cs-embedded #main-content > .max-w-\[1200px\] { max-width: 100% !important; margin: 0 !important; }
+    html.cs-embedded .page-container { padding-top: 0 !important; }
+    html.cs-embedded .page-container.p-8 { padding-left: 1.25rem !important; padding-right: 1.25rem !important; padding-top: 1.25rem !important; padding-bottom: 1.5rem !important; }
+    html.cs-embedded .page-container.p-8.space-y-8 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.5rem !important; }
   </style>
   <style id="theme-overrides">
     /* ═══════════════════════════════════════════
