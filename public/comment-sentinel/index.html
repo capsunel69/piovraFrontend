@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comment Sentinel</title>
+  <link rel="icon" type="image/png" href="/comment-sentinel/icon.png">
+  <script>(function(){var t=localStorage.getItem('cs-theme');if(t)document.documentElement.setAttribute('data-theme',t)})()</script>
+  <script>(function(){if(localStorage.getItem('cs-sidebar-collapsed')==='true')document.documentElement.classList.add('sidebar-init-collapsed')})()</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: { 50:'#f5f3ff',100:'#ede9fe',200:'#ddd6fe',300:'#c4b5fd',400:'#a78bfa',500:'#8b5cf6',600:'#7c3aed',700:'#6d28d9',800:'#5b21b6',900:'#4c1d95' },
+            surface: { 50:'#f8fafc',100:'#f1f5f9',200:'#e2e8f0',700:'#334155',800:'#1e293b',850:'#172033',900:'#0f172a',950:'#0a0f1a' },
+          },
+          animation: {
+            'fade-in': 'fadeIn 0.4s ease-out',
+            'slide-up': 'slideUp 0.4s ease-out',
+            'slide-in-right': 'slideInRight 0.3s ease-out',
+            'pulse-soft': 'pulseSoft 3s ease-in-out infinite',
+            'glow': 'glow 3s ease-in-out infinite alternate',
+          },
+          keyframes: {
+            fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+            slideUp: { '0%': { opacity: '0', transform: 'translateY(12px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+            slideInRight: { '0%': { opacity: '0', transform: 'translateX(16px)' }, '100%': { opacity: '1', transform: 'translateX(0)' } },
+            pulseSoft: { '0%,100%': { opacity: '0.5' }, '50%': { opacity: '1' } },
+            glow: { '0%': { boxShadow: '0 0 20px rgba(139,92,246,0.1)' }, '100%': { boxShadow: '0 0 40px rgba(139,92,246,0.2)' } },
+          },
+        }
+      }
+    }
+  </script>
+  <style type="text/tailwindcss">
+    @layer base {
+      body { font-family: 'Inter', system-ui, sans-serif; }
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    }
+    @layer utilities {
+      .page-container { @apply hidden; }
+      .page-container.active { @apply block animate-fade-in; }
+
+      .nav-link { @apply flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.04] transition-all duration-200 cursor-pointer text-[13px] font-medium relative; }
+      .nav-link.active { @apply text-white bg-gradient-to-r from-brand-600/20 to-brand-500/5 border border-brand-500/15; }
+      .nav-link.active::before { content: ''; @apply absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-brand-500 rounded-r-full; }
+
+      .card { @apply bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/[0.06] p-6 transition-all duration-200; }
+      .card-hover { @apply hover:bg-white/[0.05] hover:border-white/[0.1] hover:shadow-lg hover:shadow-brand-500/[0.03]; }
+
+      .btn-primary { @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white rounded-xl font-semibold transition-all duration-200 text-sm shadow-lg shadow-brand-600/25 hover:shadow-brand-500/30 hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0; }
+      .btn-secondary { @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white/[0.05] hover:bg-white/[0.08] text-slate-200 rounded-xl font-medium transition-all duration-200 text-sm border border-white/[0.08] hover:border-white/[0.12]; }
+      .btn-danger { @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded-xl font-medium transition-all duration-200 text-sm border border-red-500/20 hover:border-red-500/30; }
+      .btn-ghost { @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-slate-400 hover:text-white hover:bg-white/[0.06] rounded-lg transition-all duration-200 text-xs font-medium; }
+
+      .input { @apply w-full px-4 py-3 bg-white/[0.03] border border-white/[0.08] rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/40 focus:bg-white/[0.05] text-sm transition-all duration-200; }
+      .select { @apply w-full px-4 py-3 bg-white/[0.03] border border-white/[0.08] rounded-xl text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/40 text-sm appearance-none transition-all duration-200; }
+
+      .category-select { position: relative; cursor: pointer; }
+      .category-select .cs-trigger {
+        display: flex; align-items: center; gap: 0.5rem;
+        width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem;
+        background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+        color: #e2e8f0; font-size: 0.875rem; transition: all 0.2s;
+      }
+      .category-select .cs-trigger:hover, .category-select.open .cs-trigger {
+        background: rgba(255,255,255,0.05); border-color: rgba(139,92,246,0.4);
+        box-shadow: 0 0 0 2px rgba(139,92,246,0.15);
+      }
+      .category-select .cs-trigger .cs-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+      .category-select .cs-trigger .cs-arrow {
+        margin-left: auto; width: 16px; height: 16px; opacity: 0.4; transition: transform 0.2s;
+      }
+      .category-select.open .cs-trigger .cs-arrow { transform: rotate(180deg); }
+      .category-select .cs-trigger .cs-placeholder { color: #64748b; }
+
+      .category-select .cs-dropdown {
+        display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50;
+        background: #1a1625; border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.5); overflow: hidden;
+        max-height: 220px; overflow-y: auto;
+      }
+      .category-select.open .cs-dropdown { display: block; animation: slideDown 0.15s ease-out; }
+      .category-select .cs-option {
+        display: flex; align-items: center; gap: 0.5rem;
+        padding: 0.625rem 1rem; cursor: pointer; font-size: 0.875rem; color: #cbd5e1;
+        transition: background 0.15s;
+      }
+      .category-select .cs-option:hover { background: rgba(139,92,246,0.12); color: #fff; }
+      .category-select .cs-option.selected { background: rgba(139,92,246,0.18); color: #fff; }
+      .category-select .cs-option .cs-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+      @keyframes slideDown { 0% { opacity: 0; transform: translateY(-6px); } 100% { opacity: 1; transform: translateY(0); } }
+
+      .label { @apply block text-sm font-semibold text-slate-300 mb-2; }
+      .label-hint { @apply block text-xs text-slate-500 mt-1 mb-2 font-normal; }
+      .badge { @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold; }
+
+      .table-container { @apply overflow-x-auto rounded-2xl border border-white/[0.06] bg-white/[0.02]; }
+      .table-container table { @apply w-full text-sm text-left; }
+      .table-container thead { @apply bg-white/[0.03] text-slate-400 uppercase text-xs tracking-wider; }
+      .table-container th { @apply px-5 py-4 font-semibold; }
+      .table-container td { @apply px-5 py-4 border-t border-white/[0.04]; }
+      .table-container tbody tr { @apply hover:bg-white/[0.03] transition-colors duration-150; }
+
+      .stat-card { @apply card card-hover flex flex-col items-start py-6 px-6; }
+      .stat-value { @apply text-3xl font-extrabold text-white tracking-tight; }
+      .stat-label { @apply text-xs text-slate-500 mt-1.5 font-medium uppercase tracking-wider; }
+
+      .section-title { @apply text-lg font-bold text-white mb-1; }
+      .section-desc { @apply text-sm text-slate-500 mb-6; }
+
+      .tab-btn { @apply px-5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200; }
+      .tab-btn.active { @apply bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-lg shadow-brand-600/25; }
+      .tab-btn:not(.active) { @apply text-slate-400 hover:text-white hover:bg-white/[0.06] border border-white/[0.08]; }
+
+      .spinner { @apply animate-spin h-5 w-5 border-2 border-brand-400 border-t-transparent rounded-full; }
+      .form-group { @apply space-y-2; }
+      .divider { @apply border-t border-white/[0.06] my-6; }
+
+      /* ── Custom checkboxes ── */
+      .import-select-cb,
+      input[type="checkbox"].rounded {
+        appearance: none; -webkit-appearance: none;
+        width: 16px; height: 16px; border-radius: 4px; cursor: pointer; flex-shrink: 0;
+        border: 1.5px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.03);
+        transition: all 0.15s ease; position: relative;
+      }
+      .import-select-cb:hover, input[type="checkbox"].rounded:hover { border-color: rgba(139,92,246,0.5); background: rgba(139,92,246,0.06); }
+      .import-select-cb:checked, input[type="checkbox"].rounded:checked {
+        background: #8b5cf6; border-color: #8b5cf6;
+      }
+      .import-select-cb:checked::after, input[type="checkbox"].rounded:checked::after {
+        content: ''; position: absolute; left: 4.5px; top: 1.5px;
+        width: 5px; height: 9px; border: solid #fff; border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+      }
+      .import-select-cb:focus, input[type="checkbox"].rounded:focus { outline: none; box-shadow: 0 0 0 2px rgba(139,92,246,0.25); }
+      html[data-theme="light"] .import-select-cb,
+      html[data-theme="light"] input[type="checkbox"].rounded { border-color: #d1d5db; background: #fff; }
+      html[data-theme="light"] .import-select-cb:hover,
+      html[data-theme="light"] input[type="checkbox"].rounded:hover { border-color: rgba(139,92,246,0.5); background: rgba(139,92,246,0.04); }
+      html[data-theme="light"] .import-select-cb:checked,
+      html[data-theme="light"] input[type="checkbox"].rounded:checked { background: #7c3aed; border-color: #7c3aed; }
+
+      .gradient-text { @apply bg-gradient-to-r from-brand-300 via-brand-400 to-purple-400 bg-clip-text text-transparent; }
+      .glass { @apply bg-white/[0.03] backdrop-blur-xl border border-white/[0.06]; }
+
+      /* ── Sidebar collapse system ── */
+      html.sidebar-init-collapsed .sidebar { width: 68px !important; min-width: 68px !important; }
+      html.sidebar-init-collapsed .main-content { margin-left: 68px !important; }
+      html.sidebar-init-collapsed .sidebar .sidebar-text { display: none !important; }
+      html.sidebar-init-collapsed .sidebar .nav-link { justify-content: center; padding-left: 0; padding-right: 0; }
+      html.sidebar-init-collapsed .sidebar .nav-link.active::before { display: none !important; }
+
+      .sidebar {
+        width: 260px; min-width: 260px;
+        overflow: hidden;
+        transition: width 0.3s cubic-bezier(0.4,0,0.2,1), min-width 0.3s cubic-bezier(0.4,0,0.2,1);
+      }
+      .sidebar.collapsed { width: 68px; min-width: 68px; }
+      .sidebar #main-nav { overflow-x: hidden; }
+
+      .main-content {
+        margin-left: 260px;
+        transition: margin-left 0.3s cubic-bezier(0.4,0,0.2,1);
+      }
+      .main-content.sidebar-collapsed { margin-left: 68px; }
+
+      .sidebar .sidebar-text {
+        display: inline; white-space: nowrap; overflow: hidden;
+        transition: opacity 0.2s ease;
+      }
+      .sidebar.collapsed .sidebar-text {
+        display: none;
+      }
+
+      .sidebar.collapsed .px-4.mb-2 { padding-left: 0.75rem; padding-right: 0.75rem; }
+      .sidebar.collapsed .nav-link { justify-content: center; padding-left: 0; padding-right: 0; }
+      .sidebar.collapsed .nav-link.active { background: rgba(139,92,246,0.12); border-color: transparent; }
+      .sidebar.collapsed .nav-link.active::before { display: none; }
+
+      .sidebar.collapsed > div:first-child { padding: 1.25rem 0 1rem; display: flex; justify-content: center; }
+      .sidebar.collapsed > div:first-child .flex { justify-content: center; }
+
+      .sidebar.collapsed #sidebar-footer {
+        padding: 0 0.5rem 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+      }
+      .sidebar.collapsed #sidebar-footer > div:first-child {
+        padding: 0.5rem; width: auto; border: none; background: none;
+      }
+      .sidebar.collapsed #sidebar-footer .flex.items-center {
+        justify-content: center; padding: 0;
+      }
+      .sidebar.collapsed .theme-toggle { margin: 0; }
+
+      .sidebar .nav-link[title] { position: relative; }
+      .sidebar.collapsed .nav-link::after {
+        content: attr(title); position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+        padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 500; white-space: nowrap;
+        background: #1e1b2e; color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        opacity: 0; pointer-events: none; transition: opacity 0.15s ease; z-index: 100;
+      }
+      .sidebar.collapsed .nav-link:hover::after { opacity: 1; }
+    }
+  </style>
+  <style id="theme-overrides">
+    /* ═══════════════════════════════════════════
+       LIGHT THEME OVERRIDES
+       ═══════════════════════════════════════════ */
+
+    /* ── Body ── */
+    html[data-theme="light"] body { background-color: #f8fafc !important; color: #334155; }
+
+    /* ── Scrollbar ── */
+    html[data-theme="light"] ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+    html[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* ── Background blurs ── */
+    html[data-theme="light"] #bg-effects { opacity: 0.2; }
+
+    /* ── Sidebar ── */
+    html[data-theme="light"] aside {
+      background: rgba(255,255,255,0.92) !important;
+      border-color: #e2e8f0 !important;
+      border-right: 1px solid #e2e8f0;
+      -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+      backdrop-filter: blur(16px) saturate(180%) !important;
+    }
+    html[data-theme="light"] aside .h-px {
+      background: linear-gradient(to right, transparent, #e2e8f0, transparent) !important;
+    }
+    html[data-theme="light"] .sidebar.collapsed .nav-link::after {
+      background: #fff !important; color: #334155 !important;
+      border-color: #e2e8f0 !important; box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+    }
+
+    /* ── Navigation ── */
+    html[data-theme="light"] .nav-link { color: #475569 !important; }
+    html[data-theme="light"] .nav-link:hover { color: #0f172a !important; background: rgba(0,0,0,0.04) !important; }
+    html[data-theme="light"] .nav-link.active {
+      color: #6d28d9 !important;
+      background: linear-gradient(to right, rgba(124,58,237,0.08), rgba(124,58,237,0.02)) !important;
+      border-color: rgba(124,58,237,0.15) !important;
+    }
+    html[data-theme="light"] .nav-link.active::before { background: #7c3aed !important; }
+
+    /* ── Cards ── */
+    html[data-theme="light"] .card,
+    html[data-theme="light"] .stat-card {
+      background: #ffffff !important;
+      border-color: #e2e8f0 !important;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
+    }
+    html[data-theme="light"] .card-hover:hover {
+      background: #ffffff !important;
+      border-color: #cbd5e1 !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+    }
+    html[data-theme="light"] .glass {
+      background: rgba(255,255,255,0.92) !important;
+      border-color: #e2e8f0 !important;
+    }
+
+    /* ── Text ── */
+    html[data-theme="light"] .section-title { color: #0f172a !important; }
+    html[data-theme="light"] .section-desc { color: #6b7280 !important; }
+    html[data-theme="light"] .stat-value { color: #0f172a !important; }
+    html[data-theme="light"] .stat-label { color: #6b7280 !important; }
+    html[data-theme="light"] .label { color: #374151 !important; }
+    html[data-theme="light"] .label-hint { color: #6b7280 !important; }
+    html[data-theme="light"] .gradient-text {
+      background-image: linear-gradient(to right, #7c3aed, #8b5cf6, #a855f7) !important;
+    }
+
+    /* ── Inputs ── */
+    html[data-theme="light"] .input,
+    html[data-theme="light"] .select,
+    html[data-theme="light"] textarea.input {
+      background: #ffffff !important;
+      border-color: #d1d5db !important;
+      color: #0f172a !important;
+    }
+    html[data-theme="light"] .input:focus,
+    html[data-theme="light"] .select:focus {
+      border-color: rgba(139,92,246,0.5) !important;
+      box-shadow: 0 0 0 3px rgba(139,92,246,0.1) !important;
+    }
+    html[data-theme="light"] .input::placeholder { color: #9ca3af !important; }
+
+    /* ── Buttons ── */
+    html[data-theme="light"] .btn-secondary {
+      background: #f1f5f9 !important;
+      border-color: #e2e8f0 !important;
+      color: #334155 !important;
+    }
+    html[data-theme="light"] .btn-secondary:hover {
+      background: #e2e8f0 !important;
+      border-color: #cbd5e1 !important;
+      color: #0f172a !important;
+    }
+    html[data-theme="light"] .btn-ghost { color: #64748b !important; }
+    html[data-theme="light"] .btn-ghost:hover { color: #0f172a !important; background: rgba(0,0,0,0.05) !important; }
+    html[data-theme="light"] .btn-danger {
+      background: rgba(239,68,68,0.06) !important;
+      border-color: rgba(239,68,68,0.12) !important;
+    }
+
+    /* ── Tabs ── */
+    html[data-theme="light"] .tab-btn:not(.active) {
+      color: #64748b !important;
+      border-color: #e2e8f0 !important;
+    }
+    html[data-theme="light"] .tab-btn:not(.active):hover {
+      color: #0f172a !important;
+      background: #f1f5f9 !important;
+    }
+
+    /* ── Tables ── */
+    html[data-theme="light"] .table-container {
+      background: #ffffff !important;
+      border-color: #e2e8f0 !important;
+    }
+    html[data-theme="light"] .table-container thead {
+      background: #f8fafc !important;
+      color: #475569 !important;
+    }
+    html[data-theme="light"] .table-container td { border-color: #f1f5f9 !important; }
+    html[data-theme="light"] .table-container tbody tr:hover { background: #f8fafc !important; }
+
+    /* ── Category Select ── */
+    html[data-theme="light"] .category-select .cs-trigger {
+      background: #ffffff !important; border-color: #d1d5db !important; color: #0f172a !important;
+    }
+    html[data-theme="light"] .category-select .cs-trigger:hover,
+    html[data-theme="light"] .category-select.open .cs-trigger {
+      background: #ffffff !important; border-color: rgba(139,92,246,0.5) !important;
+      box-shadow: 0 0 0 3px rgba(139,92,246,0.1) !important;
+    }
+    html[data-theme="light"] .cs-placeholder { color: #9ca3af !important; }
+    html[data-theme="light"] .category-select .cs-dropdown {
+      background: #ffffff !important; border-color: #e2e8f0 !important;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.04) !important;
+    }
+    html[data-theme="light"] .category-select .cs-option { color: #334155 !important; }
+    html[data-theme="light"] .category-select .cs-option:hover { background: rgba(139,92,246,0.06) !important; color: #0f172a !important; }
+    html[data-theme="light"] .category-select .cs-option.selected { background: rgba(139,92,246,0.1) !important; color: #6d28d9 !important; }
+
+    /* ── Modal ── */
+    html[data-theme="light"] #modal-backdrop { background: rgba(0,0,0,0.2) !important; -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+    html[data-theme="light"] #modal-content {
+      background: #ffffff !important;
+      border-color: #e2e8f0 !important;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.12) !important;
+    }
+
+    /* ── Divider ── */
+    html[data-theme="light"] .divider { border-color: #e2e8f0 !important; }
+
+    /* ── Drop zone ── */
+    html[data-theme="light"] #drop-zone { border-color: #d1d5db !important; background: #fafafa !important; }
+    html[data-theme="light"] #drop-zone:hover { border-color: rgba(139,92,246,0.4) !important; background: #f5f3ff !important; }
+
+    /* ── Range slider ── */
+    html[data-theme="light"] input[type="range"] { background: #e2e8f0 !important; }
+
+    /* ── Scraper mode tabs ── */
+    html[data-theme="light"] #scraper-mode-tabs { background: #f1f5f9 !important; border-color: #e2e8f0 !important; }
+    html[data-theme="light"] #scraper-mode-tabs button:not(.bg-brand-600) { color: #64748b !important; }
+    html[data-theme="light"] #scraper-mode-tabs button:not(.bg-brand-600):hover { color: #0f172a !important; }
+
+    /* ── Key display boxes ── */
+    html[data-theme="light"] [id^="key-display-"] { background: #f8fafc !important; border-color: #e2e8f0 !important; }
+
+    /* ── Model cards ── */
+    html[data-theme="light"] [data-model] { background: #ffffff !important; border-color: #e2e8f0 !important; }
+    html[data-theme="light"] [data-model]:hover { background: #f8fafc !important; border-color: #cbd5e1 !important; }
+
+    /* ── Hero section ── */
+    html[data-theme="light"] #page-home > .relative.overflow-hidden {
+      background: linear-gradient(135deg, rgba(139,92,246,0.06), rgba(168,85,247,0.03), transparent) !important;
+      border-color: rgba(139,92,246,0.12) !important;
+    }
+
+    /* ── code tags ── */
+    html[data-theme="light"] code { background: rgba(139,92,246,0.06) !important; color: #7c3aed !important; }
+
+    /* ── AI status panel ── */
+    html[data-theme="light"] #sidebar-footer { background: rgba(0,0,0,0.02) !important; border-color: #e2e8f0 !important; }
+
+    /* ── ring-offset ── */
+    html[data-theme="light"] .ring-offset-surface-950 { --tw-ring-offset-color: #ffffff !important; }
+    html[data-theme="light"] .ring-offset-surface-900 { --tw-ring-offset-color: #ffffff !important; }
+
+    /* ── Theme toggle button ── */
+    .theme-toggle {
+      display: flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.03);
+      color: #64748b; cursor: pointer;
+      transition: all 0.2s; flex-shrink: 0;
+    }
+    .theme-toggle:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; }
+    html[data-theme="light"] .theme-toggle {
+      border-color: #e2e8f0; background: #f1f5f9; color: #475569;
+    }
+    html[data-theme="light"] .theme-toggle:hover { background: #e2e8f0; color: #0f172a; }
+
+    /* ══════════════════════════════════════════
+       GLOBAL TEXT-WHITE OVERRIDE
+       (with exceptions for buttons, badges, toasts)
+       ══════════════════════════════════════════ */
+    html[data-theme="light"] .text-white { color: #0f172a !important; }
+
+    /* Keep white text on colored backgrounds */
+    html[data-theme="light"] .btn-primary { color: #ffffff !important; }
+    html[data-theme="light"] .tab-btn.active { color: #ffffff !important; }
+    html[data-theme="light"] .badge[style] { color: #ffffff !important; }
+    html[data-theme="light"] #toast-container * { color: #ffffff !important; }
+    html[data-theme="light"] #scraper-mode-tabs .bg-brand-600 { color: #ffffff !important; }
+
+    /* ── text-slate-* overrides ── */
+    html[data-theme="light"] .text-slate-100 { color: #1e293b !important; }
+    html[data-theme="light"] .text-slate-200 { color: #334155 !important; }
+    html[data-theme="light"] .text-slate-300 { color: #475569 !important; }
+    html[data-theme="light"] .text-slate-400 { color: #64748b !important; }
+    html[data-theme="light"] .text-slate-500 { color: #6b7280 !important; }
+    html[data-theme="light"] .text-slate-600 { color: #9ca3af !important; }
+    html[data-theme="light"] .text-slate-700 { color: #94a3b8 !important; }
+
+    /* ── bg-white/[*] → subtle grays ── */
+    html[data-theme="light"] .bg-white\/\[0\.02\] { background-color: #f8fafc !important; }
+    html[data-theme="light"] .bg-white\/\[0\.03\] { background-color: #f1f5f9 !important; }
+    html[data-theme="light"] .bg-white\/\[0\.04\] { background-color: #f1f5f9 !important; }
+    html[data-theme="light"] .bg-white\/\[0\.05\] { background-color: #e2e8f0 !important; }
+    html[data-theme="light"] .bg-white\/\[0\.06\] { background-color: #e2e8f0 !important; }
+    html[data-theme="light"] .bg-white\/\[0\.08\] { background-color: #e2e8f0 !important; }
+
+    html[data-theme="light"] .hover\:bg-white\/\[0\.02\]:hover { background-color: #f1f5f9 !important; }
+    html[data-theme="light"] .hover\:bg-white\/\[0\.03\]:hover { background-color: #e2e8f0 !important; }
+    html[data-theme="light"] .hover\:bg-white\/\[0\.04\]:hover { background-color: #e2e8f0 !important; }
+    html[data-theme="light"] .hover\:bg-white\/\[0\.06\]:hover { background-color: #e2e8f0 !important; }
+    html[data-theme="light"] .hover\:bg-white\/\[0\.08\]:hover { background-color: #d1d5db !important; }
+
+    /* ── border-white/[*] → light borders ── */
+    html[data-theme="light"] .border-white\/\[0\.04\] { border-color: #e2e8f0 !important; }
+    html[data-theme="light"] .border-white\/\[0\.06\] { border-color: #e2e8f0 !important; }
+    html[data-theme="light"] .border-white\/\[0\.08\] { border-color: #d1d5db !important; }
+    html[data-theme="light"] .border-white\/\[0\.1\] { border-color: #cbd5e1 !important; }
+    html[data-theme="light"] .border-white\/\[0\.10\] { border-color: #cbd5e1 !important; }
+    html[data-theme="light"] .border-white\/\[0\.12\] { border-color: #94a3b8 !important; }
+    html[data-theme="light"] .border-white\/10 { border-color: #e2e8f0 !important; }
+
+    html[data-theme="light"] .hover\:border-white\/\[0\.1\]:hover { border-color: #94a3b8 !important; }
+    html[data-theme="light"] .hover\:border-white\/\[0\.10\]:hover { border-color: #94a3b8 !important; }
+    html[data-theme="light"] .hover\:border-white\/\[0\.12\]:hover { border-color: #64748b !important; }
+
+    /* ── hover:bg-slate for scraper posts ── */
+    html[data-theme="light"] .hover\:bg-slate-700\/30:hover { background-color: #f1f5f9 !important; }
+
+    /* ── Unclassified badge ── */
+    html[data-theme="light"] .badge.bg-white\/\[0\.06\] {
+      background-color: #f1f5f9 !important;
+      color: #64748b !important;
+      border-color: #e2e8f0 !important;
+    }
+
+    /* ── Danger zone border ── */
+    html[data-theme="light"] .border-red-500\/10 { border-color: rgba(239,68,68,0.15) !important; }
+
+    /* ── Platform badges in hero ── */
+    html[data-theme="light"] #page-home .rounded-lg.bg-white\/\[0\.04\] {
+      background: #f1f5f9 !important;
+      border-color: #e2e8f0 !important;
+    }
+
+    /* ── Smooth theme transition ── */
+    html[data-theme] body,
+    html[data-theme] .card,
+    html[data-theme] .stat-card,
+    html[data-theme] aside,
+    html[data-theme] .nav-link,
+    html[data-theme] .input,
+    html[data-theme] .select,
+    html[data-theme] .btn-secondary,
+    html[data-theme] .btn-ghost,
+    html[data-theme] .table-container,
+    html[data-theme] #modal-content,
+    html[data-theme] .theme-toggle {
+      transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+    }
+  </style>
+</head>
+<body class="bg-surface-950 text-slate-300 min-h-screen flex">
+
+  <!-- Background effects -->
+  <div id="bg-effects" class="fixed inset-0 z-0">
+    <div class="absolute top-0 left-1/4 w-[600px] h-[600px] bg-brand-600/[0.04] rounded-full blur-[128px]"></div>
+    <div class="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-purple-600/[0.03] rounded-full blur-[128px]"></div>
+  </div>
+
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sidebar glass flex flex-col fixed h-full z-20">
+    <div class="p-5 pb-4">
+      <div class="flex items-center gap-3">
+        <img src="/icon.png" alt="Comment Sentinel" class="w-9 h-9 rounded-xl shadow-lg shadow-brand-600/30 animate-glow flex-shrink-0 object-cover">
+        <div class="sidebar-text">
+          <h1 class="text-[15px] font-bold text-white leading-tight">Comment Sentinel</h1>
+          <p id="sidebar-project-name" class="text-[10px] text-brand-400/70 font-medium tracking-wide truncate max-w-[160px]">Loading...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="px-4 mb-2"><div class="h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent"></div></div>
+
+    <nav class="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto" id="main-nav">
+      <a class="nav-link active" data-page="home" title="Home">
+        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        <span class="sidebar-text">Home</span>
+      </a>
+
+      <div class="pt-4 pb-1 px-3 sidebar-text"><span class="text-[10px] font-semibold text-slate-600 uppercase tracking-widest">Collect</span></div>
+      <a class="nav-link" data-page="scraper" title="Scraper">
+        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+        <span class="sidebar-text">Scraper</span>
+      </a>
+      <a class="nav-link" data-page="import" title="Import CSV">
+        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+        <span class="sidebar-text">Import CSV</span>
+      </a>
+
+      <div class="pt-4 pb-1 px-3 sidebar-text"><span class="text-[10px] font-semibold text-slate-600 uppercase tracking-widest">Analyze</span></div>
+      <a class="nav-link" data-page="dashboard" title="Dashboard">
+        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        <span class="sidebar-text">Dashboard</span>
+      </a>
+      <a class="nav-link" data-page="explorer" title="Explorer">
+        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16l2.879-2.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span class="sidebar-text">Explorer</span>
+      </a>
+      <a class="nav-link" data-page="entity-report" title="Entity Report">
+        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><path d="M12 1.5v2.5M12 20v2.5M1.5 12H4M20 12h2.5"/></svg>
+        <span class="sidebar-text">Entity Report</span>
+      </a>
+
+      <div class="pt-4 pb-1 px-3 sidebar-text"><span class="text-[10px] font-semibold text-slate-600 uppercase tracking-widest">Configure</span></div>
+      <a class="nav-link" data-page="training" title="AI Training">
+        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        <span class="sidebar-text">AI Training</span>
+      </a>
+      <a class="nav-link" data-page="settings" title="Settings">
+        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <span class="sidebar-text">Settings</span>
+      </a>
+      <a class="nav-link" data-page="keys" title="API Keys">
+        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+        <span class="sidebar-text">API Keys</span>
+      </a>
+
+      <div class="pt-2 sidebar-text"></div>
+      <a id="btn-sidebar-toggle" class="nav-link" title="Collapse sidebar">
+        <svg id="sidebar-collapse-icon" class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+        <svg id="sidebar-expand-icon" class="w-[18px] h-[18px] flex-shrink-0 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+        <span class="sidebar-text">Collapse</span>
+      </a>
+    </nav>
+
+    <div id="sidebar-footer" class="px-3 mb-3 space-y-2">
+      <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+        <div id="ai-status-badge" class="flex items-center gap-2 text-[11px] text-slate-500">
+          <span class="w-2 h-2 rounded-full bg-slate-600 animate-pulse-soft flex-shrink-0"></span>
+          <span class="sidebar-text">AI: Checking...</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2.5 px-1">
+        <button id="theme-toggle" class="theme-toggle flex-shrink-0" title="Toggle light/dark theme">
+          <svg id="theme-icon-sun" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          <svg id="theme-icon-moon" class="w-[18px] h-[18px] hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        </button>
+        <div class="flex flex-col min-w-0 sidebar-text">
+          <span class="text-[10px] text-slate-500 leading-tight">Devs: Florinao &amp; Capsuna</span>
+          <span class="text-[9px] text-slate-600 leading-tight">Beta v0.04</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main id="main-content" class="flex-1 main-content min-h-screen relative z-10 overflow-y-auto">
+    <div class="max-w-[1200px] mx-auto">
+
+    <!-- ==================== HOME ==================== -->
+    <div id="page-home" class="page-container active p-8 space-y-8" data-page="home">
+      <!-- Hero -->
+      <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600/10 via-purple-600/5 to-transparent border border-brand-500/10 p-10">
+        <div class="absolute top-0 right-0 w-80 h-80 bg-brand-500/5 rounded-full blur-[80px]"></div>
+        <div class="relative">
+          <h2 class="text-4xl font-extrabold text-white tracking-tight">Welcome to <span class="gradient-text">Comment Sentinel</span></h2>
+          <p class="text-slate-400 mt-3 text-lg max-w-2xl">Scrape social media comments, classify sentiment with AI, extract recurring themes, and generate analytical reports.</p>
+          <div class="flex items-center gap-3 mt-5">
+            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Supported platforms</span>
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs font-medium text-slate-300"><svg class="w-3.5 h-3.5 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>Facebook</span>
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs font-medium text-slate-300"><svg class="w-3.5 h-3.5 text-pink-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>TikTok</span>
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs font-medium text-slate-300"><svg class="w-3.5 h-3.5 text-red-400" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>YouTube</span>
+            </div>
+          </div>
+          <div id="home-stats-inline" class="flex items-center gap-6 mt-5"></div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <button onclick="document.querySelector('[data-page=scraper]').click()" class="card card-hover group text-left p-5">
+          <div class="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center mb-4 group-hover:bg-brand-500/20 transition-colors">
+            <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+          </div>
+          <h3 class="text-white font-semibold text-sm">Start Scraping</h3>
+          <p class="text-slate-500 text-xs mt-1">Fetch comments from social media posts and pages</p>
+        </button>
+        <button onclick="document.querySelector('[data-page=import]').click()" class="card card-hover group text-left p-5">
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-4 group-hover:bg-emerald-500/20 transition-colors">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          </div>
+          <h3 class="text-white font-semibold text-sm">Import CSV</h3>
+          <p class="text-slate-500 text-xs mt-1">Upload existing comment data for analysis</p>
+        </button>
+        <button onclick="document.querySelector('[data-page=settings]').click()" class="card card-hover group text-left p-5">
+          <div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center mb-4 group-hover:bg-amber-500/20 transition-colors">
+            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </div>
+          <h3 class="text-white font-semibold text-sm">Configure AI</h3>
+          <p class="text-slate-500 text-xs mt-1">Set up categories, keywords, and project settings</p>
+        </button>
+      </div>
+
+      <!-- Home Dashboard Overview -->
+      <div id="home-overview" class="grid grid-cols-2 lg:grid-cols-4 gap-4"></div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card">
+          <h3 class="section-title">Recent Imports</h3>
+          <div id="home-recent-imports" class="mt-4"></div>
+        </div>
+        <div class="card">
+          <h3 class="section-title">Category Breakdown</h3>
+          <div id="home-categories" class="mt-4"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== DASHBOARD ==================== -->
+    <div id="page-dashboard" class="page-container p-8 space-y-8" data-page="dashboard">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-2xl font-extrabold text-white tracking-tight">Dashboard</h2>
+          <p class="text-slate-500 text-sm mt-0.5">Overview of your comment analysis</p>
+        </div>
+        <div class="flex gap-2">
+          <button id="btn-refresh-dashboard" class="btn-secondary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Refresh
+          </button>
+          <button id="btn-export-csv" class="btn-secondary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            Export
+          </button>
+        </div>
+      </div>
+      <div id="dashboard-stats" class="grid grid-cols-2 lg:grid-cols-4 gap-4"></div>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="card lg:col-span-1">
+          <h3 class="section-title">Category Distribution</h3>
+          <p class="text-xs text-slate-500 mt-0.5 -mb-1">Classified comments by category.</p>
+          <div class="mt-4"><canvas id="chart-categories"></canvas></div>
+        </div>
+        <div class="card lg:col-span-2">
+          <h3 class="section-title">Timeline</h3>
+          <p class="text-xs text-slate-500 mt-0.5 -mb-1">Comment volume per day, broken down by category.</p>
+          <div class="mt-4" style="position:relative;height:300px"><canvas id="chart-timeline"></canvas></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card"><h3 class="section-title">Recent Imports</h3><div id="recent-imports" class="mt-4"></div></div>
+        <div class="card"><h3 class="section-title">Top Authors</h3><div id="top-authors" class="mt-4"></div></div>
+      </div>
+
+      <!-- Latest Entity Report (homepage widget) -->
+      <div id="dashboard-entity-report" class="card hidden"></div>
+      <div class="card">
+        <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+          <div>
+            <h3 class="section-title mb-0">Themes</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Recurring ideas extracted from classified comments</p>
+          </div>
+          <div id="theme-summary-stats" class="flex items-center gap-2"></div>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap mb-3">
+          <div class="inline-flex items-center gap-1.5 bg-white/[0.03] border border-white/[0.06] rounded-lg pl-2.5 pr-1 flex-shrink-0 focus-within:ring-2 focus-within:ring-brand-500/30 focus-within:border-brand-500/40 transition-all">
+            <svg class="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input id="theme-search" type="text" class="bg-transparent text-xs text-slate-300 py-2 pr-3 w-[170px] border-0 outline-none placeholder-slate-500" placeholder="Search themes..." oninput="Dashboard.filterThemes()">
+          </div>
+          <div class="inline-flex items-center gap-1.5 bg-white/[0.03] border border-white/[0.06] rounded-lg pl-2.5 pr-0.5 flex-shrink-0">
+            <svg class="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+            <select id="theme-category-filter" class="bg-transparent text-xs text-slate-300 py-2 pr-6 border-0 outline-none cursor-pointer min-w-[120px] appearance-none" onchange="Dashboard.filterThemes()" style="background-image:url('data:image/svg+xml,<%3Fxml version=%221.0%22%3F><svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%226%22 viewBox=%220 0 10 6%22><path d=%22M0 0l5 6 5-6z%22 fill=%22%2364748b%22/></svg>');background-repeat:no-repeat;background-position:right 8px center;background-size:8px"></select>
+          </div>
+          <div class="inline-flex items-center gap-1.5 bg-white/[0.03] border border-white/[0.06] rounded-lg pl-2.5 pr-0.5 flex-shrink-0">
+            <svg class="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <select id="theme-sentiment-filter" class="bg-transparent text-xs text-slate-300 py-2 pr-6 border-0 outline-none cursor-pointer min-w-[100px] appearance-none" onchange="Dashboard.filterThemes()" style="background-image:url('data:image/svg+xml,<%3Fxml version=%221.0%22%3F><svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%226%22 viewBox=%220 0 10 6%22><path d=%22M0 0l5 6 5-6z%22 fill=%22%2364748b%22/></svg>');background-repeat:no-repeat;background-position:right 8px center;background-size:8px">
+              <option value="">All Sentiments</option>
+              <option value="positive">Positive</option>
+              <option value="negative">Negative</option>
+              <option value="neutral">Neutral</option>
+              <option value="mixed">Mixed</option>
+            </select>
+          </div>
+          <div class="inline-flex items-center gap-1.5 bg-white/[0.03] border border-white/[0.06] rounded-lg pl-2.5 pr-0.5 flex-shrink-0">
+            <svg class="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.07-9.07a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364L9.21 5.868"/></svg>
+            <select id="theme-source-filter" class="bg-transparent text-xs text-slate-300 py-2 pr-6 border-0 outline-none cursor-pointer min-w-[120px] appearance-none" onchange="Dashboard.filterThemes()" style="background-image:url('data:image/svg+xml,<%3Fxml version=%221.0%22%3F><svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%226%22 viewBox=%220 0 10 6%22><path d=%22M0 0l5 6 5-6z%22 fill=%22%2364748b%22/></svg>');background-repeat:no-repeat;background-position:right 8px center;background-size:8px"></select>
+          </div>
+          <div class="inline-flex items-center gap-1.5 bg-white/[0.03] border border-white/[0.06] rounded-lg pl-2.5 pr-0.5 flex-shrink-0">
+            <svg class="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/></svg>
+            <select id="theme-sort" class="bg-transparent text-xs text-slate-300 py-2 pr-6 border-0 outline-none cursor-pointer min-w-[110px] appearance-none" onchange="Dashboard.filterThemes()" style="background-image:url('data:image/svg+xml,<%3Fxml version=%221.0%22%3F><svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%226%22 viewBox=%220 0 10 6%22><path d=%22M0 0l5 6 5-6z%22 fill=%22%2364748b%22/></svg>');background-repeat:no-repeat;background-position:right 8px center;background-size:8px">
+              <option value="mentions">Most Mentions</option>
+              <option value="confidence">Highest Confidence</option>
+              <option value="recent">Most Recent</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2 ml-auto">
+            <span id="theme-result-count" class="text-[10px] text-slate-500 whitespace-nowrap"></span>
+            <button class="btn-ghost text-[10px]" onclick="document.getElementById('theme-category-filter').value='';document.getElementById('theme-sentiment-filter').value='';document.getElementById('theme-source-filter').value='';document.getElementById('theme-search').value='';document.getElementById('theme-sort').value='mentions';Dashboard.filterThemes()">Clear</button>
+          </div>
+        </div>
+        <div id="theme-active-badge" class="hidden mb-3"></div>
+        <div id="dashboard-themes" class="mt-0"></div>
+      </div>
+    </div>
+
+    <!-- ==================== SCRAPER ==================== -->
+    <div id="page-scraper" class="page-container p-8 space-y-6" data-page="scraper">
+      <div>
+        <h2 class="text-2xl font-extrabold text-white tracking-tight">Scraper</h2>
+        <p class="text-slate-500 text-sm mt-0.5">Fetch posts and comments from social media platforms</p>
+      </div>
+
+      <!-- Mode selector -->
+      <div class="flex gap-1 p-1 bg-white/[0.03] rounded-xl border border-white/[0.06] w-fit" id="scraper-mode-tabs">
+        <button class="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 bg-brand-600 text-white shadow" data-mode="page">
+          <svg class="w-4 h-4 inline mr-1.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          Page Scraper
+        </button>
+        <button class="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 text-slate-400 hover:text-white" data-mode="batch">
+          <svg class="w-4 h-4 inline mr-1.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+          Batch Links
+        </button>
+        <button class="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 text-slate-400 hover:text-white" data-mode="multi">
+          <svg class="w-4 h-4 inline mr-1.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Multi-Platform
+        </button>
+      </div>
+
+      <!-- Platform selector -->
+      <div class="flex gap-2" id="platform-tabs">
+        <button class="tab-btn active" data-platform="facebook">
+          <svg class="w-4 h-4 inline mr-1.5" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          Facebook
+        </button>
+        <button class="tab-btn" data-platform="tiktok">
+          <svg class="w-4 h-4 inline mr-1.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
+          TikTok
+        </button>
+        <button class="tab-btn" data-platform="youtube">
+          <svg class="w-4 h-4 inline mr-1.5" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+          YouTube
+        </button>
+      </div>
+
+      <!-- Page Scraper Mode -->
+      <div id="page-scraper-mode">
+        <div class="card space-y-6">
+          <div class="form-group">
+            <label class="label" id="scraper-url-label">Facebook Page URL</label>
+            <input id="scraper-url" type="text" class="input text-base" placeholder="https://www.facebook.com/page-name">
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="form-group">
+              <label class="label">Time Range</label>
+              <select id="scraper-date-filter" class="select">
+                <option value="">All time</option>
+                <option value="24h">Last 24 hours</option>
+                <option value="week">Last week</option>
+                <option value="month">Last month</option>
+                <option value="2months">Last 2 months</option>
+              </select>
+            </div>
+            <div class="md:col-span-2 flex items-end">
+              <button id="btn-fetch-posts" class="btn-primary w-full md:w-auto">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                Fetch Posts
+              </button>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div>
+            <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Context</h4>
+            <p class="text-xs text-slate-500 mb-4">Provide context for better AI classification.</p>
+            <div class="space-y-4">
+              <div class="form-group">
+                <label class="label">Article URL</label>
+                <div class="flex gap-2">
+                  <input id="context-url" type="text" class="input flex-1" placeholder="https://example.com/article...">
+                  <button id="btn-scrape-context" class="btn-secondary whitespace-nowrap">Scrape Article</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="label">Context Text</label>
+                <textarea id="context-text" class="input" rows="3" placeholder="Paste or type context about the topic..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Batch Links Mode -->
+      <div id="batch-links-mode" class="hidden space-y-6">
+        <div class="card space-y-4">
+          <div>
+            <h3 class="section-title">Import Sources</h3>
+            <p class="text-sm text-slate-500">Add one or more sources to scrape. Platform is auto-detected from the URL.</p>
+          </div>
+          <div id="batch-entries-list" class="space-y-4"></div>
+          <button onclick="Scraper.addBatchEntry()" class="btn-ghost w-full py-3 border border-dashed border-white/[0.08] rounded-xl hover:border-brand-500/30 hover:bg-brand-500/[0.03] transition-all">
+            <svg class="w-4 h-4 inline mr-1.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+            Add another source
+          </button>
+        </div>
+        <div id="batch-scrape-actions" class="hidden">
+          <div class="card flex items-center justify-between">
+            <div>
+              <p class="text-sm font-semibold text-white" id="batch-ready-count">0 sources ready</p>
+              <p class="text-xs text-slate-500">Each source imports separately with its own title</p>
+            </div>
+            <button id="btn-batch-scrape" class="btn-primary" onclick="Scraper.processBatchEntries()">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              Scrape All
+            </button>
+          </div>
+        </div>
+        <div id="batch-results-summary" class="hidden"></div>
+      </div>
+
+      <!-- Multi-Platform Mode -->
+      <div id="multi-platform-mode" class="hidden space-y-6">
+        <div class="card space-y-6">
+          <div>
+            <h3 class="section-title">Multi-Platform Links</h3>
+            <p class="text-sm text-slate-500">Paste links from different platforms (TikTok, YouTube, Facebook) for the <strong>same content</strong>. All comments will be imported into a single source.</p>
+          </div>
+          <div class="form-group">
+            <label class="label">URLs <span class="text-slate-500 font-normal">(one per line, mixed platforms)</span></label>
+            <textarea id="multi-urls-input" class="input font-mono text-xs" rows="4" placeholder="https://www.tiktok.com/@user/video/123456789&#10;https://www.youtube.com/shorts/abc123&#10;https://fb.watch/xyz"></textarea>
+            <span id="multi-url-count" class="text-xs text-slate-500 mt-1 block">0 links detected</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="form-group">
+              <label class="label">Transcript Language <span class="text-slate-500 font-normal">(optional)</span></label>
+              <select id="multi-transcript-lang" class="select">
+                <option value="">Auto-detect</option>
+                <option value="ro">Romanian</option>
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="it">Italian</option>
+                <option value="pt">Portuguese</option>
+              </select>
+            </div>
+            <div class="flex items-end">
+              <button id="btn-multi-validate" class="btn-primary w-full md:w-auto">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                Validate All Platforms
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="multi-validated-info" class="hidden">
+          <div class="card space-y-4">
+            <div class="form-group">
+              <label class="label">Import Title</label>
+              <input id="multi-title" type="text" class="input" placeholder="e.g., De ce ti platim pe turci cu 50% mai mult?">
+            </div>
+            <div id="multi-stats" class="flex items-center gap-4 flex-wrap"></div>
+          </div>
+        </div>
+        <div id="multi-links-list" class="space-y-3"></div>
+        <div id="multi-scrape-actions" class="hidden">
+          <div class="card flex items-center justify-between">
+            <div>
+              <p class="text-sm font-semibold text-white" id="multi-ready-count">0 platforms ready</p>
+              <p class="text-xs text-slate-500">All comments will be imported into one source</p>
+            </div>
+            <button id="btn-multi-scrape" class="btn-primary">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              Scrape All Platforms
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="scraper-results" class="space-y-6"></div>
+      <div id="scraper-progress" class="hidden card border-brand-500/20 bg-gradient-to-br from-brand-500/[0.04] to-transparent">
+        <div class="flex items-center gap-4">
+          <div class="relative flex-shrink-0">
+            <svg class="w-10 h-10 animate-spin" viewBox="0 0 40 40" fill="none">
+              <circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="3" class="text-white/[0.06]"/>
+              <circle cx="20" cy="20" r="17" stroke="url(#scraper-grad)" stroke-width="3" stroke-linecap="round" stroke-dasharray="80 107"/>
+              <defs><linearGradient id="scraper-grad" x1="0" y1="0" x2="40" y2="40"><stop stop-color="#818cf8"/><stop offset="1" stop-color="#6366f1"/></linearGradient></defs>
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <span id="scraper-progress-text" class="text-sm font-semibold text-white">Processing...</span>
+            <div class="w-full bg-white/[0.06] rounded-full h-1.5 mt-2.5">
+              <div id="scraper-progress-bar" class="bg-gradient-to-r from-brand-600 to-brand-400 h-1.5 rounded-full transition-all duration-500" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="scraper-activity-log" class="hidden card mt-4">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Activity Log</h4>
+          <button onclick="Scraper.clearLog()" class="text-xs text-slate-500 hover:text-slate-300 transition-colors">Clear</button>
+        </div>
+        <div id="scraper-log-entries" class="space-y-1 max-h-64 overflow-y-auto font-mono text-xs"></div>
+      </div>
+    </div>
+
+    <!-- ==================== EXPLORER ==================== -->
+    <div id="page-explorer" class="page-container p-8 space-y-6" data-page="explorer">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-2xl font-extrabold text-white tracking-tight">Comment Explorer</h2>
+          <p class="text-slate-500 text-sm mt-0.5">Browse, search, and manage classified comments</p>
+        </div>
+        <div class="flex gap-2">
+          <button id="btn-classify-all" class="btn-secondary">Keywords</button>
+          <button id="btn-ai-classify-all" class="btn-primary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            AI Classify
+          </button>
+        </div>
+      </div>
+      <div class="card space-y-5">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div class="form-group col-span-2 md:col-span-1">
+            <label class="label text-xs">Search</label>
+            <input id="explorer-search" type="text" class="input" placeholder="Search comments...">
+          </div>
+          <div class="form-group">
+            <label class="label text-xs">Category</label>
+            <select id="explorer-category" class="select"><option value="">All</option></select>
+          </div>
+          <div class="form-group">
+            <label class="label text-xs">Source</label>
+            <select id="explorer-source" class="select"><option value="">All</option></select>
+          </div>
+          <div class="form-group">
+            <label class="label text-xs">Platform</label>
+            <select id="explorer-platform" class="select"><option value="">All</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="youtube">YouTube</option></select>
+          </div>
+          <div class="form-group">
+            <label class="label text-xs">Classified By</label>
+            <select id="explorer-classified" class="select"><option value="">All</option><option value="auto">Keywords</option><option value="ai">AI</option><option value="manual">Manual</option></select>
+          </div>
+        </div>
+        <div id="explorer-table" class="table-container"></div>
+        <div id="explorer-pagination" class="flex items-center justify-between"></div>
+      </div>
+    </div>
+
+    <!-- ==================== ENTITY REPORT ==================== -->
+    <div id="page-entity-report" class="page-container p-8 space-y-6" data-page="entity-report">
+      <!-- Hero header -->
+      <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600/15 via-brand-500/[0.04] to-transparent border border-brand-500/20 p-6">
+        <div class="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-brand-500/10 blur-3xl pointer-events-none"></div>
+        <div class="relative flex items-start gap-4 flex-wrap">
+          <div class="w-12 h-12 rounded-2xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-300 flex-shrink-0">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><path d="M12 1.5v2.5M12 20v2.5M1.5 12H4M20 12h2.5"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <h2 class="text-2xl font-extrabold text-white tracking-tight">Entity Report</h2>
+            <p class="text-slate-400 text-sm mt-1 leading-relaxed max-w-2xl">Identify the top 5 entities mentioned in the comments on each account's content and score the sentiment for each. Runs scan the 3 newest clips per platform that are at least 72&nbsp;hours old, so comments have time to accumulate.</p>
+          </div>
+          <div id="er-hero-stats" class="flex items-center gap-2 flex-shrink-0"></div>
+        </div>
+      </div>
+
+      <!-- Accounts Setup -->
+      <div class="card space-y-5">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 class="section-title">Monitored Accounts</h3>
+            <p class="section-desc">3 social profiles, one per platform. Pick a YouTube channel handle or raw <code class="text-[11px] bg-white/[0.04] px-1 py-0.5 rounded text-slate-300">UC…</code> ID.</p>
+          </div>
+          <div id="er-account-summary" class="text-[11px] text-slate-500"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <!-- Facebook -->
+          <div class="group relative rounded-2xl border border-white/[0.06] bg-gradient-to-br from-blue-500/[0.06] to-transparent p-4 transition-all hover:border-blue-400/30">
+            <div class="flex items-center gap-2 mb-2.5">
+              <div class="w-7 h-7 rounded-lg bg-blue-500/15 border border-blue-400/20 flex items-center justify-center">
+                <svg class="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold leading-none">Platform</div>
+                <div class="text-sm font-bold text-white leading-tight mt-0.5">Facebook Page</div>
+              </div>
+              <span id="er-fb-status" class="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-white/[0.04] text-slate-500 border border-white/[0.06]">Not set</span>
+            </div>
+            <input id="er-fb-account" type="text" class="w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono placeholder-slate-600 outline-none focus:border-blue-400/40 focus:bg-white/[0.05] transition-all" placeholder="facebook.com/pagename">
+          </div>
+
+          <!-- TikTok -->
+          <div class="group relative rounded-2xl border border-white/[0.06] bg-gradient-to-br from-pink-500/[0.06] to-transparent p-4 transition-all hover:border-pink-400/30">
+            <div class="flex items-center gap-2 mb-2.5">
+              <div class="w-7 h-7 rounded-lg bg-pink-500/15 border border-pink-400/20 flex items-center justify-center">
+                <svg class="w-4 h-4 text-pink-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold leading-none">Platform</div>
+                <div class="text-sm font-bold text-white leading-tight mt-0.5">TikTok Profile</div>
+              </div>
+              <span id="er-tt-status" class="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-white/[0.04] text-slate-500 border border-white/[0.06]">Not set</span>
+            </div>
+            <input id="er-tt-account" type="text" class="w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono placeholder-slate-600 outline-none focus:border-pink-400/40 focus:bg-white/[0.05] transition-all" placeholder="tiktok.com/@user">
+          </div>
+
+          <!-- YouTube -->
+          <div class="group relative rounded-2xl border border-white/[0.06] bg-gradient-to-br from-red-500/[0.06] to-transparent p-4 transition-all hover:border-red-400/30">
+            <div class="flex items-center gap-2 mb-2.5">
+              <div class="w-7 h-7 rounded-lg bg-red-500/15 border border-red-400/20 flex items-center justify-center">
+                <svg class="w-4 h-4 text-red-400" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold leading-none">Platform</div>
+                <div class="text-sm font-bold text-white leading-tight mt-0.5">YouTube Channel</div>
+              </div>
+              <span id="er-yt-status" class="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-white/[0.04] text-slate-500 border border-white/[0.06]">Not set</span>
+            </div>
+            <input id="er-yt-account" type="text" class="w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono placeholder-slate-600 outline-none focus:border-red-400/40 focus:bg-white/[0.05] transition-all" placeholder="youtube.com/@channel  or  UC…">
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap pt-1">
+          <button id="btn-save-er-accounts" class="btn-secondary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            Save Accounts
+          </button>
+          <button id="btn-run-er-report" class="btn-primary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            Generate Report
+          </button>
+          <span class="text-[11px] text-slate-500 ml-auto inline-flex items-center gap-1.5">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Scheduled / repeat runs skip videos already processed
+          </span>
+        </div>
+
+        <!-- Schedule -->
+        <div class="mt-5 pt-5 border-t border-white/[0.06]">
+          <div id="er-schedule-card" class="rounded-2xl bg-white/[0.02] border border-white/[0.05] p-4 transition-colors">
+            <div class="flex items-center gap-3 flex-wrap">
+              <div class="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-300 flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <h4 class="text-sm font-bold text-white tracking-tight">Daily Schedule</h4>
+                <p id="er-schedule-status" class="text-[11px] text-slate-500 mt-0.5 leading-relaxed">Auto-generate a report once per day. Skips videos already analysed in previous runs.</p>
+              </div>
+              <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                <span class="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Run at</span>
+                <input id="er-schedule-time" type="time" class="bg-transparent border-0 text-sm font-mono text-white outline-none focus:outline-none w-[92px] p-0" style="color-scheme: dark">
+                <span class="text-[10px] text-slate-500 font-medium">local</span>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer select-none flex-shrink-0" title="Toggle daily schedule">
+                <input id="er-schedule-enabled" type="checkbox" class="sr-only peer">
+                <div class="w-10 h-5 bg-white/[0.08] rounded-full peer-checked:bg-brand-500 transition-colors relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-5"></div>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live run log (visible while a report is generating) -->
+      <div id="er-run-log" class="hidden card border-brand-500/20 bg-brand-500/[0.03]">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-300">
+            <svg id="er-run-log-icon" class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" opacity="0.2"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="40 63"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <h3 id="er-run-log-title" class="text-base font-bold text-white tracking-tight">Generating report…</h3>
+            <p id="er-run-log-subtitle" class="text-[11px] text-slate-400 mt-0.5">Live progress from the scraping and analysis pipeline.</p>
+          </div>
+          <div id="er-run-log-elapsed" class="text-xs font-mono text-slate-400 tabular-nums">0s</div>
+        </div>
+        <div id="er-run-log-stream" class="rounded-xl bg-slate-950/60 border border-white/[0.06] p-3 max-h-[280px] overflow-y-auto font-mono text-[11px] leading-relaxed text-slate-300 space-y-0.5"></div>
+      </div>
+
+      <!-- Current Report View -->
+      <div id="er-current-report" class="hidden"></div>
+
+      <!-- History -->
+      <div class="card">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="section-title mb-0">Report History</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Previous reports for this project</p>
+          </div>
+          <button id="btn-refresh-er-history" class="btn-ghost text-xs">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Refresh
+          </button>
+        </div>
+        <div id="er-history-list" class="space-y-2"></div>
+      </div>
+    </div>
+
+    <!-- ==================== AI TRAINING ==================== -->
+    <div id="page-training" class="page-container p-8 space-y-6" data-page="training">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-2xl font-extrabold text-white tracking-tight">AI Training</h2>
+          <p class="text-slate-500 text-sm mt-0.5">Teach the AI with corrected classifications</p>
+        </div>
+        <div id="training-count" class="badge bg-brand-500/10 text-brand-300 text-xs px-3 py-1.5 border border-brand-500/20"></div>
+      </div>
+      <div class="card space-y-6">
+        <div>
+          <h3 class="section-title">Add Training Example</h3>
+          <p class="section-desc">When the AI misclassifies a comment, add it here with the correct category.</p>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div class="form-group">
+            <label class="label">Comment Text</label>
+            <textarea id="training-comment" class="input" rows="3" placeholder="Paste the misclassified comment..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="label">Context <span class="text-slate-500 font-normal">(optional)</span></label>
+            <textarea id="training-context" class="input" rows="3" placeholder="Original post or article..."></textarea>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div class="form-group">
+            <label class="label">Correct Category</label>
+            <div id="training-category" class="category-select" data-value=""></div>
+          </div>
+          <div class="form-group">
+            <label class="label">Your Reasoning <span class="text-slate-500 font-normal">(optional)</span></label>
+            <input id="training-reasoning" type="text" class="input" placeholder="Why does this comment belong here?">
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button id="btn-add-training" class="btn-primary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            Add Example
+          </button>
+          <button id="btn-test-ai" class="btn-secondary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            Test AI
+          </button>
+        </div>
+        <div id="ai-test-result" class="hidden card bg-brand-500/5 border-brand-500/10"></div>
+      </div>
+      <div class="card">
+        <h3 class="section-title">Training Memory</h3>
+        <p class="section-desc">These examples guide future AI classifications.</p>
+        <div id="training-list"></div>
+      </div>
+    </div>
+
+    <!-- ==================== IMPORT CSV ==================== -->
+    <div id="page-import" class="page-container p-8 space-y-6" data-page="import">
+      <div>
+        <h2 class="text-2xl font-extrabold text-white tracking-tight">Import CSV</h2>
+        <p class="text-slate-500 text-sm mt-0.5">Upload comment data from CSV files</p>
+      </div>
+      <!-- Template & Format Guide -->
+      <div class="card space-y-4">
+        <div class="flex items-start justify-between">
+          <div>
+            <h3 class="section-title">CSV Format</h3>
+            <p class="text-sm text-slate-500">Your CSV should have columns for the comment data. Only <code class="text-brand-300 bg-brand-500/10 px-1.5 py-0.5 rounded text-xs">comment_text</code> is required, the rest are optional.</p>
+          </div>
+          <a href="/template.csv" download class="btn-secondary whitespace-nowrap">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Download Template
+          </a>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+            <div class="text-xs font-semibold text-brand-300">comment_text *</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">The actual comment</div>
+          </div>
+          <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+            <div class="text-xs font-semibold text-slate-300">author_name</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">Who wrote the comment</div>
+          </div>
+          <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+            <div class="text-xs font-semibold text-slate-300">comment_date</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">When it was posted</div>
+          </div>
+          <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+            <div class="text-xs font-semibold text-slate-300">likes</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">Reaction/like count</div>
+          </div>
+          <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+            <div class="text-xs font-semibold text-slate-300">replies</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">Number of replies</div>
+          </div>
+          <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+            <div class="text-xs font-semibold text-slate-300">post_url</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">Link to the original post</div>
+          </div>
+          <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] col-span-2">
+            <div class="text-xs font-semibold text-slate-300">original_post</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">Text of the post the comment was on (used as context)</div>
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-600">Column names don't need to match exactly -- you'll map them after upload. The system auto-detects common names like "text", "comment", "author", "date", etc.</p>
+      </div>
+
+      <!-- Upload Area -->
+      <div class="card">
+        <div class="border-2 border-dashed border-white/[0.08] hover:border-brand-500/30 rounded-2xl p-10 text-center transition-all duration-300" id="drop-zone">
+          <svg class="w-12 h-12 text-slate-600 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <p class="text-sm font-medium text-slate-300 mb-1">Drop your CSV file here</p>
+          <p class="text-xs text-slate-500 mb-4">Supports .csv, .tsv, .txt up to 50MB</p>
+          <label class="btn-primary cursor-pointer inline-flex">
+            Browse Files
+            <input type="file" id="csv-file-input" class="hidden" accept=".csv,.txt,.tsv">
+          </label>
+        </div>
+      </div>
+      <div id="import-preview" class="hidden space-y-6">
+        <div class="card">
+          <h3 class="section-title">Column Mapping</h3>
+          <p class="section-desc">Map your CSV columns to the expected fields.</p>
+          <div id="import-mapping" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+        </div>
+        <div class="card">
+          <h3 class="section-title">Preview</h3>
+          <div id="import-preview-table" class="table-container mt-4"></div>
+        </div>
+        <div class="card space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="form-group">
+              <label class="label">Description</label>
+              <input id="import-description" type="text" class="input" placeholder="e.g., Facebook comments from Campaign X...">
+            </div>
+            <div class="form-group">
+              <label class="label">Post Context</label>
+              <input id="import-context" type="text" class="input" placeholder="What are these comments about?">
+            </div>
+          </div>
+          <button id="btn-import-process" class="btn-primary">Import &amp; Classify</button>
+        </div>
+      </div>
+      <div id="import-result" class="hidden card"></div>
+      <div class="card">
+        <h3 class="section-title">Import History</h3>
+        <div id="import-history" class="mt-4"></div>
+      </div>
+    </div>
+
+    <!-- ==================== SETTINGS ==================== -->
+    <div id="page-settings" class="page-container p-8 space-y-6" data-page="settings">
+      <div>
+        <h2 class="text-2xl font-extrabold text-white tracking-tight">Settings</h2>
+        <p class="text-slate-500 text-sm mt-0.5">Configure your project, categories, and classification rules</p>
+      </div>
+
+      <!-- Project Switcher -->
+      <div class="card space-y-4 border-brand-500/20 bg-brand-500/[0.03]">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="section-title flex items-center gap-2">
+              <svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+              Active Project
+            </h3>
+            <p class="section-desc">Switch between projects or create a new one. API keys are shared across all projects.</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <select id="project-select" class="select flex-1" onchange="Settings.switchProject(this.value)">
+          </select>
+          <button class="btn-secondary whitespace-nowrap" onclick="Settings.showRenameProject()">
+            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            Rename
+          </button>
+          <button class="btn-primary whitespace-nowrap" onclick="Settings.showCreateProject()">
+            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+            New Project
+          </button>
+          <button class="btn-danger whitespace-nowrap" id="btn-delete-proj" onclick="Settings.deleteCurrentProject()">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="card space-y-6">
+        <div>
+          <h3 class="section-title">Project Configuration</h3>
+          <p class="section-desc">Tell the AI about your project.</p>
+        </div>
+        <div class="form-group">
+          <label class="label">Project Description</label>
+          <p class="label-hint">Describe the topic or context of the comments you're analyzing.</p>
+          <textarea id="setting-project-desc" class="input" rows="3" placeholder="e.g., We're analyzing public opinion on the new subway construction project..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="label">Comment Language</label>
+          <p class="label-hint">What language(s) are the comments in?</p>
+          <select id="setting-project-lang" class="select">
+            <option value="">Auto-detect</option>
+            <option value="Romanian">Romanian</option>
+            <option value="English">English</option>
+            <option value="Hungarian">Hungarian</option>
+            <option value="Romanian, English">Romanian &amp; English</option>
+            <option value="Romanian, Hungarian">Romanian &amp; Hungarian</option>
+            <option value="English, Hungarian">English &amp; Hungarian</option>
+            <option value="Romanian, English, Hungarian">All three</option>
+          </select>
+        </div>
+        <button id="btn-save-settings" class="btn-primary">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          Save Settings
+        </button>
+      </div>
+
+      <div class="card space-y-6">
+        <div class="flex items-start justify-between">
+          <div>
+            <h3 class="section-title">Sentiment Categories</h3>
+            <p class="section-desc">Define the categories comments will be classified into.</p>
+          </div>
+          <button id="btn-add-category" class="btn-primary whitespace-nowrap">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            Add Category
+          </button>
+        </div>
+        <div id="categories-list" class="space-y-2"></div>
+      </div>
+
+      <div class="card space-y-6">
+        <div>
+          <h3 class="section-title">Classification Keywords</h3>
+          <p class="section-desc">Add keywords that trigger rule-based classification.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="form-group">
+            <label class="label">Category</label>
+            <div id="keyword-category" class="category-select" data-value=""></div>
+          </div>
+          <div class="form-group">
+            <label class="label">Keyword or Phrase</label>
+            <input id="keyword-text" type="text" class="input" placeholder="e.g., great job, well done...">
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="flex items-center justify-between mb-2">
+            <label class="label mb-0">Signal Strength</label>
+            <span id="keyword-weight-display" class="text-lg font-bold text-brand-400 tabular-nums">1.0</span>
+          </div>
+          <input id="keyword-weight" type="range" min="0.1" max="3.0" step="0.1" value="1.0" class="w-full h-1.5 bg-white/[0.08] rounded-full appearance-none cursor-pointer accent-brand-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-brand-400 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-brand-500/30 [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-brand-400 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer">
+          <div class="flex justify-between text-[10px] text-slate-600 mt-1 px-0.5">
+            <span>0.1</span><span>0.5</span><span>1.0</span><span>1.5</span><span>2.0</span><span>2.5</span><span>3.0</span>
+          </div>
+          <div id="keyword-weight-hint" class="mt-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+            <div class="flex items-center gap-2 mb-1">
+              <div class="w-2 h-2 rounded-full bg-brand-400"></div>
+              <span class="text-xs font-semibold text-slate-200">Normal match</span>
+            </div>
+            <p class="text-xs text-slate-500">Standard keyword that reasonably indicates this category.</p>
+          </div>
+          <div class="grid grid-cols-4 gap-2 mt-3">
+            <div class="text-center p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] cursor-pointer hover:border-white/[0.1] transition-all" onclick="document.getElementById('keyword-weight').value='0.3';document.getElementById('keyword-weight').dispatchEvent(new Event('input'))">
+              <div class="text-xs font-bold text-slate-400">0.3</div>
+              <div class="text-[10px] text-slate-600 mt-0.5">Weak</div>
+            </div>
+            <div class="text-center p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] cursor-pointer hover:border-white/[0.1] transition-all" onclick="document.getElementById('keyword-weight').value='1.0';document.getElementById('keyword-weight').dispatchEvent(new Event('input'))">
+              <div class="text-xs font-bold text-brand-400">1.0</div>
+              <div class="text-[10px] text-slate-600 mt-0.5">Normal</div>
+            </div>
+            <div class="text-center p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] cursor-pointer hover:border-white/[0.1] transition-all" onclick="document.getElementById('keyword-weight').value='2.0';document.getElementById('keyword-weight').dispatchEvent(new Event('input'))">
+              <div class="text-xs font-bold text-amber-400">2.0</div>
+              <div class="text-[10px] text-slate-600 mt-0.5">Strong</div>
+            </div>
+            <div class="text-center p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] cursor-pointer hover:border-white/[0.1] transition-all" onclick="document.getElementById('keyword-weight').value='3.0';document.getElementById('keyword-weight').dispatchEvent(new Event('input'))">
+              <div class="text-xs font-bold text-red-400">3.0</div>
+              <div class="text-[10px] text-slate-600 mt-0.5">Very Strong</div>
+            </div>
+          </div>
+        </div>
+        <button id="btn-add-keyword" class="btn-primary">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+          Add Keyword
+        </button>
+        <div id="keywords-list"></div>
+      </div>
+
+      <div class="card space-y-6 border-red-500/10">
+        <div>
+          <h3 class="section-title text-red-400">Danger Zone</h3>
+          <p class="section-desc">Re-classify all existing comments.</p>
+        </div>
+        <div class="flex gap-3 flex-wrap">
+          <button id="btn-reclassify-keyword" class="btn-danger">Re-classify All (Keywords)</button>
+          <button id="btn-reclassify-ai" class="btn-danger">Re-classify All (AI)</button>
+        </div>
+        <div class="border-t border-red-500/10 pt-5">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-semibold text-red-400">Delete Project</p>
+              <p class="text-xs text-slate-500 mt-0.5">Permanently delete all scraped comments, import sources, and extracted themes. Categories, keywords, training data, and settings are kept.</p>
+            </div>
+            <button id="btn-delete-project" class="btn-danger whitespace-nowrap ml-4">Delete Everything</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== API KEYS ==================== -->
+    <div id="page-keys" class="page-container p-8 space-y-6" data-page="keys">
+      <div>
+        <h2 class="text-2xl font-extrabold text-white tracking-tight">API Keys</h2>
+        <p class="text-slate-500 text-sm mt-0.5">Manage your API credentials. Keys are stored in your local .env file.</p>
+      </div>
+
+      <!-- OpenAI -->
+      <div class="card space-y-5">
+        <div class="flex items-start gap-4">
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-sm font-bold text-white">OpenAI</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Powers AI classification, theme extraction, and comment analysis</p>
+          </div>
+          <div id="key-status-openai" class="flex-shrink-0"></div>
+        </div>
+        <div>
+          <label class="label text-xs">API Key</label>
+          <div id="key-display-openai" class="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]"></div>
+          <div id="key-edit-openai" class="hidden mt-2">
+            <input id="key-openai" type="text" class="input font-mono text-xs" placeholder="Paste new key here...">
+          </div>
+        </div>
+        <div>
+          <label class="label">Model</label>
+          <p class="label-hint">Select which OpenAI model to use. Pricing is per 1M tokens (input / output).</p>
+          <div id="key-openai-models" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3"></div>
+        </div>
+      </div>
+
+      <!-- ScrapeCreators -->
+      <div class="card space-y-5">
+        <div class="flex items-start gap-4">
+          <div class="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-sm font-bold text-white">ScrapeCreators</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Used for scraping Facebook, TikTok, and YouTube posts, comments, and transcripts</p>
+          </div>
+          <div id="key-status-scrapecreators" class="flex-shrink-0"></div>
+        </div>
+        <div>
+          <label class="label text-xs">API Key</label>
+          <div id="key-display-scrapecreators" class="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]"></div>
+          <div id="key-edit-scrapecreators" class="hidden mt-2">
+            <input id="key-scrapecreators" type="text" class="input font-mono text-xs" placeholder="Paste new key here...">
+          </div>
+        </div>
+      </div>
+
+      <!-- Apify -->
+      <div class="card space-y-5">
+        <div class="flex items-start gap-4">
+          <div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-sm font-bold text-white">Apify</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Used as a fallback for Facebook comment scraping</p>
+          </div>
+          <div id="key-status-apify" class="flex-shrink-0"></div>
+        </div>
+        <div>
+          <label class="label text-xs">API Token</label>
+          <div id="key-display-apify" class="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]"></div>
+          <div id="key-edit-apify" class="hidden mt-2">
+            <input id="key-apify" type="text" class="input font-mono text-xs" placeholder="Paste new token here...">
+          </div>
+        </div>
+      </div>
+
+      <button id="btn-save-keys" class="btn-primary">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+        Save All
+      </button>
+
+      <div class="p-4 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+        <p class="text-xs text-slate-500"><span class="text-slate-400 font-medium">Note:</span> Keys are saved to your local <code class="text-brand-300 bg-brand-500/10 px-1 py-0.5 rounded">.env</code> file and applied immediately without restarting the server. They never leave your machine.</p>
+      </div>
+    </div>
+
+    </div>
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
+
+  <!-- Modal -->
+  <div id="modal-backdrop" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center">
+    <div id="modal-content" class="bg-surface-900 rounded-2xl border border-white/[0.08] p-8 max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto shadow-2xl animate-slide-up"></div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/scraper.js"></script>
+  <script src="js/explorer.js"></script>
+  <script src="js/training.js"></script>
+  <script src="js/importer.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/keys.js"></script>
+  <script src="js/entityReport.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

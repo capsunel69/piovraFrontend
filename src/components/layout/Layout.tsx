@@ -12,7 +12,7 @@ import MobileNav, { type MobileNavItem } from './MobileNav';
 import { AppLogoMark } from './AppLogoMark';
 import {
   IconDashboard, IconTasks, IconCalendar, IconBell, IconNote, IconContacts,
-  IconLogout, IconChevronLeft, IconClock, IconBot, IconChat,
+  IconLogout, IconChevronLeft, IconClock, IconBot, IconChat, IconCommentSentinel,
   IconMenu, IconLock, IconBook,
 } from '../ui/icons';
 import { IconButton } from '../ui/primitives';
@@ -28,6 +28,7 @@ const NAV_PRIMARY: MobileNavItem[] = [
   { to: '/contacts',  label: 'Contacts',  icon: IconContacts },
   { to: '/chat',      label: 'Chat',      icon: IconChat },
   { to: '/agents',    label: 'Agents',    icon: IconBot },
+  { to: '/comment-sentinel', label: 'Comment Sentinel', icon: IconCommentSentinel },
 ];
 
 /** Mobile drawer breakpoint — keep this in sync with CSS @media queries. */
@@ -580,7 +581,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
           <Content>
             <BackgroundFx sidebarCollapsed={collapsed} />
-            <ContentInner>{children}</ContentInner>
+            {location.pathname === '/comment-sentinel' ? (
+              children
+            ) : (
+              <ContentInner>{children}</ContentInner>
+            )}
           </Content>
         </Main>
 

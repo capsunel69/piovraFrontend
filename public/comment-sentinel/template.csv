@@ -1,0 +1,6 @@
+author_name,comment_text,comment_date,likes,replies,post_url,original_post
+"John Doe","This is a great initiative! Very happy to see progress.","2025-03-15",12,2,"https://facebook.com/example/posts/123","The city announced new metro construction plans"
+"Jane Smith","Terrible planning. Nobody asked for this.","2025-03-15",5,1,"https://facebook.com/example/posts/123","The city announced new metro construction plans"
+"Alex M","When will this actually be finished though?","2025-03-16",8,3,"https://facebook.com/example/posts/456",""
+"Maria L","I've been waiting for this for years, finally!","2025-03-16",20,0,"https://facebook.com/example/posts/456",""
+"Guest User","Waste of money if you ask me","2025-03-17",3,1,"",""

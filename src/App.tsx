@@ -14,6 +14,7 @@ import Agents from './pages/Agents';
 import Admin from './pages/Admin';
 import Chat from './pages/Chat';
 import Documentation from './pages/Documentation';
+import CommentSentinel from './pages/CommentSentinel';
 import Timer from './components/timer/Timer';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { ToastProvider } from './components/ui/Toast';
@@ -36,6 +37,7 @@ function App() {
                       <Route path="/reminders" element={<Reminders />} />
                       <Route path="/notes" element={<Notes />} />
                       <Route path="/contacts" element={<Contacts />} />
+                      <Route path="/comment-sentinel" element={<CommentSentinel />} />
                       <Route path="/agents" element={<Agents />} />
                       <Route path="/chat" element={<Chat />} />
                       <Route path="/admin" element={<Admin />} />
