@@ -449,11 +449,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, [mobileNavOpen]);
 
   const navItems = useMemo<MobileNavItem[]>(() => {
+    const base = NAV_PRIMARY.filter((item) => {
+      if (item.to === '/comment-sentinel') {
+        return me?.role === 'admin' || !(me?.disabledFeatures ?? []).includes('comment_sentinel');
+      }
+      return true;
+    });
     if (me?.role === 'admin') {
-      return [...NAV_PRIMARY, { to: '/admin', label: 'Admin', icon: IconLock }];
+      return [...base, { to: '/admin', label: 'Admin', icon: IconLock }];
     }
-    return NAV_PRIMARY;
-  }, [me?.role]);
+    return base;
+  }, [me?.role, me?.disabledFeatures]);
 
   const currentLabel = useMemo(() => {
     if (location.pathname === '/docs') return 'Help center';

@@ -1,4 +1,4 @@
-/** Resolves Piovra origin from `?pio=` (set by Capsuna iframe) or legacy global. */
+/** Resolves Piovra origin from `?pio=` (set by Piovra iframe) or legacy global. */
 function resolvePiovraBaseUrl() {
   try {
     const u = new URL(window.location.href);

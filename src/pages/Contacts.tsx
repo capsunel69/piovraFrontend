@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import styled from 'styled-components';
 import { useAppContext } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { ContactsAPI } from '../services/api';
 import type { Contact, GmailCorrespondentSuggestion } from '../types';
 import {
@@ -263,12 +264,14 @@ const EmptyWrap = styled.div`
 
 const Contacts: React.FC = () => {
   const { contacts, addContact, updateContact, deleteContact } = useAppContext();
+  const { googleGmailUpgradeUrl } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [description, setDescription] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<GmailCorrespondentSuggestion[]>([]);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
+  const [gmailNeedsConnect, setGmailNeedsConnect] = useState(false);
 
   const resetForm = (): void => {
     setName('');
@@ -281,10 +284,12 @@ const Contacts: React.FC = () => {
   const loadGmailSuggestions = useCallback(async (): Promise<void> => {
     setLoadingSuggest(true);
     setSuggestions([]);
+    setGmailNeedsConnect(false);
     try {
       const q = name.trim() || email.trim();
-      const rows = await ContactsAPI.gmailSuggestions(q || undefined);
+      const { suggestions: rows, needsGmailConnect } = await ContactsAPI.gmailSuggestions(q || undefined);
       setSuggestions(rows);
+      setGmailNeedsConnect(needsGmailConnect);
     } catch {
       setSuggestions([]);
     } finally {
@@ -408,6 +413,14 @@ const Contacts: React.FC = () => {
                 </Button>
               </ActionsRow>
             </form>
+            {gmailNeedsConnect && (
+              <SuggestionPanel>
+                <SuggestionHint>
+                  Gmail access is required for thread suggestions.{' '}
+                  <a href={googleGmailUpgradeUrl}>Connect Gmail</a>
+                </SuggestionHint>
+              </SuggestionPanel>
+            )}
             {suggestions.length > 0 && (
               <SuggestionPanel>
                 <SuggestionHint>Tap a suggestion to fill the form</SuggestionHint>

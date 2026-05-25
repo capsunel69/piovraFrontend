@@ -15,8 +15,11 @@ import Admin from './pages/Admin';
 import Chat from './pages/Chat';
 import Documentation from './pages/Documentation';
 import CommentSentinel from './pages/CommentSentinel';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 import Timer from './components/timer/Timer';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import FeatureRoute from './components/auth/FeatureRoute';
 import { ToastProvider } from './components/ui/Toast';
 
 function App() {
@@ -37,7 +40,13 @@ function App() {
                       <Route path="/reminders" element={<Reminders />} />
                       <Route path="/notes" element={<Notes />} />
                       <Route path="/contacts" element={<Contacts />} />
-                      <Route path="/comment-sentinel" element={<CommentSentinel />} />
+                      <Route path="/comment-sentinel" element={
+                        <FeatureRoute feature="comment_sentinel">
+                          <CommentSentinel />
+                        </FeatureRoute>
+                      } />
+                      <Route path="/privacy" element={<Privacy />} />
+                      <Route path="/terms" element={<Terms />} />
                       <Route path="/agents" element={<Agents />} />
                       <Route path="/chat" element={<Chat />} />
                       <Route path="/admin" element={<Admin />} />

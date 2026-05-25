@@ -307,6 +307,16 @@ const WhatsAppPanel: React.FC = () => {
   }, [refresh, loadAutoreply]);
 
   useEffect(() => {
+    if (!status || status.connected || status.pairingActive || status.requiresConsentForQrPairing) {
+      return;
+    }
+    if (!status.hasSavedSession) return;
+    void PiovraAPI.resumeWhatsApp()
+      .then(() => refresh())
+      .catch(() => undefined);
+  }, [status, refresh]);
+
+  useEffect(() => {
     if (!status) return;
     const shouldPoll =
       status.pairingActive ||

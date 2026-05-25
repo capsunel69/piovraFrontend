@@ -240,17 +240,19 @@ export const ContactsAPI = {
       method: 'DELETE',
     }),
 
-  /** Uses Gmail thread metadata (existing consent). Returns [] if Google is not connected (428). */
-  gmailSuggestions: async (query?: string): Promise<GmailCorrespondentSuggestion[]> => {
+  /** Uses Gmail thread metadata (existing consent). */
+  gmailSuggestions: async (
+    query?: string,
+  ): Promise<{ suggestions: GmailCorrespondentSuggestion[]; needsGmailConnect: boolean }> => {
     const qs = query?.trim() ? `?query=${encodeURIComponent(query.trim())}` : '';
     const url = `${API_URL}/contacts/gmail-suggestions${qs}`;
     const res = await fetch(url, { credentials: 'include' });
-    if (res.status === 428) return [];
+    if (res.status === 428) return { suggestions: [], needsGmailConnect: true };
     if (!res.ok) {
       const text = await res.text();
       throw new Error(text || `gmail-suggestions -> ${res.status}`);
     }
     const data = (await res.json()) as { suggestions?: GmailCorrespondentSuggestion[] };
-    return data.suggestions ?? [];
+    return { suggestions: data.suggestions ?? [], needsGmailConnect: false };
   },
 };

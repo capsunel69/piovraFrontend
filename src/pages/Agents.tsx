@@ -13,6 +13,7 @@ import ReportsList from '../components/agents/ReportsList';
 import UsagePanel from '../components/agents/UsagePanel';
 import WhatsAppPanel from '../components/agents/WhatsAppPanel';
 import { useChat } from '../context/ChatContext';
+import { useAuth } from '../context/AuthContext';
 
 type Tab = 'agents' | 'instances' | 'schedules' | 'reports' | 'runs' | 'usage' | 'whatsapp';
 
@@ -30,8 +31,6 @@ const TABS: {
   { id: 'usage',     label: 'Usage',     icon: IconSpark,    hint: 'Token consumption + estimated cost per model and instance' },
   { id: 'whatsapp',  label: 'WhatsApp',  icon: IconChat,     hint: 'Pair WhatsApp via QR code so agents can read chats and send replies'    },
 ];
-
-const isTab = (v: string | null): v is Tab => !!v && TABS.some((t) => t.id === v);
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
 
@@ -175,16 +174,22 @@ const TabHint = styled.div`
 const Agents: React.FC = () => {
   const [params, setParams] = useSearchParams();
   const { open: openChat } = useChat();
-  const tab: Tab = isTab(params.get('tab')) ? (params.get('tab') as Tab) : 'agents';
+  const { hasFeature } = useAuth();
+  const visibleTabs = useMemo(
+    () => TABS.filter((t) => t.id !== 'whatsapp' || hasFeature('whatsapp')),
+    [hasFeature],
+  );
+  const tabRaw = params.get('tab');
+  const tab: Tab = visibleTabs.some((t) => t.id === tabRaw) ? (tabRaw as Tab) : 'agents';
 
   useEffect(() => {
     const raw = params.get('tab');
-    if (!raw || !isTab(raw)) {
+    if (!raw || !visibleTabs.some((t) => t.id === raw)) {
       const next = new URLSearchParams(params);
       next.set('tab', 'agents');
       setParams(next, { replace: true });
     }
-  }, [params, setParams]);
+  }, [params, setParams, visibleTabs]);
 
   const switchTab = (id: Tab): void => {
     const next = new URLSearchParams(params);
@@ -204,7 +209,7 @@ const Agents: React.FC = () => {
     }
   }, [tab]);
 
-  const currentHint = TABS.find((t) => t.id === tab)?.hint ?? '';
+  const currentHint = visibleTabs.find((t) => t.id === tab)?.hint ?? '';
 
   return (
     <PageContainer>
@@ -231,7 +236,7 @@ const Agents: React.FC = () => {
         </HeaderRow>
 
         <TabBar role="tablist" aria-label="Agents sections">
-          {TABS.map((t) => {
+          {visibleTabs.map((t) => {
             const Icon = t.icon;
             return (
               <TabButton

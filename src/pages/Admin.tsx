@@ -44,6 +44,7 @@ interface AdminUser {
   role: 'user' | 'admin';
   disabledAt: string | null;
   disabledSkills: string[];
+  disabledFeatures: string[];
   lastSeenAt: string | null;
   createdAt: string;
   runCount: number;
@@ -64,12 +65,28 @@ interface AdminMetrics {
   totalCostUsd: number;
   signupsByDay: Array<{ day: string; count: number }>;
   runsByDay: Array<{ day: string; count: number; costUsd: number }>;
+  queue?: Record<string, unknown> | null;
 }
 
 interface SkillCatalog {
   defaultSkillIds: string[];
   builtins: Array<{ id: string; description: string }>;
 }
+
+interface CsAdminProject {
+  userId: string;
+  userEmail: string;
+  projectId: string;
+  projectName: string;
+  isActive: boolean;
+  createdAt: string;
+  commentCount: number;
+}
+
+const MODULE_FEATURES = [
+  { id: 'whatsapp', label: 'WhatsApp' },
+  { id: 'comment_sentinel', label: 'Comment Sentinel' },
+] as const;
 
 function canonSkillId(id: string): string {
   return id.startsWith('capsuna.') ? `piovra.${id.slice('capsuna.'.length)}` : id;
@@ -568,6 +585,8 @@ const Admin: React.FC = () => {
   const [draftDisabledSkills, setDraftDisabledSkills] = useState<string[]>([]);
   const [skillSaveBusy, setSkillSaveBusy] = useState(false);
   const [detailUser, setDetailUser] = useState<AdminUser | null>(null);
+  const [csProjects, setCsProjects] = useState<CsAdminProject[] | null>(null);
+  const [featureSaveBusy, setFeatureSaveBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const descBySkillId = useMemo(() => {
@@ -580,14 +599,16 @@ const Admin: React.FC = () => {
   const load = useCallback(async (): Promise<void> => {
     setError(null);
     try {
-      const [u, m, cat] = await Promise.all([
+      const [u, m, cat, cs] = await Promise.all([
         adminFetch<AdminUser[]>('/users'),
         adminFetch<AdminMetrics>('/metrics'),
         adminFetch<SkillCatalog>('/skill-catalog'),
+        adminFetch<CsAdminProject[]>('/comment-sentinel/projects'),
       ]);
       setUsers(u);
       setMetrics(m);
       setSkillCatalog(cat);
+      setCsProjects(cs);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -811,6 +832,53 @@ const Admin: React.FC = () => {
         </CardBody>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            Comment Sentinel projects
+            <CardSubtle>{csProjects?.length ?? 0} project{(csProjects?.length ?? 0) !== 1 ? 's' : ''}</CardSubtle>
+          </CardTitle>
+        </CardHeader>
+        <CardBody style={{ padding: 0 }}>
+          <DesktopOnlyTable>
+            <TableWrap>
+              <Table>
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Owner</th>
+                    <th>Comments</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!csProjects || csProjects.length === 0 ? (
+                    <tr>
+                      <td colSpan={4}>
+                        <EmptyHint>No Comment Sentinel projects yet.</EmptyHint>
+                      </td>
+                    </tr>
+                  ) : (
+                    csProjects.map((p) => (
+                      <tr key={`${p.userId}:${p.projectId}`}>
+                        <td>{p.projectName}</td>
+                        <td>{p.userEmail}</td>
+                        <td>{p.commentCount}</td>
+                        <td>
+                          <Badge $variant={p.isActive ? 'success' : 'warning'}>
+                            {p.isActive ? 'Active' : 'Paused'}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </Table>
+            </TableWrap>
+          </DesktopOnlyTable>
+        </CardBody>
+      </Card>
+
       {detailUser && (
         <ModalBackdrop
           role="presentation"
@@ -865,6 +933,53 @@ const Admin: React.FC = () => {
                     </Badge>
                   )}
                 </StatusCell>
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>Features</DetailSectionTitle>
+                <Stack $gap={2}>
+                  {MODULE_FEATURES.map((f) => {
+                    const enabled = !(detailUser.disabledFeatures ?? []).includes(f.id);
+                    return (
+                      <label
+                        key={f.id}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={enabled}
+                          disabled={featureSaveBusy || detailUser.id === me?.id}
+                          onChange={async (e) => {
+                            setFeatureSaveBusy(true);
+                            try {
+                              const disabled = new Set(detailUser.disabledFeatures ?? []);
+                              if (e.target.checked) disabled.delete(f.id);
+                              else disabled.add(f.id);
+                              const updated = await adminFetch<AdminUser>(
+                                `/users/${detailUser.id}/disabled-features`,
+                                {
+                                  method: 'PATCH',
+                                  body: JSON.stringify({
+                                    disabledFeatureIds: [...disabled],
+                                  }),
+                                },
+                              );
+                              setUsers((prev) =>
+                                prev?.map((u) => (u.id === updated.id ? { ...u, ...updated } : u)) ?? prev,
+                              );
+                              setDetailUser(updated);
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : String(err));
+                            } finally {
+                              setFeatureSaveBusy(false);
+                            }
+                          }}
+                        />
+                        Enable {f.label}
+                      </label>
+                    );
+                  })}
+                </Stack>
               </DetailSection>
 
               <DetailSection>

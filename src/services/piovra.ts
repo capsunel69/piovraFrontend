@@ -151,6 +151,7 @@ export interface WhatsAppStatus {
   disclosure: string;
   scanReminder: string;
   requiresConsentForQrPairing: boolean;
+  hasSavedSession?: boolean;
   connected: boolean;
   pairingActive: boolean;
   qrDataUrl: string | null;
@@ -361,6 +362,8 @@ export const PiovraAPI = {
   runJobNow: (id: string): Promise<{ ok: true }> => sendJson(`/jobs/${id}/run`, 'POST'),
 
   getWhatsAppStatus: (): Promise<WhatsAppStatus> => getJson('/me/whatsapp'),
+  resumeWhatsApp: (): Promise<{ ok: true; connected: boolean; pairingActive: boolean }> =>
+    sendJson('/me/whatsapp/resume', 'POST'),
   getWhatsAppCachePreview: (): Promise<WhatsAppCachePreview> => getJson('/me/whatsapp/cache'),
   startWhatsAppPairing: async (opts: { consentAcknowledged: boolean }): Promise<void> => {
     const res = await fetch(`${BASE_URL}/me/whatsapp/pairing`, {

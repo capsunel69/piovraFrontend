@@ -1,26 +1,32 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
+export type SwitchableFeature = 'whatsapp' | 'comment_sentinel';
+
 export interface MeUser {
   id: string;
   email: string;
   name: string | null;
   pictureUrl: string | null;
   role: 'user' | 'admin';
+  disabledFeatures?: SwitchableFeature[];
 }
 
 interface AuthContextType {
   loading: boolean;
   isAuthenticated: boolean;
   me: MeUser | null;
+  disabledFeatures: SwitchableFeature[];
+  hasFeature: (feature: SwitchableFeature) => boolean;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
-  /** Where to send the browser to start a Google sign-in flow. */
   googleSignInUrl: string;
+  googleGmailUpgradeUrl: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const PIOVRA_BASE_URL = (import.meta.env.VITE_PIOVRA_BASE_URL as string | undefined) ?? '';
+const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [me, setMe] = useState<MeUser | null>(null);
@@ -60,6 +66,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const returnTo = typeof window !== 'undefined' ? window.location.href : '/';
   const googleSignInUrl = `${PIOVRA_BASE_URL}/auth/google?return_to=${encodeURIComponent(returnTo)}`;
+  const googleGmailUpgradeUrl = `${PIOVRA_BASE_URL}/auth/google/upgrade?scopes=${encodeURIComponent(GMAIL_SCOPE)}&return_to=${encodeURIComponent(returnTo)}`;
+
+  const disabledFeatures = (me?.disabledFeatures ?? []) as SwitchableFeature[];
+
+  const hasFeature = useCallback(
+    (feature: SwitchableFeature) => {
+      if (me?.role === 'admin') return true;
+      return !disabledFeatures.includes(feature);
+    },
+    [me?.role, disabledFeatures],
+  );
 
   return (
     <AuthContext.Provider
@@ -67,9 +84,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         isAuthenticated: me !== null,
         me,
+        disabledFeatures,
+        hasFeature,
         refresh,
         signOut,
         googleSignInUrl,
+        googleGmailUpgradeUrl,
       }}
     >
       {children}

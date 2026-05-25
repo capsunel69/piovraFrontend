@@ -1,60 +1,39 @@
-# Windows XP Task Manager
+# piovraFrontend
 
-A retro-styled task management application with Windows XP aesthetics, featuring task tracking, meetings, reminders, and time tracking capabilities.
+React SPA for **Piovra** — tasks, meetings, reminders, notes, agents, work chat, and Comment Sentinel.
 
-## Features
+All data and auth go through the [Piovra](https://github.com/your-org/piovra) backend API (`VITE_PIOVRA_BASE_URL`) with cookie-based Google sign-in.
 
-- Windows XP themed UI with classic Bliss wallpaper and interface elements
-- Task management with timer tracking
-- Meeting scheduling with participant support
-- Reminders with complex recurring patterns (daily, weekly, monthly)
-- MongoDB backend with Netlify Functions
+## Stack
 
-## Tech Stack
+- React 19 + TypeScript + Vite
+- styled-components
+- Deployed on Netlify (static `dist/`)
 
-- Frontend: React.js with styled-components
-- Backend: Netlify Functions (serverless)
-- Database: MongoDB
-- Deployment: Netlify
+## Local development
 
-## Local Development
+```bash
+cp env.example .env
+# Set VITE_PIOVRA_BASE_URL=http://localhost:3030 (or your Piovra dev server)
 
-1. Clone the repository
-2. Install dependencies:
-   ```
-   npm install
-   ```
-3. Create a `.env` file in the root directory (see `env.example` for required variables)
-4. Start the development server:
-   ```
-   npm run dev
-   ```
+npm install
+npm run dev
+```
 
-## Backend Development
+Sign in via the Piovra OAuth flow at `{VITE_PIOVRA_BASE_URL}/auth/google`.
 
-The application uses Netlify Functions for the backend API. These are serverless functions that run on-demand.
+## Production (Netlify)
 
-- All database models are in `netlify/functions/models/`
-- API endpoints are in `netlify/functions/`
-- Database connection is managed in `netlify/functions/utils/db.js`
+Environment variable:
 
-## Deploying to Netlify
+| Variable | Example |
+|----------|---------|
+| `VITE_PIOVRA_BASE_URL` | `https://backend.piovra-op.com` |
 
-1. Push your code to GitHub
-2. Connect your repository to Netlify
-3. Configure the following environment variables in Netlify:
-   - `REACT_APP_MONGODB_URI`: Your MongoDB connection URI
-   - `NODE_ENV`: Set to `production` for production deployment
-4. Deploy with the following settings:
-   - Build command: `npm run build`
-   - Publish directory: `dist`
-   - Functions directory: `netlify/functions`
+Build: `npm run build` → publish `dist/`.
 
-## License
+Ensure Piovra has matching `PUBLIC_FRONTEND_URL`, `COOKIE_DOMAIN`, and Google OAuth redirect URI.
 
-MIT
+## Repo rename note
 
-## Credits
-
-- 98.css for the retro Windows 98 styling
-- All other dependencies used in this project
+This repo was formerly `capsuna_work`. Rename the GitHub repo to `piovraFrontend` and reconnect Netlify if needed.
