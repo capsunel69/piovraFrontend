@@ -309,12 +309,20 @@ export const IconSmile = make(
 
 export const IconGif = make(
   <>
-    <rect x="3" y="5" width="18" height="14" rx="2" />
-    <path d="M9 9v6" />
-    <path d="M7.5 12h1.5" />
-    <path d="M13 9v6" />
-    <path d="M17 9h-3v6" />
-    <path d="M14 12h2" />
+    <rect x="2.5" y="5.5" width="19" height="13" rx="2.5" />
+    <text
+      x="12"
+      y="14.6"
+      textAnchor="middle"
+      fontSize="7"
+      fontWeight="800"
+      letterSpacing="0.3"
+      fill="currentColor"
+      stroke="none"
+      style={{ fontFamily: 'ui-sans-serif, system-ui, -apple-system, sans-serif' }}
+    >
+      GIF
+    </text>
   </>
 );
 

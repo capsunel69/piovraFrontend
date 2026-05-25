@@ -16,24 +16,39 @@ const Wrap = styled.aside`
   border: 1px solid var(--border-1);
   border-radius: var(--r-lg);
   overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
 `;
 
 const Head = styled.div`
-  padding: var(--s-3) var(--s-4);
+  padding: 12px var(--s-4);
   border-bottom: 1px solid var(--border-1);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--bg-2);
+  background:
+    linear-gradient(180deg, rgba(76, 194, 255, 0.04), rgba(76, 194, 255, 0) 70%),
+    var(--bg-2);
   gap: var(--s-2);
 `;
 
 const HeadTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
-  font-weight: 600;
-  color: var(--text-3);
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--text-2);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
 `;
 
 const SearchBar = styled.div`
@@ -94,19 +109,39 @@ const List = styled.div`
 const Item = styled.div<{ $active?: boolean }>`
   display: flex;
   align-items: center;
-  gap: var(--s-2);
-  padding: 6px 8px 6px 10px;
-  border-radius: var(--r-sm);
+  gap: 10px;
+  padding: 8px 10px 8px 12px;
+  border-radius: var(--r-md);
   font-size: 13px;
   cursor: pointer;
   color: ${(p) => (p.$active ? 'var(--text-1)' : 'var(--text-2)')};
-  background: ${(p) => (p.$active ? 'var(--bg-3)' : 'transparent')};
+  background: ${(p) =>
+    p.$active
+      ? 'linear-gradient(135deg, rgba(76, 194, 255, 0.14), rgba(164, 120, 255, 0.08))'
+      : 'transparent'};
+  border: 1px solid ${(p) => (p.$active ? 'rgba(76, 194, 255, 0.28)' : 'transparent')};
   position: relative;
-  transition: background .12s, color .12s;
+  transition: background .12s, color .12s, border-color .12s, transform .05s;
 
-  &:hover { background: var(--bg-3); color: var(--text-1); }
+  &:hover {
+    background: ${(p) =>
+      p.$active
+        ? 'linear-gradient(135deg, rgba(76, 194, 255, 0.18), rgba(164, 120, 255, 0.10))'
+        : 'var(--bg-3)'};
+    color: var(--text-1);
+  }
 
-  & > svg { width: 14px; height: 14px; color: var(--text-3); flex-shrink: 0; }
+  &:active {
+    transform: translateY(1px);
+  }
+
+  & > svg {
+    width: 14px;
+    height: 14px;
+    color: ${(p) => (p.$active ? 'var(--accent)' : 'var(--text-3)')};
+    flex-shrink: 0;
+    transition: color .12s;
+  }
 
   .name {
     flex: 1;
@@ -121,8 +156,8 @@ const Item = styled.div<{ $active?: boolean }>`
       content: '';
       position: absolute;
       left: -2px;
-      top: 6px;
-      bottom: 6px;
+      top: 8px;
+      bottom: 8px;
       width: 3px;
       border-radius: 2px;
       background: var(--accent);

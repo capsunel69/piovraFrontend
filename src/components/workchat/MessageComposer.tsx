@@ -9,8 +9,10 @@ import type { ChatGifAttachment } from '../../types';
 
 const Wrap = styled.div`
   border-top: 1px solid var(--border-1);
-  padding: var(--s-3) var(--s-4);
-  background: var(--bg-2);
+  padding: var(--s-3) var(--s-4) var(--s-4);
+  background:
+    linear-gradient(0deg, rgba(76, 194, 255, 0.03), rgba(76, 194, 255, 0) 70%),
+    var(--bg-2);
 `;
 
 const Box = styled.form`

@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import styled from 'styled-components';
 import { format, isSameDay } from 'date-fns';
 import { useWorkChat } from '../../context/WorkChatContext';
+import { IconChat } from '../ui/icons';
 import MessageItem from './MessageItem';
 
 const Wrap = styled.div`
@@ -46,10 +47,49 @@ const Empty = styled.div`
   line-height: 1.6;
 `;
 
-const Hint = styled.div`
-  font-size: 12px;
-  color: var(--text-4);
-  margin-top: 6px;
+const EmptyHero = styled.div`
+  margin: auto;
+  padding: var(--s-7) var(--s-5);
+  max-width: 440px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  text-align: center;
+`;
+
+const EmptyBadge = styled.div`
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(120% 120% at 30% 20%, rgba(76, 194, 255, 0.28), rgba(76, 194, 255, 0) 60%),
+    radial-gradient(120% 120% at 80% 80%, rgba(164, 120, 255, 0.22), rgba(164, 120, 255, 0) 60%),
+    rgba(76, 194, 255, 0.06);
+  border: 1px solid rgba(76, 194, 255, 0.22);
+  color: var(--accent);
+  box-shadow: 0 8px 32px rgba(76, 194, 255, 0.12);
+
+  svg { width: 28px; height: 28px; }
+`;
+
+const EmptyTitle = styled.div`
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: -0.01em;
+
+  strong { color: var(--accent); font-weight: 700; }
+`;
+
+const EmptyHint = styled.div`
+  font-size: 13px;
+  color: var(--text-3);
+  line-height: 1.55;
+  max-width: 360px;
 `;
 
 const SearchSummary = styled.div`
@@ -117,10 +157,16 @@ const MessageList: React.FC = () => {
   if (messages.length === 0) {
     return (
       <Wrap ref={scrollRef}>
-        <Empty>
-          This is the very beginning of <strong>#{activeChannel.name}</strong>.
-          <Hint>Say hi, share a link, or drop a GIF.</Hint>
-        </Empty>
+        <EmptyHero>
+          <EmptyBadge><IconChat /></EmptyBadge>
+          <EmptyTitle>
+            Welcome to <strong>#{activeChannel.name}</strong>
+          </EmptyTitle>
+          <EmptyHint>
+            This is the start of the conversation. Say hi, share a link, or drop a GIF
+            to break the ice.
+          </EmptyHint>
+        </EmptyHero>
       </Wrap>
     );
   }

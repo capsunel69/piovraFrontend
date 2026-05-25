@@ -43,31 +43,47 @@ const Main = styled.section`
   border: 1px solid var(--border-1);
   border-radius: var(--r-lg);
   overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
 `;
 
 const TopBar = styled.div`
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  padding: var(--s-3) var(--s-4);
-  background: var(--bg-2);
+  padding: 12px var(--s-4);
+  background:
+    linear-gradient(180deg, rgba(76, 194, 255, 0.04), rgba(76, 194, 255, 0) 70%),
+    var(--bg-2);
   border-bottom: 1px solid var(--border-1);
-  min-height: 56px;
+  min-height: 60px;
   flex-wrap: wrap;
 `;
 
 const ChannelTitle = styled.div`
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: 10px;
   font-size: 15px;
   font-weight: 600;
   color: var(--text-1);
   min-width: 0;
 
-  svg { color: var(--accent); flex-shrink: 0; }
+  .hash {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, rgba(76, 194, 255, 0.18), rgba(164, 120, 255, 0.16));
+    border: 1px solid rgba(76, 194, 255, 0.28);
+    color: var(--accent);
+    flex-shrink: 0;
+    box-shadow: 0 0 18px rgba(76, 194, 255, 0.12);
+  }
 
-  span {
+  .hash svg { width: 14px; height: 14px; }
+
+  .name {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -75,7 +91,7 @@ const ChannelTitle = styled.div`
 `;
 
 const TopicLine = styled.div`
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--text-3);
   margin-left: var(--s-3);
   padding-left: var(--s-3);
@@ -85,12 +101,14 @@ const TopicLine = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-style: italic;
 
   @media (max-width: ${MOBILE_BP}px) {
     border-left: 0;
     padding-left: 0;
     margin-left: 0;
     width: 100%;
+    font-style: normal;
   }
 `;
 
@@ -257,8 +275,8 @@ const Chat: React.FC = () => {
             {activeChannel ? (
               <>
                 <ChannelTitle>
-                  <IconHash />
-                  <span>{activeChannel.name}</span>
+                  <span className="hash"><IconHash /></span>
+                  <span className="name">{activeChannel.name}</span>
                 </ChannelTitle>
                 {activeChannel.topic && <TopicLine>{activeChannel.topic}</TopicLine>}
                 <TopActions>
@@ -376,7 +394,10 @@ const Chat: React.FC = () => {
                 </TopActions>
               </>
             ) : (
-              <ChannelTitle><IconHash /> <span>No channel</span></ChannelTitle>
+              <ChannelTitle>
+                <span className="hash"><IconHash /></span>
+                <span className="name">No channel</span>
+              </ChannelTitle>
             )}
           </TopBar>
 
