@@ -30,6 +30,24 @@ export interface Meeting {
   participants: string[];
   notes: string;
   completed: boolean;
+  googleEventId?: string | null;
+  googleHtmlLink?: string | null;
+  googleCalendarId?: string | null;
+  lastSyncedAt?: Date | null;
+}
+
+export interface CalendarStatus {
+  connected: boolean;
+  scopes: string[];
+  calendarConnected: boolean;
+  lastSyncedAt: string | null;
+  syncError: string | null;
+}
+
+export interface CalendarSyncResult {
+  changed: number;
+  deleted: number;
+  performedFullSync: boolean;
 }
 
 export interface Reminder {

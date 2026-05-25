@@ -21,12 +21,14 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   googleSignInUrl: string;
   googleGmailUpgradeUrl: string;
+  googleCalendarUpgradeUrl: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const PIOVRA_BASE_URL = (import.meta.env.VITE_PIOVRA_BASE_URL as string | undefined) ?? '';
 const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
+const CALENDAR_EVENTS_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [me, setMe] = useState<MeUser | null>(null);
@@ -67,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const returnTo = typeof window !== 'undefined' ? window.location.href : '/';
   const googleSignInUrl = `${PIOVRA_BASE_URL}/auth/google?return_to=${encodeURIComponent(returnTo)}`;
   const googleGmailUpgradeUrl = `${PIOVRA_BASE_URL}/auth/google/upgrade?scopes=${encodeURIComponent(GMAIL_SCOPE)}&return_to=${encodeURIComponent(returnTo)}`;
+  const googleCalendarUpgradeUrl = `${PIOVRA_BASE_URL}/auth/google/upgrade?scopes=${encodeURIComponent(CALENDAR_EVENTS_SCOPE)}&return_to=${encodeURIComponent(returnTo)}`;
 
   const disabledFeatures = (me?.disabledFeatures ?? []) as SwitchableFeature[];
 
@@ -90,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signOut,
         googleSignInUrl,
         googleGmailUpgradeUrl,
+        googleCalendarUpgradeUrl,
       }}
     >
       {children}

@@ -1,4 +1,13 @@
-import type { Task, Meeting, Reminder, Journal, Contact, GmailCorrespondentSuggestion } from '../types';
+import type {
+  Task,
+  Meeting,
+  Reminder,
+  Journal,
+  Contact,
+  GmailCorrespondentSuggestion,
+  CalendarStatus,
+  CalendarSyncResult,
+} from '../types';
 
 /**
  * REST clients for Piovra. All endpoints are mounted under `/v1/...` and
@@ -135,6 +144,17 @@ export const MeetingsAPI = {
     fetchApi<void>(`meetings/${id}`, {
       method: 'DELETE',
     }),
+
+  calendarStatus: (): Promise<CalendarStatus> =>
+    fetchApi<CalendarStatus>('meetings/calendar/status'),
+
+  sync: (): Promise<CalendarSyncResult> =>
+    fetchApi<CalendarSyncResult>('meetings/calendar/sync', { method: 'POST' }),
+
+  listWithSync: async (): Promise<Meeting[]> => {
+    const rows = await fetchApi<unknown[]>('meetings?sync=true');
+    return rows.map(mapMeetingFromServer);
+  },
 };
 
 export const RemindersAPI = {

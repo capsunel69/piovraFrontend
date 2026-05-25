@@ -215,6 +215,34 @@ export const IconSend = make(
   </>
 );
 
+export const IconExternal = make(
+  <>
+    <path d="M15 3h6v6" />
+    <path d="M10 14L21 3" />
+    <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" />
+  </>
+);
+
+export const IconList = make(
+  <>
+    <line x1="8" y1="6" x2="21" y2="6" />
+    <line x1="8" y1="12" x2="21" y2="12" />
+    <line x1="8" y1="18" x2="21" y2="18" />
+    <circle cx="4" cy="6" r="1" />
+    <circle cx="4" cy="12" r="1" />
+    <circle cx="4" cy="18" r="1" />
+  </>
+);
+
+export const IconGrid = make(
+  <>
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <rect x="14" y="14" width="7" height="7" rx="1" />
+  </>
+);
+
 export const IconRefresh = make(
   <>
     <polyline points="23 4 23 10 17 10" />
