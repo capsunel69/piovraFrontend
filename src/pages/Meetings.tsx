@@ -253,23 +253,22 @@ const Meetings: React.FC = () => {
         changed > 0 ? `Synced: ${res.changed} updated, ${res.deleted} removed` : 'Calendar is up to date',
       );
       await refreshStatus();
-      // Reload meetings from server (pulls newly-synced events).
       const fresh = await MeetingsAPI.getAll();
-      // updateMeeting+addMeeting don't have a bulk replace, so just update each row.
-      // Simpler: reload page-level meetings via context refresh if available.
-      // For now we update what we can via direct updates.
       for (const m of fresh) {
         const existing = meetings.find((x) => x.id === m.id);
         if (existing) updateMeeting(m.id, m);
-        // New meetings will appear after next AppContext load; that's acceptable
-        // since AppContext fetches on focus/mount in this codebase.
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Sync failed';
       try {
-        const j = JSON.parse(msg) as { error?: string };
+        const j = JSON.parse(msg) as { error?: string; message?: string };
         if (j.error === 'calendar_not_connected') {
           toast.error('Connect Google Calendar to enable sync.');
+          return;
+        }
+        if (j.error === 'calendar_sync_failed') {
+          toast.error(`Sync failed: ${j.message ?? 'Google rejected the request.'}`);
+          await refreshStatus();
           return;
         }
       } catch {
