@@ -29,6 +29,8 @@ import {
   IconTerminal,
   IconLock,
   IconCheck,
+  IconChat,
+  IconCommentSentinel,
 } from '../components/ui/icons';
 
 const MOBILE_BP = 720;
@@ -83,10 +85,25 @@ interface CsAdminProject {
   commentCount: number;
 }
 
-const MODULE_FEATURES = [
-  { id: 'whatsapp', label: 'WhatsApp' },
-  { id: 'comment_sentinel', label: 'Comment Sentinel' },
-] as const;
+const MODULE_FEATURES: Array<{
+  id: 'whatsapp' | 'comment_sentinel';
+  label: string;
+  description: string;
+  Icon: React.FC<React.SVGProps<SVGSVGElement> & { size?: number }>;
+}> = [
+  {
+    id: 'whatsapp',
+    label: 'WhatsApp',
+    description: 'Pairing, inbox, autoreply, and WhatsApp agent skills.',
+    Icon: IconChat,
+  },
+  {
+    id: 'comment_sentinel',
+    label: 'Comment Sentinel',
+    description: 'Comment monitoring projects, scheduled runs, dashboard.',
+    Icon: IconCommentSentinel,
+  },
+];
 
 function canonSkillId(id: string): string {
   return id.startsWith('capsuna.') ? `piovra.${id.slice('capsuna.'.length)}` : id;
@@ -434,6 +451,106 @@ const DetailSectionTitle = styled.div`
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--text-3);
+`;
+
+const FeatureList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+`;
+
+const FeatureRow = styled.label<{ $enabled: boolean; $busy: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid ${(p) => (p.$enabled ? 'rgba(76, 194, 255, 0.35)' : 'var(--border-1)')};
+  background: ${(p) =>
+    p.$enabled
+      ? 'linear-gradient(135deg, rgba(76, 194, 255, 0.08), rgba(164, 120, 255, 0.04))'
+      : 'var(--bg-3)'};
+  cursor: ${(p) => (p.$busy ? 'progress' : 'pointer')};
+  opacity: ${(p) => (p.$busy ? 0.65 : 1)};
+  transition: border-color 0.15s, background 0.15s, transform 0.05s;
+
+  &:hover {
+    border-color: ${(p) => (p.$enabled ? 'var(--accent)' : 'var(--border-2, var(--border-1))')};
+  }
+
+  &:active {
+    transform: ${(p) => (p.$busy ? 'none' : 'translateY(1px)')};
+  }
+`;
+
+const FeatureIconWrap = styled.div<{ $enabled: boolean }>`
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: ${(p) => (p.$enabled ? 'var(--accent-soft, rgba(76, 194, 255, 0.18))' : 'var(--bg-2, rgba(255,255,255,0.04))')};
+  color: ${(p) => (p.$enabled ? 'var(--accent, #4cc2ff)' : 'var(--text-3)')};
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+`;
+
+const FeatureBody = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  .name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-1);
+  }
+
+  .desc {
+    font-size: 12px;
+    color: var(--text-3);
+    line-height: 1.35;
+  }
+`;
+
+const FeatureSwitch = styled.span<{ $enabled: boolean }>`
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: ${(p) => (p.$enabled ? 'var(--accent, #4cc2ff)' : 'var(--bg-2, rgba(255,255,255,0.08))')};
+  border: 1px solid ${(p) => (p.$enabled ? 'var(--accent, #4cc2ff)' : 'var(--border-1)')};
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+  box-shadow: ${(p) => (p.$enabled ? '0 0 0 4px rgba(76, 194, 255, 0.12)' : 'none')};
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: ${(p) => (p.$enabled ? '18px' : '2px')};
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    transition: left 0.15s ease;
+  }
+`;
+
+const HiddenCheckbox = styled.input.attrs({ type: 'checkbox' })`
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
 `;
 
 const EmptyHint = styled.div`
@@ -937,37 +1054,44 @@ const Admin: React.FC = () => {
 
               <DetailSection>
                 <DetailSectionTitle>Features</DetailSectionTitle>
-                <Stack $gap={2}>
+                <FeatureList>
                   {MODULE_FEATURES.map((f) => {
                     const enabled = !(detailUser.disabledFeatures ?? []).includes(f.id);
+                    const isSelf = detailUser.id === me?.id;
+                    const disabledInput = featureSaveBusy || isSelf;
                     return (
-                      <label
+                      <FeatureRow
                         key={f.id}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                        $enabled={enabled}
+                        $busy={featureSaveBusy}
+                        title={isSelf ? "You can't change your own feature flags here." : undefined}
                       >
-                        <input
-                          type="checkbox"
+                        <HiddenCheckbox
                           checked={enabled}
-                          disabled={featureSaveBusy || detailUser.id === me?.id}
+                          disabled={disabledInput}
                           onChange={async (e) => {
                             setFeatureSaveBusy(true);
                             try {
-                              const disabled = new Set(detailUser.disabledFeatures ?? []);
-                              if (e.target.checked) disabled.delete(f.id);
-                              else disabled.add(f.id);
-                              const updated = await adminFetch<AdminUser>(
+                              const disabledSet = new Set(detailUser.disabledFeatures ?? []);
+                              if (e.target.checked) disabledSet.delete(f.id);
+                              else disabledSet.add(f.id);
+                              const nextDisabled = [...disabledSet];
+                              const updated = await adminFetch<{ disabledFeatures?: string[] }>(
                                 `/users/${detailUser.id}/disabled-features`,
                                 {
                                   method: 'PATCH',
-                                  body: JSON.stringify({
-                                    disabledFeatureIds: [...disabled],
-                                  }),
+                                  body: JSON.stringify({ disabledFeatureIds: nextDisabled }),
                                 },
                               );
+                              const nextValue = (updated?.disabledFeatures ?? nextDisabled) as string[];
                               setUsers((prev) =>
-                                prev?.map((u) => (u.id === updated.id ? { ...u, ...updated } : u)) ?? prev,
+                                prev?.map((u) =>
+                                  u.id === detailUser.id ? { ...u, disabledFeatures: nextValue } : u,
+                                ) ?? prev,
                               );
-                              setDetailUser(updated);
+                              setDetailUser((prev) =>
+                                prev ? { ...prev, disabledFeatures: nextValue } : prev,
+                              );
                             } catch (err) {
                               setError(err instanceof Error ? err.message : String(err));
                             } finally {
@@ -975,11 +1099,18 @@ const Admin: React.FC = () => {
                             }
                           }}
                         />
-                        Enable {f.label}
-                      </label>
+                        <FeatureIconWrap $enabled={enabled}>
+                          <f.Icon />
+                        </FeatureIconWrap>
+                        <FeatureBody>
+                          <span className="name">{f.label}</span>
+                          <span className="desc">{f.description}</span>
+                        </FeatureBody>
+                        <FeatureSwitch $enabled={enabled} aria-hidden />
+                      </FeatureRow>
                     );
                   })}
-                </Stack>
+                </FeatureList>
               </DetailSection>
 
               <DetailSection>
