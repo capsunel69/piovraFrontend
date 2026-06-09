@@ -22,7 +22,7 @@ import {
 } from '../../services/analyticsDashboard';
 import { formatCompact } from '../../lib/analytics/metrics';
 import { formatPercentChange, type MetricComparison } from '../../lib/analytics/comparison';
-import { DATE_PRESETS, getDateRangeFromPreset, type DateRange, type DateRangePreset } from '../../lib/analytics/dates';
+import { DATE_PRESETS, getDateRangeFromPreset, type DateRange } from '../../lib/analytics/dates';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 

@@ -20,7 +20,7 @@ import {
   type AdMetricKey,
   type AdPlatform,
 } from '../../services/analyticsDashboard';
-import { loadPersistedDateRange, savePersistedDateRange, type DateRange } from '../../lib/analytics/dates';
+import { loadPersistedDateRange, savePersistedDateRange } from '../../lib/analytics/dates';
 import { formatCompact } from '../../lib/analytics/metrics';
 
 const MasterTab: React.FC = () => {

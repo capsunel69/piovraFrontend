@@ -13,8 +13,6 @@ import PlatformTab from '../components/analytics/PlatformTab';
 import SettingsTab from '../components/analytics/SettingsTab';
 import UsageTab from '../components/analytics/UsageTab';
 import LogsTab from '../components/analytics/LogsTab';
-import type { AdPlatform } from '../services/analyticsDashboard';
-
 type AdTab =
   | 'overview'
   | 'master'

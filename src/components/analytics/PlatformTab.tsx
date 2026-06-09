@@ -23,7 +23,6 @@ import {
   getPreviousPeriodRange,
   loadPersistedDateRange,
   savePersistedDateRange,
-  type DateRange,
 } from '../../lib/analytics/dates';
 import { buildChartRows, sumMetric } from '../../lib/analytics/metrics';
 
