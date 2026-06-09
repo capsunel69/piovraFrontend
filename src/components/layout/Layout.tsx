@@ -29,6 +29,7 @@ const NAV_PRIMARY: MobileNavItem[] = [
   { to: '/chat',      label: 'Chat',      icon: IconChat },
   { to: '/agents',    label: 'Agents',    icon: IconBot },
   { to: '/comment-sentinel', label: 'Comment Sentinel', icon: IconCommentSentinel },
+  { to: '/analytics-dashboard', label: 'Analytics', icon: IconDashboard },
 ];
 
 /** Mobile drawer breakpoint — keep this in sync with CSS @media queries. */
@@ -452,6 +453,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const base = NAV_PRIMARY.filter((item) => {
       if (item.to === '/comment-sentinel') {
         return me?.role === 'admin' || !(me?.disabledFeatures ?? []).includes('comment_sentinel');
+      }
+      if (item.to === '/analytics-dashboard') {
+        return me?.role === 'admin' || !(me?.disabledFeatures ?? []).includes('analytics_dashboard');
       }
       return true;
     });
