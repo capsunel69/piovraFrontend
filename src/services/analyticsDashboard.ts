@@ -1,7 +1,16 @@
-const PIOVRA_BASE_URL = (import.meta.env.VITE_PIOVRA_BASE_URL as string | undefined) ?? '';
-const BASE = `${PIOVRA_BASE_URL}/v1/analytics-dashboard`;
+const PIOVRA_BASE_URL = (import.meta.env.VITE_PIOVRA_BASE_URL as string | undefined)?.trim() ?? '';
+
+function resolveBase(): string {
+  if (!PIOVRA_BASE_URL) {
+    throw new Error(
+      'VITE_PIOVRA_BASE_URL is not set. Add it in Netlify env (e.g. https://backend.piovra-op.com).',
+    );
+  }
+  return `${PIOVRA_BASE_URL.replace(/\/$/, '')}/v1/analytics-dashboard`;
+}
 
 export type AdPlatform = 'youtube' | 'facebook' | 'instagram' | 'tiktok';
+export type AdMetricKey = 'views' | 'posts' | 'likes' | 'shares' | 'comments';
 
 export interface AdDataPoint {
   date: string;
@@ -66,22 +75,91 @@ export interface AdSocialProfiles {
   facebook?: string;
 }
 
+export interface AdMetricTotals {
+  views: number;
+  posts: number;
+  likes: number;
+  shares: number;
+  comments: number;
+}
+
+export interface AdMasterOverview {
+  totals: AdMetricTotals;
+  previousTotals: AdMetricTotals;
+  comparisons: Record<AdMetricKey, { current: number; previous: number; delta: number; percentChange: number | null }>;
+  projects: Array<{
+    projectId: string;
+    projectName: string;
+    accountCount: number;
+    totals: AdMetricTotals;
+    previousTotals: AdMetricTotals;
+  }>;
+  topAccounts: Array<{
+    accountId: string;
+    projectName: string;
+    accountLabel: string;
+    handle: string;
+    platform: AdPlatform;
+    totals: AdMetricTotals;
+  }>;
+  rankingMetric: AdMetricKey;
+}
+
+export interface AdFetchOptions {
+  refresh?: boolean;
+  projectId?: string | null;
+  accountIds?: Partial<Record<AdPlatform, string | null>>;
+  platforms?: AdPlatform[];
+}
+
+function parseApiError(text: string, status: number): string {
+  try {
+    const body = JSON.parse(text) as { error?: string; details?: string; feature?: string };
+    if (status === 404 && body.error === 'not found') {
+      return 'Analytics API not found on server — deploy latest piovra with `sudo bash deploy/release.sh --migrate --sync-env`';
+    }
+    if (body.error === 'feature_disabled') {
+      return 'Analytics Dashboard is disabled for your account. Ask an admin to enable it.';
+    }
+    return body.details ?? body.error ?? text;
+  } catch {
+    return text || `Analytics API ${status}`;
+  }
+}
+
 async function adFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${resolveBase()}${path}`, {
     credentials: 'include',
+    cache: 'no-store',
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
     ...init,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(text || `Analytics API ${res.status}`);
+    throw new Error(parseApiError(text, res.status));
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
+function buildAnalyticsQuery(
+  startDate: string,
+  endDate: string,
+  options?: AdFetchOptions,
+): string {
+  const qs = new URLSearchParams({ startDate, endDate });
+  if (options?.refresh) qs.set('refresh', '1');
+  if (options?.projectId) qs.set('projectId', options.projectId);
+  if (options?.platforms?.length) qs.set('platforms', options.platforms.join(','));
+  if (options?.accountIds?.youtube) qs.set('youtubeAccountId', options.accountIds.youtube);
+  if (options?.accountIds?.facebook) qs.set('facebookAccountId', options.accountIds.facebook);
+  if (options?.accountIds?.instagram) qs.set('instagramAccountId', options.accountIds.instagram);
+  if (options?.accountIds?.tiktok) qs.set('tiktokAccountId', options.accountIds.tiktok);
+  return qs.toString();
+}
+
 export function adOAuthUrl(platform: 'youtube' | 'tiktok'): string {
-  return `${BASE}/auth/${platform}`;
+  return `${resolveBase()}/auth/${platform}`;
 }
 
 export async function fetchAdWorkspace(): Promise<AdWorkspace> {
@@ -95,21 +173,52 @@ export async function setAdActiveProject(projectId: string): Promise<void> {
   });
 }
 
-export async function fetchAdAnalytics(params: {
-  startDate: string;
-  endDate: string;
-  refresh?: boolean;
-  platforms?: AdPlatform[];
-  projectId?: string;
-}): Promise<AdAnalyticsResponse> {
-  const qs = new URLSearchParams({
-    startDate: params.startDate,
-    endDate: params.endDate,
-  });
-  if (params.refresh) qs.set('refresh', '1');
-  if (params.projectId) qs.set('projectId', params.projectId);
-  if (params.platforms?.length) qs.set('platforms', params.platforms.join(','));
-  return adFetch<AdAnalyticsResponse>(`/analytics?${qs}`);
+export async function fetchAdAnalytics(
+  startDate: string,
+  endDate: string,
+  options?: AdFetchOptions,
+): Promise<AdAnalyticsResponse> {
+  return adFetch<AdAnalyticsResponse>(`/analytics?${buildAnalyticsQuery(startDate, endDate, options)}`);
+}
+
+export async function fetchAdPlatformAnalytics(
+  platform: AdPlatform,
+  startDate: string,
+  endDate: string,
+  options?: AdFetchOptions,
+): Promise<AdDataPoint[]> {
+  const qs = new URLSearchParams({ startDate, endDate });
+  if (options?.refresh) qs.set('refresh', '1');
+  if (options?.projectId) qs.set('projectId', options.projectId);
+  const accountId = options?.accountIds?.[platform];
+  if (accountId) qs.set('accountId', accountId);
+  return adFetch<AdDataPoint[]>(`/analytics/${platform}?${qs}`);
+}
+
+export async function fetchAdMasterOverview(
+  startDate: string,
+  endDate: string,
+  opts?: { refresh?: boolean; projectId?: string; platform?: AdPlatform | 'all'; metric?: AdMetricKey },
+): Promise<AdMasterOverview> {
+  const qs = new URLSearchParams({ startDate, endDate });
+  if (opts?.refresh) qs.set('refresh', '1');
+  if (opts?.projectId) qs.set('projectId', opts.projectId);
+  if (opts?.platform && opts.platform !== 'all') qs.set('platform', opts.platform);
+  if (opts?.metric) qs.set('metric', opts.metric);
+  return adFetch<AdMasterOverview>(`/analytics/master?${qs}`);
+}
+
+export async function fetchAdPlatformContent<T>(
+  platform: AdPlatform,
+  startDate: string,
+  endDate: string,
+  accountId?: string | null,
+  refresh?: boolean,
+): Promise<T> {
+  const qs = new URLSearchParams({ startDate, endDate });
+  if (accountId) qs.set('accountId', accountId);
+  if (refresh) qs.set('refresh', '1');
+  return adFetch<T>(`/${platform}/content?${qs}`);
 }
 
 export async function fetchAdConnections(): Promise<AdConnectionsResponse> {
@@ -124,10 +233,7 @@ export async function fetchAdSocialProfiles(): Promise<{
 }
 
 export async function saveAdSocialProfiles(profiles: AdSocialProfiles): Promise<void> {
-  await adFetch('/social/profiles', {
-    method: 'POST',
-    body: JSON.stringify(profiles),
-  });
+  await adFetch('/social/profiles', { method: 'POST', body: JSON.stringify(profiles) });
 }
 
 export async function createAdProject(name: string, notes?: string): Promise<AdProject> {
@@ -149,12 +255,24 @@ export async function createAdAccount(
   return res.account;
 }
 
-export function adDateRange(days: number): { startDate: string; endDate: string } {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(end.getDate() - (days - 1));
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { startDate: fmt(start), endDate: fmt(end) };
+export async function deleteAdAccount(projectId: string, accountId: string): Promise<void> {
+  await adFetch(`/projects/${projectId}/accounts/${accountId}`, { method: 'DELETE' });
+}
+
+export async function fetchAdUsage(refresh?: boolean): Promise<unknown> {
+  return adFetch(`/usage${refresh ? '?refresh=1' : ''}`);
+}
+
+export async function clearAdUsage(): Promise<void> {
+  await adFetch('/usage', { method: 'DELETE' });
+}
+
+export async function fetchAdLogs(): Promise<{ content: string; lines: number }> {
+  return adFetch('/logs');
+}
+
+export async function clearAdLogs(): Promise<void> {
+  await adFetch('/logs', { method: 'DELETE' });
 }
 
 export const AD_PLATFORM_LABELS: Record<AdPlatform, string> = {
@@ -170,3 +288,13 @@ export const AD_PLATFORM_COLORS: Record<AdPlatform, string> = {
   instagram: '#E4405F',
   tiktok: '#69C9D0',
 };
+
+export const AD_METRIC_LABELS: Record<AdMetricKey, string> = {
+  views: 'Views',
+  posts: 'Posts',
+  likes: 'Likes',
+  shares: 'Shares',
+  comments: 'Comments',
+};
+
+export const ALL_AD_PLATFORMS: AdPlatform[] = ['youtube', 'facebook', 'instagram', 'tiktok'];
