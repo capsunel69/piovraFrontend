@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-export type SwitchableFeature = 'whatsapp' | 'comment_sentinel' | 'analytics_dashboard';
+export type SwitchableFeature = 'whatsapp' | 'comment_sentinel';
 
 export interface MeUser {
   id: string;

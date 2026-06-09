@@ -86,7 +86,7 @@ interface CsAdminProject {
 }
 
 const MODULE_FEATURES: Array<{
-  id: 'whatsapp' | 'comment_sentinel' | 'analytics_dashboard';
+  id: 'whatsapp' | 'comment_sentinel';
   label: string;
   description: string;
   Icon: React.FC<React.SVGProps<SVGSVGElement> & { size?: number }>;
@@ -102,12 +102,6 @@ const MODULE_FEATURES: Array<{
     label: 'Comment Sentinel',
     description: 'Comment monitoring projects, scheduled runs, dashboard.',
     Icon: IconCommentSentinel,
-  },
-  {
-    id: 'analytics_dashboard',
-    label: 'Analytics Dashboard',
-    description: 'Social channel analytics across YouTube, TikTok, Facebook, Instagram.',
-    Icon: IconDashboard,
   },
 ];
 
