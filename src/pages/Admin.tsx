@@ -465,7 +465,7 @@ const FeatureList = styled.div`
   gap: var(--s-2);
 `;
 
-const FeatureRow = styled.label<{ $enabled: boolean; $busy: boolean }>`
+const FeatureRow = styled.div<{ $enabled: boolean; $busy: boolean; $disabled: boolean }>`
   display: flex;
   align-items: center;
   gap: var(--s-3);
@@ -476,16 +476,21 @@ const FeatureRow = styled.label<{ $enabled: boolean; $busy: boolean }>`
     p.$enabled
       ? 'linear-gradient(135deg, rgba(76, 194, 255, 0.08), rgba(164, 120, 255, 0.04))'
       : 'var(--bg-3)'};
-  cursor: ${(p) => (p.$busy ? 'progress' : 'pointer')};
-  opacity: ${(p) => (p.$busy ? 0.65 : 1)};
+  cursor: ${(p) => (p.$busy || p.$disabled ? 'not-allowed' : 'pointer')};
+  opacity: ${(p) => (p.$busy || p.$disabled ? 0.65 : 1)};
   transition: border-color 0.15s, background 0.15s, transform 0.05s;
 
   &:hover {
-    border-color: ${(p) => (p.$enabled ? 'var(--accent)' : 'var(--border-2, var(--border-1))')};
+    border-color: ${(p) =>
+      p.$disabled || p.$busy
+        ? undefined
+        : p.$enabled
+          ? 'var(--accent)'
+          : 'var(--border-2, var(--border-1))'};
   }
 
   &:active {
-    transform: ${(p) => (p.$busy ? 'none' : 'translateY(1px)')};
+    transform: ${(p) => (p.$busy || p.$disabled ? 'none' : 'translateY(1px)')};
   }
 `;
 
@@ -549,14 +554,6 @@ const FeatureSwitch = styled.span<{ $enabled: boolean }>`
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
     transition: left 0.15s ease;
   }
-`;
-
-const HiddenCheckbox = styled.input.attrs({ type: 'checkbox' })`
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-  width: 0;
-  height: 0;
 `;
 
 const EmptyHint = styled.div`
@@ -1060,51 +1057,65 @@ const Admin: React.FC = () => {
 
               <DetailSection>
                 <DetailSectionTitle>Features</DetailSectionTitle>
+                {detailUser.id === me?.id && (
+                  <MetaMuted style={{ lineHeight: 1.45 }}>
+                    Open another user to change feature flags — you cannot toggle your own account here.
+                  </MetaMuted>
+                )}
                 <FeatureList>
                   {MODULE_FEATURES.map((f) => {
                     const enabled = !(detailUser.disabledFeatures ?? []).includes(f.id);
                     const isSelf = detailUser.id === me?.id;
-                    const disabledInput = featureSaveBusy || isSelf;
+                    const toggleDisabled = featureSaveBusy || isSelf;
+                    const toggleFeature = async () => {
+                      if (toggleDisabled) return;
+                      setFeatureSaveBusy(true);
+                      try {
+                        const disabledSet = new Set(detailUser.disabledFeatures ?? []);
+                        if (enabled) disabledSet.add(f.id);
+                        else disabledSet.delete(f.id);
+                        const nextDisabled = [...disabledSet];
+                        const updated = await adminFetch<{ disabledFeatures?: string[] }>(
+                          `/users/${detailUser.id}/disabled-features`,
+                          {
+                            method: 'PATCH',
+                            body: JSON.stringify({ disabledFeatureIds: nextDisabled }),
+                          },
+                        );
+                        const nextValue = (updated?.disabledFeatures ?? nextDisabled) as string[];
+                        setUsers((prev) =>
+                          prev?.map((u) =>
+                            u.id === detailUser.id ? { ...u, disabledFeatures: nextValue } : u,
+                          ) ?? prev,
+                        );
+                        setDetailUser((prev) =>
+                          prev ? { ...prev, disabledFeatures: nextValue } : prev,
+                        );
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : String(err));
+                      } finally {
+                        setFeatureSaveBusy(false);
+                      }
+                    };
                     return (
                       <FeatureRow
                         key={f.id}
+                        role="switch"
+                        aria-checked={enabled}
+                        aria-disabled={toggleDisabled}
+                        tabIndex={toggleDisabled ? -1 : 0}
                         $enabled={enabled}
                         $busy={featureSaveBusy}
+                        $disabled={toggleDisabled}
                         title={isSelf ? "You can't change your own feature flags here." : undefined}
+                        onClick={() => void toggleFeature()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            void toggleFeature();
+                          }
+                        }}
                       >
-                        <HiddenCheckbox
-                          checked={enabled}
-                          disabled={disabledInput}
-                          onChange={async (e) => {
-                            setFeatureSaveBusy(true);
-                            try {
-                              const disabledSet = new Set(detailUser.disabledFeatures ?? []);
-                              if (e.target.checked) disabledSet.delete(f.id);
-                              else disabledSet.add(f.id);
-                              const nextDisabled = [...disabledSet];
-                              const updated = await adminFetch<{ disabledFeatures?: string[] }>(
-                                `/users/${detailUser.id}/disabled-features`,
-                                {
-                                  method: 'PATCH',
-                                  body: JSON.stringify({ disabledFeatureIds: nextDisabled }),
-                                },
-                              );
-                              const nextValue = (updated?.disabledFeatures ?? nextDisabled) as string[];
-                              setUsers((prev) =>
-                                prev?.map((u) =>
-                                  u.id === detailUser.id ? { ...u, disabledFeatures: nextValue } : u,
-                                ) ?? prev,
-                              );
-                              setDetailUser((prev) =>
-                                prev ? { ...prev, disabledFeatures: nextValue } : prev,
-                              );
-                            } catch (err) {
-                              setError(err instanceof Error ? err.message : String(err));
-                            } finally {
-                              setFeatureSaveBusy(false);
-                            }
-                          }}
-                        />
                         <FeatureIconWrap $enabled={enabled}>
                           <f.Icon />
                         </FeatureIconWrap>
