@@ -13,21 +13,30 @@ import {
 } from '../components/ui/primitives';
 import LoadingState from '../components/shared/LoadingState';
 import ErrorMessage from '../components/shared/ErrorMessage';
+import { InfoTip } from '../components/ui/InfoTip';
 import { AnalyticsChart } from '../components/analytics/AnalyticsChart';
 import { DateRangePicker, getDateRangeFromPreset, type DateRange } from '../components/analytics/DateRangePicker';
 import { PlatformBreakdown } from '../components/analytics/PlatformBreakdown';
 import { PlatformHeader } from '../components/analytics/PlatformHeader';
-import { PLATFORM_GLYPHS, PLATFORM_META } from '../components/analytics/platformMeta';
+import {
+  PLATFORM_GLYPHS,
+  PLATFORM_META,
+  PLATFORM_METRIC_KEYS,
+  platformsForMetric,
+} from '../components/analytics/platformMeta';
 import { StatCard } from '../components/analytics/StatCard';
 import { ContentGrid } from '../components/analytics/ContentGrid';
 import { SettingsPanel } from '../components/analytics/SettingsPanel';
-import { AnalyticsAPI } from '../services/analytics';
+import { AnalyticsAPI, mediaProxyUrl } from '../services/analytics';
+import {
+  bundleKey,
+  startAnalyticsPull,
+  useAnalyticsPull,
+} from '../stores/analyticsPull';
 import type {
   AnAccount,
-  AnContentResponse,
   AnDataPoint,
   AnLogEntry,
-  AnMasterRow,
   AnMetricKey,
   AnOverviewResponse,
   AnPlatform,
@@ -69,6 +78,13 @@ const Tab = styled.button<{ $active?: boolean; $color?: string; $soft?: string }
   }
 `;
 
+const TabAvatar = styled.img`
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+`;
+
 const ControlCard = styled.div`
   display: flex;
   flex-direction: column;
@@ -89,6 +105,13 @@ const PullBar = styled.div`
 const StaleNote = styled.span`
   font-size: 12px;
   color: var(--warn, #fbbf24);
+`;
+
+const LastPull = styled.span`
+  font-size: 12px;
+  color: var(--text-3);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 `;
 
 const GatheringBox = styled.div`
@@ -167,22 +190,6 @@ function formatCompact(value: number): string {
 
 const METRIC_KEYS = Object.keys(AN_METRIC_LABELS) as AnMetricKey[];
 
-type PlatformBundle = {
-  content: AnContentResponse | null;
-  contentError?: string;
-};
-
-type PulledBundle = {
-  cacheKey: string;
-  overview: AnOverviewResponse;
-  platforms: Record<AnPlatform, PlatformBundle>;
-  master: AnMasterRow[];
-};
-
-function bundleKey(projectId: string, start: string, end: string): string {
-  return `${projectId}:${start}:${end}`;
-}
-
 function platformSeries(overview: AnOverviewResponse, platform: AnPlatform): AnDataPoint[] {
   return overview.data.filter((d) => d.platform === platform);
 }
@@ -203,13 +210,17 @@ const Analytics: React.FC = () => {
   const [projects, setProjects] = useState<AnProject[]>([]);
   const [activeProjectId, setActiveProjectId] = useState('');
   const [accounts, setAccounts] = useState<AnAccount[]>([]);
-  const [bundle, setBundle] = useState<PulledBundle | null>(null);
   const [masterMetric, setMasterMetric] = useState<AnMetricKey>('views');
   const [logs, setLogs] = useState<AnLogEntry[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [dataLoading, setDataLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pull state lives in a module-level store so in-flight pulls (and their
+  // results) survive navigating away from this page. Bundles are cached per
+  // (project, date range), so revisiting an already-pulled range is instant.
+  const pull = useAnalyticsPull();
+  const dataLoading = pull.status === 'pulling';
 
   const loadWorkspace = useCallback(async () => {
     const ws = await AnalyticsAPI.getWorkspace();
@@ -236,18 +247,9 @@ const Analytics: React.FC = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(range));
   }, [range]);
 
-  const queryBase = useMemo(
-    () => ({
-      startDate: range.startDate,
-      endDate: range.endDate,
-      projectId: activeProjectId || undefined,
-    }),
-    [range, activeProjectId],
-  );
-
   const currentCacheKey = bundleKey(activeProjectId, range.startDate, range.endDate);
-  const isStale = bundle !== null && bundle.cacheKey !== currentCacheKey;
-  const hasData = bundle !== null && bundle.cacheKey === currentCacheKey;
+  const bundle = pull.bundles[currentCacheKey] ?? null;
+  const hasData = bundle !== null;
 
   const activePlatform = AN_PLATFORMS.includes(tab as AnPlatform) ? (tab as AnPlatform) : null;
   const activeOverview = hasData ? bundle!.overview : null;
@@ -258,6 +260,10 @@ const Analytics: React.FC = () => {
     ? bundle!.platforms[activePlatform].content
     : null;
   const activePlatformTotals = useMemo(() => seriesTotals(activePlatformSeries), [activePlatformSeries]);
+  const accountForPlatform = useCallback(
+    (platform: AnPlatform) => accounts.find((a) => a.platform === platform && a.enabled) ?? null,
+    [accounts],
+  );
 
   const loadLogs = useCallback(async () => {
     setLogsLoading(true);
@@ -273,50 +279,22 @@ const Analytics: React.FC = () => {
 
   /** One pull loads overview + all platform content + master — every tab reads from the same bundle. */
   const pullData = useCallback(
-    async (refresh: boolean) => {
-      if (!activeProjectId) return;
-      setDataLoading(true);
+    (refresh: boolean) => {
       setError(null);
-      const key = bundleKey(activeProjectId, range.startDate, range.endDate);
-      const query = { ...queryBase, refresh };
-
-      try {
-        const [overview, masterResult, ...contentResults] = await Promise.all([
-          AnalyticsAPI.getOverview(query),
-          AnalyticsAPI.getMaster({
-            startDate: range.startDate,
-            endDate: range.endDate,
-            refresh,
-          }),
-          ...AN_PLATFORMS.map((platform) =>
-            AnalyticsAPI.getPlatformContent(platform, query)
-              .then((content) => ({ platform, content }))
-              .catch((e: unknown) => ({
-                platform,
-                content: null,
-                error: e instanceof Error ? e.message : 'Failed to load content',
-              })),
-          ),
-        ]);
-
-        const platforms = {} as Record<AnPlatform, PlatformBundle>;
-        for (const result of contentResults) {
-          platforms[result.platform] = {
-            content: result.content,
-            contentError: 'error' in result ? result.error : undefined,
-          };
-        }
-
-        setBundle({ cacheKey: key, overview, platforms, master: masterResult.rows });
-        void loadLogs();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to pull data');
-      } finally {
-        setDataLoading(false);
-      }
+      void startAnalyticsPull({
+        projectId: activeProjectId,
+        startDate: range.startDate,
+        endDate: range.endDate,
+        refresh,
+      });
     },
-    [activeProjectId, queryBase, range, loadLogs],
+    [activeProjectId, range],
   );
+
+  // Refresh logs whenever a pull finishes (success or failure).
+  useEffect(() => {
+    if (pull.completionId > 0) void loadLogs();
+  }, [pull.completionId, loadLogs]);
 
   useEffect(() => {
     if (tab === 'logs') void loadLogs();
@@ -364,6 +342,12 @@ const Analytics: React.FC = () => {
         {AN_PLATFORMS.map((p) => {
           const Glyph = PLATFORM_GLYPHS[p];
           const meta = PLATFORM_META[p];
+          const account = accountForPlatform(p);
+          const avatar = account?.avatarUrl
+            ? p === 'youtube'
+              ? account.avatarUrl
+              : mediaProxyUrl(account.avatarUrl)
+            : undefined;
           return (
             <Tab
               key={p}
@@ -372,7 +356,7 @@ const Analytics: React.FC = () => {
               $soft={meta.soft}
               onClick={() => setTab(p)}
             >
-              <Glyph size={14} /> {meta.label}
+              {avatar ? <TabAvatar src={avatar} alt="" /> : <Glyph size={14} />} {meta.label}
             </Tab>
           );
         })}
@@ -391,17 +375,17 @@ const Analytics: React.FC = () => {
             <Button $variant="ghost" $size="sm" disabled={dataLoading} onClick={() => void pullData(true)}>
               Force rescrape
             </Button>
-            <span style={{ fontSize: 12, color: 'var(--text-3)', maxWidth: 420 }}>
-              Pull uses cache when available. Rescrape bypasses cache and hits live APIs (uses credits).
-            </span>
-            {isStale && !dataLoading && hasData && (
-              <StaleNote>Date range or project changed — pull again to refresh all tabs.</StaleNote>
+            <InfoTip text="Pull uses cached data when available (free). Force rescrape bypasses the cache and hits live APIs — it uses ScrapeCreators credits." />
+            {hasData && (
+              <LastPull>
+                Last pull: {new Date(bundle!.pulledAt).toLocaleString()}
+              </LastPull>
             )}
           </PullBar>
         </ControlCard>
       )}
 
-      {error && <ErrorMessage message={error} />}
+      {(error ?? pull.error) && <ErrorMessage message={(error ?? pull.error)!} />}
 
       {isDataTab && dataLoading && (
         <GatheringBox>
@@ -422,30 +406,43 @@ const Analytics: React.FC = () => {
             {METRIC_KEYS.map((key) => (
               <StatCard
                 key={key}
-                title={AN_METRIC_LABELS[key]}
+                title={key === 'shares' ? 'Shares (TikTok only)' : AN_METRIC_LABELS[key]}
                 value={activeOverview.totals[key] ?? 0}
                 comparison={activeOverview.comparisons[key]}
                 large={key === 'views'}
               />
             ))}
           </Grid>
-          <PlatformBreakdown overview={activeOverview} onSelect={(p) => setTab(p)} />
+          <PlatformBreakdown overview={activeOverview} accounts={accounts} onSelect={(p) => setTab(p)} />
           <Grid $min="420px">
             {METRIC_KEYS.map((key) => (
-              <AnalyticsChart key={key} data={activeOverview.data} metric={key} />
+              <AnalyticsChart
+                key={key}
+                data={activeOverview.data}
+                metric={key}
+                platforms={platformsForMetric(key)}
+              />
             ))}
           </Grid>
         </Stack>
       )}
 
+      {activePlatform && !dataLoading && !hasData && (
+        <PlatformHeader platform={activePlatform} content={null} account={accountForPlatform(activePlatform)} />
+      )}
+
       {activePlatform && !dataLoading && hasData && (
         <Stack $gap={4}>
-          <PlatformHeader platform={activePlatform} content={activePlatformContent} />
+          <PlatformHeader
+            platform={activePlatform}
+            content={activePlatformContent}
+            account={accountForPlatform(activePlatform)}
+          />
           {bundle!.platforms[activePlatform].contentError && (
             <StaleNote>{bundle!.platforms[activePlatform].contentError}</StaleNote>
           )}
-          <Grid $cols={5} $min="160px">
-            {METRIC_KEYS.map((key) => (
+          <Grid $cols={PLATFORM_METRIC_KEYS[activePlatform].length} $min="160px">
+            {PLATFORM_METRIC_KEYS[activePlatform].map((key) => (
               <StatCard
                 key={key}
                 title={AN_METRIC_LABELS[key]}
@@ -455,7 +452,7 @@ const Analytics: React.FC = () => {
             ))}
           </Grid>
           <Grid $min="420px">
-            {METRIC_KEYS.map((key) => (
+            {PLATFORM_METRIC_KEYS[activePlatform].map((key) => (
               <AnalyticsChart
                 key={key}
                 data={activePlatformSeries}
@@ -518,7 +515,9 @@ const Analytics: React.FC = () => {
                       ) : (
                         METRIC_KEYS.map((key) => (
                           <td key={key} style={{ fontWeight: masterMetric === key ? 700 : 400 }}>
-                            {formatCompact(row.totals[key] ?? 0)}
+                            {PLATFORM_METRIC_KEYS[row.platform].includes(key)
+                              ? formatCompact(row.totals[key] ?? 0)
+                              : '—'}
                           </td>
                         ))
                       )}

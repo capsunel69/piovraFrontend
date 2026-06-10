@@ -43,6 +43,7 @@ export interface AnAccount {
   handle: string;
   displayName: string | null;
   avatarUrl: string | null;
+  coverUrl: string | null;
   enabled: boolean;
   sortOrder: number;
   createdAt: string;
@@ -74,6 +75,7 @@ export interface AnContentResponse {
     name: string;
     handle?: string;
     avatarUrl?: string;
+    coverUrl?: string;
     followerCount?: number;
     postCount?: number;
   };

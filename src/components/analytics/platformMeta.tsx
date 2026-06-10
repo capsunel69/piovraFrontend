@@ -1,5 +1,5 @@
 import React from 'react';
-import type { AnPlatform } from '../../types/analytics';
+import type { AnMetricKey, AnPlatform } from '../../types/analytics';
 
 /**
  * Per-platform visual identity for the Analytics module. Brand glyphs are
@@ -85,3 +85,23 @@ export const PLATFORM_GLYPHS: Record<AnPlatform, React.FC<GlyphProps>> = {
   instagram: GlyphInstagram,
   tiktok: GlyphTikTok,
 };
+
+/**
+ * Metrics each platform can actually report. Share counts are not exposed by
+ * the YouTube Data API nor by public Facebook/Instagram scraping — only
+ * TikTok returns them — so we hide "Shares" elsewhere instead of showing a
+ * misleading 0.
+ */
+export const PLATFORM_METRIC_KEYS: Record<AnPlatform, AnMetricKey[]> = {
+  youtube: ['views', 'posts', 'likes', 'comments'],
+  facebook: ['views', 'posts', 'likes', 'comments'],
+  instagram: ['views', 'posts', 'likes', 'comments'],
+  tiktok: ['views', 'posts', 'likes', 'comments', 'shares'],
+};
+
+/** Platforms that support a given metric (e.g. shares → tiktok only). */
+export function platformsForMetric(metric: AnMetricKey): AnPlatform[] {
+  return (Object.keys(PLATFORM_METRIC_KEYS) as AnPlatform[]).filter((p) =>
+    PLATFORM_METRIC_KEYS[p].includes(metric),
+  );
+}

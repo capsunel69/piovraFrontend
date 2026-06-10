@@ -1,8 +1,9 @@
 import React from 'react';
 import styled from 'styled-components';
-import type { AnMetricKey, AnOverviewResponse, AnPlatform } from '../../types/analytics';
+import type { AnAccount, AnMetricKey, AnOverviewResponse, AnPlatform } from '../../types/analytics';
 import { AN_METRIC_LABELS, AN_PLATFORMS } from '../../types/analytics';
-import { PLATFORM_GLYPHS, PLATFORM_META } from './platformMeta';
+import { mediaProxyUrl } from '../../services/analytics';
+import { PLATFORM_GLYPHS, PLATFORM_META, PLATFORM_METRIC_KEYS } from './platformMeta';
 
 const Grid = styled.div`
   display: grid;
@@ -33,6 +34,18 @@ const Header = styled.div<{ $color: string }>`
   align-items: center;
   gap: var(--s-2);
   margin-bottom: var(--s-3);
+  color: ${(p) => p.$color};
+`;
+
+const MiniAvatar = styled.span<{ $url?: string; $color: string }>`
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid ${(p) => p.$color};
+  background: ${(p) => (p.$url ? `url(${p.$url}) center/cover` : 'var(--bg-3)')};
+  display: grid;
+  place-items: center;
   color: ${(p) => p.$color};
 `;
 
@@ -90,10 +103,15 @@ const MINI_KEYS: AnMetricKey[] = ['posts', 'likes', 'comments', 'shares'];
 
 interface PlatformBreakdownProps {
   overview: AnOverviewResponse | null;
+  accounts?: AnAccount[];
   onSelect?: (platform: AnPlatform) => void;
 }
 
-export const PlatformBreakdown: React.FC<PlatformBreakdownProps> = ({ overview, onSelect }) => {
+export const PlatformBreakdown: React.FC<PlatformBreakdownProps> = ({
+  overview,
+  accounts,
+  onSelect,
+}) => {
   if (!overview) return null;
 
   return (
@@ -103,6 +121,12 @@ export const PlatformBreakdown: React.FC<PlatformBreakdownProps> = ({ overview, 
         const Glyph = PLATFORM_GLYPHS[platform];
         const stats = overview.byPlatform[platform];
         const err = overview.errors[platform];
+        const account = accounts?.find((a) => a.platform === platform && a.enabled);
+        const avatarUrl = account?.avatarUrl
+          ? platform === 'youtube'
+            ? account.avatarUrl
+            : mediaProxyUrl(account.avatarUrl)
+          : undefined;
         return (
           <Card
             key={platform}
@@ -112,8 +136,10 @@ export const PlatformBreakdown: React.FC<PlatformBreakdownProps> = ({ overview, 
             title={`Open ${meta.label} details`}
           >
             <Header $color={meta.color}>
-              <Glyph size={16} />
-              <Name>{meta.label}</Name>
+              <MiniAvatar $url={avatarUrl} $color={meta.color}>
+                {!avatarUrl && <Glyph size={13} />}
+              </MiniAvatar>
+              <Name>{account?.displayName ?? meta.label}</Name>
             </Header>
             {err ? (
               <ErrorText>{err}</ErrorText>
@@ -124,11 +150,13 @@ export const PlatformBreakdown: React.FC<PlatformBreakdownProps> = ({ overview, 
                   <small>views</small>
                 </HeroValue>
                 <MiniStats>
-                  {MINI_KEYS.map((key) => (
-                    <span key={key}>
-                      {AN_METRIC_LABELS[key]} <strong>{formatCompact(stats?.[key] ?? 0)}</strong>
-                    </span>
-                  ))}
+                  {MINI_KEYS.filter((key) => PLATFORM_METRIC_KEYS[platform].includes(key)).map(
+                    (key) => (
+                      <span key={key}>
+                        {AN_METRIC_LABELS[key]} <strong>{formatCompact(stats?.[key] ?? 0)}</strong>
+                      </span>
+                    ),
+                  )}
                 </MiniStats>
               </>
             )}

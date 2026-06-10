@@ -19,6 +19,7 @@ import Analytics from './pages/Analytics';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import Timer from './components/timer/Timer';
+import { AnalyticsPullIndicator } from './components/analytics/PullIndicator';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import FeatureRoute from './components/auth/FeatureRoute';
 import { ToastProvider } from './components/ui/Toast';
@@ -34,6 +35,7 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <Timer />
+                    <AnalyticsPullIndicator />
                     <Routes>
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/tasks" element={<Tasks />} />
