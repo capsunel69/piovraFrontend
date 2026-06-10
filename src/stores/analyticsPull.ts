@@ -23,6 +23,8 @@ export type PulledBundle = {
   pulledAt: number;
   /** Aggregated cache vs live stats for this pull. */
   pullMeta: AnPullMeta;
+  /** Oldest platform refresh time in this bundle (ISO) — "data as of". */
+  dataAsOf: string | null;
 };
 
 export type PullStatus = 'idle' | 'pulling' | 'done' | 'error';
@@ -158,6 +160,7 @@ export function deriveBundleForRange(src: PulledBundle, start: string, end: stri
     master,
     pulledAt: src.pulledAt,
     pullMeta: src.pullMeta,
+    dataAsOf: src.dataAsOf,
   };
 }
 
@@ -316,6 +319,13 @@ export async function startAnalyticsPull(params: PullParams): Promise<void> {
       };
     }
 
+    // "Data as of" = the oldest platform refresh among loaded platforms, so
+    // the label never overstates freshness.
+    const asOfValues = contentResults
+      .map((r) => r.content?.asOf)
+      .filter((v): v is string => Boolean(v));
+    const dataAsOf = asOfValues.length > 0 ? asOfValues.reduce((a, b) => (a < b ? a : b)) : null;
+
     setState({
       status: 'done',
       bundles: {
@@ -327,6 +337,7 @@ export async function startAnalyticsPull(params: PullParams): Promise<void> {
           master,
           pulledAt: Date.now(),
           pullMeta: aggMeta,
+          dataAsOf,
         },
       },
       completionId: state.completionId + 1,

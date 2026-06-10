@@ -477,27 +477,33 @@ const Analytics: React.FC = () => {
     [activeProjectId, range],
   );
 
-  // Auto-hydrate on first visit per project only. Changing the date range
-  // afterwards never auto-pulls (which could trigger live scrapes) — instead
-  // the last pulled bundle is shown with an "incomplete data" warning and the
-  // user decides when to press "Pull data now".
+  // Auto-load whenever the selected (project, range) has no bundle yet.
+  // Reads come from the durable post store on the server (no scrape credits),
+  // so this is safe to do on every project/range change; live scraping only
+  // happens for ranges never pulled before — same as pressing "Pull data now".
   const autoPullAttempted = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (loading || !activeProjectId) return;
     if (pull.status === 'pulling') return;
-    const hasAnyForProject = Object.keys(pull.bundles).some((k) =>
-      k.startsWith(`${activeProjectId}:`),
-    );
-    if (hasAnyForProject) return;
-    if (autoPullAttempted.current.has(activeProjectId)) return;
-    autoPullAttempted.current.add(activeProjectId);
+    if (exactBundle || derivedBundle) return;
+    if (autoPullAttempted.current.has(currentCacheKey)) return;
+    autoPullAttempted.current.add(currentCacheKey);
     void startAnalyticsPull({
       projectId: activeProjectId,
       startDate: range.startDate,
       endDate: range.endDate,
       refresh: false,
     });
-  }, [loading, activeProjectId, range.startDate, range.endDate, pull.bundles, pull.status]);
+  }, [
+    loading,
+    activeProjectId,
+    currentCacheKey,
+    exactBundle,
+    derivedBundle,
+    range.startDate,
+    range.endDate,
+    pull.status,
+  ]);
 
   // Refresh logs whenever a pull finishes (success or failure).
   useEffect(() => {
@@ -687,12 +693,16 @@ const Analytics: React.FC = () => {
             <Button $variant="ghost" $size="sm" disabled={dataLoading} onClick={() => void pullData(true)}>
               Force rescrape
             </Button>
-            <InfoTip text="Pull uses cached data when available (free). Force rescrape bypasses the cache and hits live APIs — it uses ScrapeCreators credits." />
+            <InfoTip text="Pull serves saved data from the database when the range has been scraped before (free, instant). Force rescrape fetches fresh numbers from the platforms and records a new snapshot — it uses ScrapeCreators credits." />
             {hasData && (
               <LastPull>
-                Last pull: {formatDateTimeRo(bundle!.pulledAt)}
+                {bundle!.dataAsOf ? (
+                  <>Data as of: {formatDateTimeRo(new Date(bundle!.dataAsOf).getTime())}</>
+                ) : (
+                  <>Last pull: {formatDateTimeRo(bundle!.pulledAt)}</>
+                )}
                 {(bundle!.pullMeta?.liveCalls ?? 0) === 0 && (bundle!.pullMeta?.cacheHits ?? 0) > 0 && (
-                  <> · from cache</>
+                  <> · stored data</>
                 )}
                 {(bundle!.pullMeta?.liveCalls ?? 0) > 0 && (
                   <> · {bundle!.pullMeta!.liveCalls} live call{bundle!.pullMeta!.liveCalls !== 1 ? 's' : ''}</>

@@ -74,6 +74,8 @@ export interface AnSocialPostItem {
   shares: number;
   url?: string;
   duration?: string;
+  /** ISO datetime the metric numbers were recorded (snapshot time). */
+  snapshotAt?: string;
 }
 
 export interface AnContentResponse {
@@ -86,8 +88,10 @@ export interface AnContentResponse {
     postCount?: number;
   };
   items: AnSocialPostItem[];
-  dataSource: 'scrapecreators' | 'public';
+  dataSource: 'scrapecreators' | 'public' | 'stored';
   platform: AnPlatform;
+  /** ISO datetime this account's data was last refreshed from the platform. */
+  asOf?: string;
   _meta?: AnPullMeta;
 }
 

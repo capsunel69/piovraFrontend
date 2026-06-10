@@ -88,6 +88,11 @@ const Meta = styled.div`
   color: var(--text-3);
 `;
 
+const Recorded = styled.span`
+  font-size: 10px;
+  color: var(--text-4);
+`;
+
 function formatCompact(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
@@ -142,6 +147,11 @@ export const ContentGrid: React.FC<ContentGridProps> = ({ items, platform, empty
               <span>{formatCompact(item.views)} views</span>
               <span>{formatCompact(item.likes)} likes</span>
             </Meta>
+            {item.snapshotAt && (
+              <Recorded title="When these numbers were last refreshed from the platform">
+                numbers recorded {formatDateRo(item.snapshotAt)}
+              </Recorded>
+            )}
           </Body>
         </Card>
         );
