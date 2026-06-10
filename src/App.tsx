@@ -15,6 +15,7 @@ import Admin from './pages/Admin';
 import Chat from './pages/Chat';
 import Documentation from './pages/Documentation';
 import CommentSentinel from './pages/CommentSentinel';
+import Analytics from './pages/Analytics';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import Timer from './components/timer/Timer';
@@ -43,6 +44,11 @@ function App() {
                       <Route path="/comment-sentinel" element={
                         <FeatureRoute feature="comment_sentinel">
                           <CommentSentinel />
+                        </FeatureRoute>
+                      } />
+                      <Route path="/analytics" element={
+                        <FeatureRoute feature="analytics">
+                          <Analytics />
                         </FeatureRoute>
                       } />
                       <Route path="/privacy" element={<Privacy />} />

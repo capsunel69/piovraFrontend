@@ -31,6 +31,7 @@ import {
   IconCheck,
   IconChat,
   IconCommentSentinel,
+  IconAnalytics,
 } from '../components/ui/icons';
 
 const MOBILE_BP = 720;
@@ -86,7 +87,7 @@ interface CsAdminProject {
 }
 
 const MODULE_FEATURES: Array<{
-  id: 'whatsapp' | 'comment_sentinel';
+  id: 'whatsapp' | 'comment_sentinel' | 'analytics';
   label: string;
   description: string;
   Icon: React.FC<React.SVGProps<SVGSVGElement> & { size?: number }>;
@@ -102,6 +103,12 @@ const MODULE_FEATURES: Array<{
     label: 'Comment Sentinel',
     description: 'Comment monitoring projects, scheduled runs, dashboard.',
     Icon: IconCommentSentinel,
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    description: 'Social media analytics for YouTube, Facebook, Instagram, TikTok.',
+    Icon: IconAnalytics,
   },
 ];
 

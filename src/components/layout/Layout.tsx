@@ -13,7 +13,7 @@ import { AppLogoMark } from './AppLogoMark';
 import {
   IconDashboard, IconTasks, IconCalendar, IconBell, IconNote, IconContacts,
   IconLogout, IconChevronLeft, IconClock, IconBot, IconChat, IconCommentSentinel,
-  IconMenu, IconLock, IconBook,
+  IconAnalytics, IconMenu, IconLock, IconBook,
 } from '../ui/icons';
 import { IconButton } from '../ui/primitives';
 
@@ -29,6 +29,7 @@ const NAV_PRIMARY: MobileNavItem[] = [
   { to: '/chat',      label: 'Chat',      icon: IconChat },
   { to: '/agents',    label: 'Agents',    icon: IconBot },
   { to: '/comment-sentinel', label: 'Comment Sentinel', icon: IconCommentSentinel },
+  { to: '/analytics', label: 'Analytics', icon: IconAnalytics },
 ];
 
 /** Mobile drawer breakpoint — keep this in sync with CSS @media queries. */
@@ -452,6 +453,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const base = NAV_PRIMARY.filter((item) => {
       if (item.to === '/comment-sentinel') {
         return me?.role === 'admin' || !(me?.disabledFeatures ?? []).includes('comment_sentinel');
+      }
+      if (item.to === '/analytics') {
+        return me?.role === 'admin' || !(me?.disabledFeatures ?? []).includes('analytics');
       }
       return true;
     });

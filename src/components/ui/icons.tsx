@@ -303,6 +303,13 @@ export const IconCommentSentinel = make(
   </>
 );
 
+export const IconAnalytics = make(
+  <>
+    <path d="M3 3v18h18" />
+    <path d="M7 16l4-6 4 3 5-8" />
+  </>
+);
+
 export const IconChat = make(
   <>
     <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z" />
