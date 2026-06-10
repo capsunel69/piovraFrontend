@@ -15,6 +15,8 @@ interface AuthContextType {
   loading: boolean;
   isAuthenticated: boolean;
   me: MeUser | null;
+  /** True when the user has granted gmail.modify (mail skills + suggestions). */
+  gmailConnected: boolean;
   disabledFeatures: SwitchableFeature[];
   hasFeature: (feature: SwitchableFeature) => boolean;
   refresh: () => Promise<void>;
@@ -32,19 +34,35 @@ const CALENDAR_EVENTS_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [me, setMe] = useState<MeUser | null>(null);
+  const [gmailConnected, setGmailConnected] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
       const res = await fetch(`${PIOVRA_BASE_URL}/auth/me`, { credentials: 'include' });
-      if (res.ok) {
-        const data = (await res.json()) as MeUser;
-        setMe(data);
-      } else {
+      if (!res.ok) {
         setMe(null);
+        setGmailConnected(false);
+        return;
+      }
+      const data = (await res.json()) as MeUser;
+      setMe(data);
+      try {
+        const connRes = await fetch(`${PIOVRA_BASE_URL}/v1/me/connections`, {
+          credentials: 'include',
+        });
+        if (connRes.ok) {
+          const conn = (await connRes.json()) as { google?: { scopes?: string[] } };
+          setGmailConnected(conn.google?.scopes?.includes(GMAIL_SCOPE) ?? false);
+        } else {
+          setGmailConnected(false);
+        }
+      } catch {
+        setGmailConnected(false);
       }
     } catch {
       setMe(null);
+      setGmailConnected(false);
     } finally {
       setLoading(false);
     }
@@ -64,6 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       /* best effort */
     }
     setMe(null);
+    setGmailConnected(false);
   }, []);
 
   const returnTo = typeof window !== 'undefined' ? window.location.href : '/';
@@ -87,6 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         isAuthenticated: me !== null,
         me,
+        gmailConnected,
         disabledFeatures,
         hasFeature,
         refresh,

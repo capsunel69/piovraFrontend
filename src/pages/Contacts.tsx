@@ -22,6 +22,7 @@ import {
   Field,
 } from '../components/ui/primitives';
 import { IconPlus, IconTrash, IconEdit, IconRefresh } from '../components/ui/icons';
+import ConnectGmailBanner from '../components/agents/ConnectGmailBanner';
 
 function contactHue(name: string): number {
   const s = name.trim();
@@ -340,6 +341,8 @@ const Contacts: React.FC = () => {
             </p>
           </HeroIntro>
         </ContactsPageHeader>
+
+        <ConnectGmailBanner />
 
         <FormCard>
           <CardHeader>

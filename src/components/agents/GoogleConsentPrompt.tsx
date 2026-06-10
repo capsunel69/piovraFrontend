@@ -16,12 +16,19 @@ const Banner = styled.div`
 `;
 
 const Link = styled.a`
-  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: #06121d;
   font-weight: 600;
   text-decoration: none;
 
   &:hover {
-    text-decoration: underline;
+    filter: brightness(1.06);
   }
 `;
 

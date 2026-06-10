@@ -7,6 +7,7 @@ import type { OrchestrateUserImage } from '../../services/piovra';
 import { ORCHESTRATE_IMAGE_MAX_COUNT, filesToOrchestrateImages } from '../../utils/orchestrateImages';
 import StepCard from './StepCard';
 import GoogleConsentPrompt from './GoogleConsentPrompt';
+import ConnectGmailBanner from './ConnectGmailBanner';
 
 const Shell = styled(Card)`
   display: flex;
@@ -273,6 +274,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
       </CardHeader>
 
       <Scroller ref={scrollRef}>
+        <ConnectGmailBanner compact />
         {turns.length === 0 ? (
           <EmptyState>
             <IconBot />

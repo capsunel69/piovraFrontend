@@ -18,6 +18,7 @@ import {
 } from '../ui/icons';
 import StepCard from '../agents/StepCard';
 import GoogleConsentPrompt from '../agents/GoogleConsentPrompt';
+import ConnectGmailBanner from '../agents/ConnectGmailBanner';
 import { useChat } from '../../context/ChatContext';
 import { useOverlayCount } from '../../hooks/useOverlayStack';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
@@ -1201,6 +1202,7 @@ const ChatWidget: React.FC = () => {
           </Header>
 
           <Scroller ref={scrollRef}>
+            <ConnectGmailBanner compact />
             {!voiceNoticeDismissed && voiceCaps && !voiceFullyAvailable && (
               <VoiceNotice>
                 <IconAlert />
