@@ -40,6 +40,8 @@ import { UsagePanel } from '../components/analytics/UsagePanel';
 import { AnalyticsAPI, mediaProxyUrl } from '../services/analytics';
 import {
   bundleKey,
+  bundleRange,
+  deriveBundleForRange,
   startAnalyticsPull,
   useAnalyticsPull,
 } from '../stores/analyticsPull';
@@ -394,28 +396,43 @@ const Analytics: React.FC = () => {
   const currentCacheKey = bundleKey(activeProjectId, range.startDate, range.endDate);
   const exactBundle = pull.bundles[currentCacheKey] ?? null;
 
-  // When the selected range hasn't been pulled, fall back to the most recent
-  // bundle for this project so the user still sees data — with a clear
-  // "incomplete" warning — instead of auto-scraping the new range.
-  const fallbackBundle = useMemo(() => {
+  // Selected range fully covered by an already-pulled bundle (e.g. Yesterday
+  // inside Last 7 days): slice it out client-side. Data is complete, so no
+  // warning and no API call needed.
+  const derivedBundle = useMemo(() => {
     if (exactBundle || !activeProjectId) return null;
+    const containing = Object.values(pull.bundles)
+      .filter((b) => {
+        const r = bundleRange(b);
+        return (
+          r.projectId === activeProjectId &&
+          r.start <= range.startDate &&
+          r.end >= range.endDate
+        );
+      })
+      .sort((a, b) => b.pulledAt - a.pulledAt)[0];
+    if (!containing) return null;
+    return deriveBundleForRange(containing, range.startDate, range.endDate);
+  }, [exactBundle, activeProjectId, range.startDate, range.endDate, pull.bundles]);
+
+  // Otherwise fall back to the most recent bundle for this project, shown
+  // with a clear "incomplete" warning instead of auto-scraping the new range.
+  const fallbackBundle = useMemo(() => {
+    if (exactBundle || derivedBundle || !activeProjectId) return null;
     const candidates = Object.values(pull.bundles).filter((b) =>
       b.cacheKey.startsWith(`${activeProjectId}:`),
     );
     if (candidates.length === 0) return null;
     return candidates.reduce((a, b) => (b.pulledAt > a.pulledAt ? b : a));
-  }, [exactBundle, activeProjectId, pull.bundles]);
+  }, [exactBundle, derivedBundle, activeProjectId, pull.bundles]);
 
-  const bundle = exactBundle ?? fallbackBundle;
+  const bundle = exactBundle ?? derivedBundle ?? fallbackBundle;
   const hasData = bundle !== null;
-  const isStaleRange = !exactBundle && fallbackBundle !== null;
+  const isStaleRange = !exactBundle && !derivedBundle && fallbackBundle !== null;
 
-  // cacheKey format: `projectId:startDate:endDate`
   const staleRangeLabel = useMemo(() => {
     if (!isStaleRange || !fallbackBundle) return null;
-    const parts = fallbackBundle.cacheKey.split(':');
-    const start = parts[1];
-    const end = parts[2];
+    const { start, end } = bundleRange(fallbackBundle);
     if (!start || !end) return null;
     return { start, end };
   }, [isStaleRange, fallbackBundle]);

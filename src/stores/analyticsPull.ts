@@ -3,6 +3,7 @@ import { AnalyticsAPI } from '../services/analytics';
 import type {
   AnContentResponse,
   AnMasterRow,
+  AnMetricKey,
   AnOverviewResponse,
   AnPlatform,
   AnPullMeta,
@@ -47,6 +48,117 @@ export interface AnalyticsPullState {
 
 export function bundleKey(projectId: string, start: string, end: string): string {
   return `${projectId}:${start}:${end}`;
+}
+
+export function bundleRange(bundle: PulledBundle): { projectId: string; start: string; end: string } {
+  const [projectId = '', start = '', end = ''] = bundle.cacheKey.split(':');
+  return { projectId, start, end };
+}
+
+const METRICS: AnMetricKey[] = ['views', 'posts', 'likes', 'shares', 'comments'];
+
+function fmtDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function addDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return fmtDate(d);
+}
+
+function daysBetween(start: string, end: string): number {
+  const a = new Date(`${start}T00:00:00`).getTime();
+  const b = new Date(`${end}T00:00:00`).getTime();
+  return Math.round((b - a) / 86_400_000) + 1;
+}
+
+function emptyTotals(): Record<AnMetricKey, number> {
+  return { views: 0, posts: 0, likes: 0, shares: 0, comments: 0 };
+}
+
+/**
+ * Slices a sub-range out of an already-pulled bundle entirely client-side —
+ * no API calls. Used when the user selects e.g. "Yesterday" after pulling
+ * "Last 7 days": all the daily points are already in memory.
+ */
+export function deriveBundleForRange(src: PulledBundle, start: string, end: string): PulledBundle {
+  const { projectId, start: srcStart } = bundleRange(src);
+  const inRange = (date: string) => date >= start && date <= end;
+
+  const data = src.overview.data.filter((p) => inRange(p.date));
+
+  const totals = emptyTotals();
+  const byPlatform = {} as AnOverviewResponse['byPlatform'];
+  for (const platform of AN_PLATFORMS) byPlatform[platform] = emptyTotals();
+  for (const p of data) {
+    for (const key of METRICS) {
+      totals[key] += p[key];
+      byPlatform[p.platform][key] += p[key];
+    }
+  }
+
+  // Period-over-period comparison is only possible when the previous period
+  // also falls inside the source bundle's range.
+  const len = daysBetween(start, end);
+  const prevEnd = addDays(start, -1);
+  const prevStart = addDays(prevEnd, -(len - 1));
+  let comparisons = {} as AnOverviewResponse['comparisons'];
+  if (srcStart && prevStart >= srcStart) {
+    const prevTotals = emptyTotals();
+    for (const p of src.overview.data) {
+      if (p.date >= prevStart && p.date <= prevEnd) {
+        for (const key of METRICS) prevTotals[key] += p[key];
+      }
+    }
+    comparisons = METRICS.reduce(
+      (acc, key) => {
+        const current = totals[key];
+        const previous = prevTotals[key];
+        acc[key] = {
+          current,
+          previous,
+          delta: current - previous,
+          percentChange: previous === 0 ? null : ((current - previous) / previous) * 100,
+        };
+        return acc;
+      },
+      {} as AnOverviewResponse['comparisons'],
+    );
+  }
+
+  const platforms = {} as Record<AnPlatform, PlatformBundle>;
+  for (const platform of AN_PLATFORMS) {
+    const pb = src.platforms[platform];
+    platforms[platform] = {
+      contentError: pb?.contentError,
+      content: pb?.content
+        ? {
+            ...pb.content,
+            items: pb.content.items.filter((item) => inRange((item.publishedAt ?? '').slice(0, 10))),
+          }
+        : null,
+    };
+  }
+
+  const master = src.master.map((row) => {
+    const points = (row.points ?? []).filter((p) => inRange(p.date));
+    const rowTotals = emptyTotals();
+    for (const p of points) for (const key of METRICS) rowTotals[key] += p[key];
+    return { ...row, points, totals: rowTotals };
+  });
+
+  return {
+    cacheKey: bundleKey(projectId, start, end),
+    overview: { data, totals, comparisons, byPlatform, errors: src.overview.errors },
+    platforms,
+    master,
+    pulledAt: src.pulledAt,
+    pullMeta: src.pullMeta,
+  };
 }
 
 function stripMeta<T extends { _meta?: AnPullMeta }>(raw: T): { data: Omit<T, '_meta'>; meta: AnPullMeta } {
