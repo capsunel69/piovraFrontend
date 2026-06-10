@@ -1,5 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
-import { PiovraAPI, type AgentStep, type ChatHistoryMessage, type OrchestrateUserImage } from '../services/piovra';
+import {
+  PiovraAPI,
+  type AgentStep,
+  type ChatHistoryMessage,
+  type NeedsConsentInfo,
+  type OrchestrateUserImage,
+} from '../services/piovra';
 import { useAppContext } from '../context/AppContext';
 import type { Contact, Journal, Meeting, Reminder, Task } from '../types';
 
@@ -13,6 +19,7 @@ export interface ChatTurn {
   steps: AgentStep[];
   output: string | null;
   error: string | null;
+  needsConsent: NeedsConsentInfo | null;
   status: ChatStatus;
   runId: string | null;
   tokensIn: number | null;
@@ -137,6 +144,7 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
         steps: [],
         output: null,
         error: null,
+        needsConsent: null,
         status: 'streaming',
         runId: null,
         tokensIn: null,
@@ -172,6 +180,9 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
           },
           onError: (message) => {
             updateTurn(turnId, { status: 'error', error: message });
+          },
+          onNeedsConsent: (info) => {
+            updateTurn(turnId, { status: 'error', needsConsent: info, error: null });
           },
         });
         setStatus('idle');

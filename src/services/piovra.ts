@@ -268,6 +268,11 @@ export type OrchestrateUserImage = {
   data: string;
 };
 
+export interface NeedsConsentInfo {
+  missingScopes: string[];
+  upgradeUrl: string;
+}
+
 export interface OrchestrateOptions {
   input: string;
   instanceId?: string;
@@ -281,6 +286,7 @@ export interface OrchestrateOptions {
     tokensOut: number | null;
   }) => void;
   onError?: (message: string) => void;
+  onNeedsConsent?: (info: NeedsConsentInfo) => void;
   /** Prior turns in this chat thread (oldest first). Lets the agent resolve
    * referents like "that task" without server-side thread persistence. */
   history?: ChatHistoryMessage[];
@@ -547,9 +553,17 @@ function handleEvent(raw: string, opts: OrchestrateOptions, state: OrchestrateSt
         data as { runId: string; output: string; tokensIn: number | null; tokensOut: number | null },
       );
       break;
-    case 'run.failed':
+    case 'run.failed': {
       state.terminalSeen = true;
-      opts.onError?.((data as { error: string }).error);
+      const errMsg = (data as { error: string }).error;
+      const consent = parseNeedsConsentFromError(errMsg);
+      if (consent) opts.onNeedsConsent?.(consent);
+      else opts.onError?.(errMsg);
+      break;
+    }
+    case 'needs_consent':
+      state.terminalSeen = true;
+      opts.onNeedsConsent?.(data as NeedsConsentInfo);
       break;
   }
 }
@@ -593,7 +607,10 @@ async function pollRunUntilDone(
     }
     if (run.status === 'failed' || run.status === 'cancelled') {
       state.terminalSeen = true;
-      opts.onError?.(run.error ?? run.status);
+      const errMsg = run.error ?? run.status;
+      const consent = typeof errMsg === 'string' ? parseNeedsConsentFromError(errMsg) : null;
+      if (consent) opts.onNeedsConsent?.(consent);
+      else opts.onError?.(typeof errMsg === 'string' ? errMsg : String(errMsg));
       return;
     }
 
@@ -605,4 +622,22 @@ async function pollRunUntilDone(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
+
+/** Parse legacy `NeedsConsentError` messages from failed runs. */
+export function parseNeedsConsentFromError(error: string): NeedsConsentInfo | null {
+  const prefix = 'Missing Google scopes:';
+  if (!error.startsWith(prefix)) return null;
+  const missingScopes = error.slice(prefix.length).trim().split(/\s+/).filter(Boolean);
+  if (missingScopes.length === 0) return null;
+  const returnTo = typeof window !== 'undefined' ? window.location.href : '/';
+  const upgradeUrl = `${PIOVRA_BASE_URL}/auth/google/upgrade?scopes=${encodeURIComponent(missingScopes.join(' '))}&return_to=${encodeURIComponent(returnTo)}`;
+  return { missingScopes, upgradeUrl };
+}
+
+export function consentLabelForScopes(scopes: string[]): string {
+  if (scopes.includes(GMAIL_MODIFY_SCOPE)) return 'Gmail';
+  return 'Google';
 }

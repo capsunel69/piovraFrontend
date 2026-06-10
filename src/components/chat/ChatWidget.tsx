@@ -17,6 +17,7 @@ import {
   IconAlert,
 } from '../ui/icons';
 import StepCard from '../agents/StepCard';
+import GoogleConsentPrompt from '../agents/GoogleConsentPrompt';
 import { useChat } from '../../context/ChatContext';
 import { useOverlayCount } from '../../hooks/useOverlayStack';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
@@ -1299,6 +1300,7 @@ const ChatWidget: React.FC = () => {
                         <Spinner $size={12} /> thinking…
                       </TurnFooter>
                     )}
+                    {turn.needsConsent && <GoogleConsentPrompt consent={turn.needsConsent} />}
                     {turn.error && (
                       <TurnFooter style={{ color: 'var(--danger)' }}>{turn.error}</TurnFooter>
                     )}

@@ -6,6 +6,7 @@ import { useOrchestrate } from '../../hooks/useOrchestrate';
 import type { OrchestrateUserImage } from '../../services/piovra';
 import { ORCHESTRATE_IMAGE_MAX_COUNT, filesToOrchestrateImages } from '../../utils/orchestrateImages';
 import StepCard from './StepCard';
+import GoogleConsentPrompt from './GoogleConsentPrompt';
 
 const Shell = styled(Card)`
   display: flex;
@@ -302,6 +303,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
                       <Spinner $size={12} /> thinking…
                     </TurnFooter>
                   )}
+                  {turn.needsConsent && <GoogleConsentPrompt consent={turn.needsConsent} />}
                   {turn.error && (
                     <TurnFooter style={{ color: 'var(--danger)' }}>{turn.error}</TurnFooter>
                   )}
