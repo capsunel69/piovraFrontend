@@ -2,6 +2,7 @@ import React from 'react';
 import styled from 'styled-components';
 import type { AnPlatform, AnSocialPostItem } from '../../types/analytics';
 import { mediaProxyUrl } from '../../services/analytics';
+import { PLATFORM_GLYPHS, PLATFORM_META } from './platformMeta';
 
 const Grid = styled.div`
   display: grid;
@@ -9,7 +10,7 @@ const Grid = styled.div`
   gap: var(--s-3);
 `;
 
-const Card = styled.a`
+const Card = styled.a<{ $color?: string }>`
   display: flex;
   flex-direction: column;
   background: var(--bg-2);
@@ -18,16 +19,36 @@ const Card = styled.a`
   overflow: hidden;
   text-decoration: none;
   color: inherit;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, transform 0.15s;
 
   &:hover {
-    border-color: var(--accent);
+    border-color: ${(p) => p.$color ?? 'var(--accent)'};
+    transform: translateY(-2px);
   }
 `;
 
-const Thumb = styled.div<{ $url?: string }>`
+const Thumb = styled.div<{ $url?: string; $color?: string }>`
   aspect-ratio: 16 / 9;
+  position: relative;
   background: ${(p) => (p.$url ? `url(${p.$url}) center/cover` : 'var(--bg-3)')};
+  display: grid;
+  place-items: center;
+  color: ${(p) => p.$color ?? 'var(--text-4)'};
+`;
+
+const ThumbBadge = styled.span<{ $color: string }>`
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(7, 9, 13, 0.75);
+  color: ${(p) => p.$color};
+  backdrop-filter: blur(4px);
 `;
 
 const Body = styled.div`
@@ -71,6 +92,8 @@ export const ContentGrid: React.FC<ContentGridProps> = ({ items, platform, empty
   // TikTok/IG/FB CDNs reject hotlinked images; route those through the backend proxy.
   const resolveThumb = (url?: string) =>
     platform && platform !== 'youtube' ? mediaProxyUrl(url) : url;
+  const meta = platform ? PLATFORM_META[platform] : null;
+  const Glyph = platform ? PLATFORM_GLYPHS[platform] : null;
 
   if (items.length === 0) {
     return (
@@ -82,15 +105,23 @@ export const ContentGrid: React.FC<ContentGridProps> = ({ items, platform, empty
 
   return (
     <Grid>
-      {items.map((item) => (
+      {items.map((item) => {
+        const thumb = resolveThumb(item.thumbnailUrl);
+        return (
         <Card
           key={item.id}
           href={item.url ?? '#'}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => { if (!item.url) e.preventDefault(); }}
+          $color={meta?.color}
         >
-          <Thumb $url={resolveThumb(item.thumbnailUrl)} />
+          <Thumb $url={thumb} $color={meta?.color}>
+            {!thumb && Glyph && <Glyph size={28} />}
+            {thumb && meta && Glyph && (
+              <ThumbBadge $color={meta.color}><Glyph size={13} /></ThumbBadge>
+            )}
+          </Thumb>
           <Body>
             <Title>{item.title}</Title>
             <Meta>
@@ -100,7 +131,8 @@ export const ContentGrid: React.FC<ContentGridProps> = ({ items, platform, empty
             </Meta>
           </Body>
         </Card>
-      ))}
+        );
+      })}
     </Grid>
   );
 };

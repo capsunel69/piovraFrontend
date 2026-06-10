@@ -13,18 +13,25 @@ import {
   YAxis,
 } from 'recharts';
 import type { AnDataPoint, AnMetricKey, AnPlatform } from '../../types/analytics';
-import {
-  AN_METRIC_LABELS,
-  AN_PLATFORM_COLORS,
-  AN_PLATFORM_LABELS,
-  AN_PLATFORMS,
-} from '../../types/analytics';
+import { AN_METRIC_LABELS, AN_PLATFORMS } from '../../types/analytics';
+import { PLATFORM_META } from './platformMeta';
 
-const Wrap = styled.div`
+const Wrap = styled.div<{ $accent?: string }>`
   background: var(--bg-2);
   border: 1px solid var(--border-1);
   border-radius: var(--r-lg);
   padding: var(--s-5);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: ${(p) =>
+      p.$accent ? `linear-gradient(90deg, ${p.$accent}, transparent 70%)` : 'transparent'};
+  }
 `;
 
 const HeaderRow = styled.div`
@@ -87,10 +94,12 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
   const [chartType, setChartType] = useState<'area' | 'bar'>('area');
 
   const rows = useMemo(() => buildChartRows(data, metric), [data, metric]);
+  const single = platforms.length === 1 ? platforms[0] : null;
+  const accent = single ? PLATFORM_META[single].color : undefined;
 
   if (loading) {
     return (
-      <Wrap style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
+      <Wrap $accent={accent} style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
         Loading…
       </Wrap>
     );
@@ -98,7 +107,7 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
 
   if (rows.length === 0) {
     return (
-      <Wrap style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
+      <Wrap $accent={accent} style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
         No {AN_METRIC_LABELS[metric].toLowerCase()} data for this period
       </Wrap>
     );
@@ -107,7 +116,7 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
   const Chart = chartType === 'area' ? AreaChart : BarChart;
 
   return (
-    <Wrap>
+    <Wrap $accent={accent}>
       <HeaderRow>
         <Title>{AN_METRIC_LABELS[metric]}</Title>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -133,24 +142,24 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
             }}
             formatter={(value: number) => formatNumber(value)}
           />
-          <Legend />
+          {!single && <Legend />}
           {platforms.map((platform) =>
             chartType === 'area' ? (
               <Area
                 key={platform}
                 type="monotone"
                 dataKey={platform}
-                name={AN_PLATFORM_LABELS[platform]}
-                stroke={AN_PLATFORM_COLORS[platform]}
-                fill={`${AN_PLATFORM_COLORS[platform]}33`}
+                name={PLATFORM_META[platform].label}
+                stroke={PLATFORM_META[platform].color}
+                fill={`${PLATFORM_META[platform].color}33`}
                 stackId="1"
               />
             ) : (
               <Bar
                 key={platform}
                 dataKey={platform}
-                name={AN_PLATFORM_LABELS[platform]}
-                fill={AN_PLATFORM_COLORS[platform]}
+                name={PLATFORM_META[platform].label}
+                fill={PLATFORM_META[platform].color}
               />
             ),
           )}

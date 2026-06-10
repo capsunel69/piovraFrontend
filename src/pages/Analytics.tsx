@@ -16,6 +16,8 @@ import ErrorMessage from '../components/shared/ErrorMessage';
 import { AnalyticsChart } from '../components/analytics/AnalyticsChart';
 import { DateRangePicker, getDateRangeFromPreset, type DateRange } from '../components/analytics/DateRangePicker';
 import { PlatformBreakdown } from '../components/analytics/PlatformBreakdown';
+import { PlatformHeader } from '../components/analytics/PlatformHeader';
+import { PLATFORM_GLYPHS, PLATFORM_META } from '../components/analytics/platformMeta';
 import { StatCard } from '../components/analytics/StatCard';
 import { ContentGrid } from '../components/analytics/ContentGrid';
 import { SettingsPanel } from '../components/analytics/SettingsPanel';
@@ -31,11 +33,7 @@ import type {
   AnPlatform,
   AnProject,
 } from '../types/analytics';
-import {
-  AN_METRIC_LABELS,
-  AN_PLATFORM_LABELS,
-  AN_PLATFORMS,
-} from '../types/analytics';
+import { AN_METRIC_LABELS, AN_PLATFORMS } from '../types/analytics';
 
 const STORAGE_KEY = 'piovra.analytics.dateRange';
 
@@ -49,15 +47,36 @@ const TabBar = styled.div`
   padding-bottom: var(--s-3);
 `;
 
-const Tab = styled.button<{ $active?: boolean }>`
+const Tab = styled.button<{ $active?: boolean; $color?: string; $soft?: string }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: ${(p) => (p.$active ? 600 : 500)};
   padding: 8px 14px;
   border-radius: var(--r-md);
-  border: none;
+  border: 1px solid ${(p) => (p.$active ? (p.$color ?? 'var(--accent)') : 'transparent')};
   cursor: pointer;
-  background: ${(p) => (p.$active ? 'rgba(76, 194, 255, 0.15)' : 'transparent')};
-  color: ${(p) => (p.$active ? 'var(--accent)' : 'var(--text-2)')};
+  background: ${(p) => (p.$active ? (p.$soft ?? 'rgba(76, 194, 255, 0.15)') : 'transparent')};
+  color: ${(p) => (p.$active ? (p.$color ?? 'var(--accent)') : 'var(--text-2)')};
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+
+  svg { color: ${(p) => (p.$active ? (p.$color ?? 'var(--accent)') : 'var(--text-3)')}; }
+
+  &:hover {
+    color: ${(p) => p.$color ?? 'var(--accent)'};
+    svg { color: ${(p) => p.$color ?? 'var(--accent)'}; }
+  }
+`;
+
+const ControlCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  background: var(--bg-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-lg);
 `;
 
 const PullBar = styled.div`
@@ -148,22 +167,48 @@ function formatCompact(value: number): string {
 
 const METRIC_KEYS = Object.keys(AN_METRIC_LABELS) as AnMetricKey[];
 
+type PlatformBundle = {
+  content: AnContentResponse | null;
+  contentError?: string;
+};
+
+type PulledBundle = {
+  cacheKey: string;
+  overview: AnOverviewResponse;
+  platforms: Record<AnPlatform, PlatformBundle>;
+  master: AnMasterRow[];
+};
+
+function bundleKey(projectId: string, start: string, end: string): string {
+  return `${projectId}:${start}:${end}`;
+}
+
+function platformSeries(overview: AnOverviewResponse, platform: AnPlatform): AnDataPoint[] {
+  return overview.data.filter((d) => d.platform === platform);
+}
+
+function seriesTotals(series: AnDataPoint[]): Record<AnMetricKey, number> {
+  const totals = { views: 0, posts: 0, likes: 0, comments: 0, shares: 0 } as Record<AnMetricKey, number>;
+  for (const point of series) {
+    for (const key of METRIC_KEYS) {
+      totals[key] += (point[key] as number | undefined) ?? 0;
+    }
+  }
+  return totals;
+}
+
 const Analytics: React.FC = () => {
   const [tab, setTab] = useState<TabId>('overview');
   const [range, setRange] = useState<DateRange>(loadStoredRange);
   const [projects, setProjects] = useState<AnProject[]>([]);
   const [activeProjectId, setActiveProjectId] = useState('');
   const [accounts, setAccounts] = useState<AnAccount[]>([]);
-  const [overview, setOverview] = useState<AnOverviewResponse | null>(null);
-  const [platformData, setPlatformData] = useState<AnDataPoint[]>([]);
-  const [platformContent, setPlatformContent] = useState<AnContentResponse | null>(null);
-  const [masterRows, setMasterRows] = useState<AnMasterRow[] | null>(null);
+  const [bundle, setBundle] = useState<PulledBundle | null>(null);
   const [masterMetric, setMasterMetric] = useState<AnMetricKey>('views');
   const [logs, setLogs] = useState<AnLogEntry[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
-  const [pulledKey, setPulledKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadWorkspace = useCallback(async () => {
@@ -200,49 +245,19 @@ const Analytics: React.FC = () => {
     [range, activeProjectId],
   );
 
-  /** Identifies what the currently displayed data was pulled for. */
-  const currentKey = `${tab}:${activeProjectId}:${range.startDate}:${range.endDate}`;
-  const isStale = pulledKey !== null && pulledKey !== currentKey;
-  const hasData =
-    tab === 'overview'
-      ? overview !== null
-      : tab === 'master'
-        ? masterRows !== null
-        : platformData.length > 0 || platformContent !== null;
+  const currentCacheKey = bundleKey(activeProjectId, range.startDate, range.endDate);
+  const isStale = bundle !== null && bundle.cacheKey !== currentCacheKey;
+  const hasData = bundle !== null && bundle.cacheKey === currentCacheKey;
 
-  const pullData = useCallback(
-    async (refresh: boolean) => {
-      if (!activeProjectId) return;
-      setDataLoading(true);
-      setError(null);
-      try {
-        if (tab === 'overview') {
-          const data = await AnalyticsAPI.getOverview({ ...queryBase, refresh });
-          setOverview(data);
-        } else if (tab === 'master') {
-          const data = await AnalyticsAPI.getMaster({
-            startDate: range.startDate,
-            endDate: range.endDate,
-            refresh,
-          });
-          setMasterRows(data.rows);
-        } else if (tab !== 'settings' && tab !== 'logs') {
-          const [analytics, content] = await Promise.all([
-            AnalyticsAPI.getPlatformAnalytics(tab, { ...queryBase, refresh }),
-            AnalyticsAPI.getPlatformContent(tab, { ...queryBase, refresh }),
-          ]);
-          setPlatformData(analytics);
-          setPlatformContent(content);
-        }
-        setPulledKey(currentKey);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to pull data');
-      } finally {
-        setDataLoading(false);
-      }
-    },
-    [activeProjectId, tab, queryBase, range, currentKey],
-  );
+  const activePlatform = AN_PLATFORMS.includes(tab as AnPlatform) ? (tab as AnPlatform) : null;
+  const activeOverview = hasData ? bundle!.overview : null;
+  const activePlatformSeries = activeOverview && activePlatform
+    ? platformSeries(activeOverview, activePlatform)
+    : [];
+  const activePlatformContent = hasData && activePlatform
+    ? bundle!.platforms[activePlatform].content
+    : null;
+  const activePlatformTotals = useMemo(() => seriesTotals(activePlatformSeries), [activePlatformSeries]);
 
   const loadLogs = useCallback(async () => {
     setLogsLoading(true);
@@ -256,16 +271,63 @@ const Analytics: React.FC = () => {
     }
   }, []);
 
+  /** One pull loads overview + all platform content + master — every tab reads from the same bundle. */
+  const pullData = useCallback(
+    async (refresh: boolean) => {
+      if (!activeProjectId) return;
+      setDataLoading(true);
+      setError(null);
+      const key = bundleKey(activeProjectId, range.startDate, range.endDate);
+      const query = { ...queryBase, refresh };
+
+      try {
+        const [overview, masterResult, ...contentResults] = await Promise.all([
+          AnalyticsAPI.getOverview(query),
+          AnalyticsAPI.getMaster({
+            startDate: range.startDate,
+            endDate: range.endDate,
+            refresh,
+          }),
+          ...AN_PLATFORMS.map((platform) =>
+            AnalyticsAPI.getPlatformContent(platform, query)
+              .then((content) => ({ platform, content }))
+              .catch((e: unknown) => ({
+                platform,
+                content: null,
+                error: e instanceof Error ? e.message : 'Failed to load content',
+              })),
+          ),
+        ]);
+
+        const platforms = {} as Record<AnPlatform, PlatformBundle>;
+        for (const result of contentResults) {
+          platforms[result.platform] = {
+            content: result.content,
+            contentError: 'error' in result ? result.error : undefined,
+          };
+        }
+
+        setBundle({ cacheKey: key, overview, platforms, master: masterResult.rows });
+        void loadLogs();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to pull data');
+      } finally {
+        setDataLoading(false);
+      }
+    },
+    [activeProjectId, queryBase, range, loadLogs],
+  );
+
   useEffect(() => {
     if (tab === 'logs') void loadLogs();
   }, [tab, loadLogs]);
 
   const sortedMasterRows = useMemo(() => {
-    if (!masterRows) return null;
-    return [...masterRows].sort(
+    if (!hasData) return null;
+    return [...bundle!.master].sort(
       (a, b) => (b.totals[masterMetric] ?? 0) - (a.totals[masterMetric] ?? 0),
     );
-  }, [masterRows, masterMetric]);
+  }, [bundle, hasData, masterMetric]);
 
   if (loading) return <LoadingState message="Loading analytics…" />;
 
@@ -299,16 +361,28 @@ const Analytics: React.FC = () => {
 
       <TabBar>
         <Tab $active={tab === 'overview'} onClick={() => setTab('overview')}>Overview</Tab>
-        {AN_PLATFORMS.map((p) => (
-          <Tab key={p} $active={tab === p} onClick={() => setTab(p)}>{AN_PLATFORM_LABELS[p]}</Tab>
-        ))}
+        {AN_PLATFORMS.map((p) => {
+          const Glyph = PLATFORM_GLYPHS[p];
+          const meta = PLATFORM_META[p];
+          return (
+            <Tab
+              key={p}
+              $active={tab === p}
+              $color={meta.color}
+              $soft={meta.soft}
+              onClick={() => setTab(p)}
+            >
+              <Glyph size={14} /> {meta.label}
+            </Tab>
+          );
+        })}
         <Tab $active={tab === 'master'} onClick={() => setTab('master')}>Master</Tab>
         <Tab $active={tab === 'logs'} onClick={() => setTab('logs')}>Logs</Tab>
         <Tab $active={tab === 'settings'} onClick={() => setTab('settings')}>Settings</Tab>
       </TabBar>
 
       {isDataTab && (
-        <>
+        <ControlCard>
           <DateRangePicker range={range} onChange={setRange} />
           <PullBar>
             <Button $variant="primary" disabled={dataLoading} onClick={() => void pullData(false)}>
@@ -317,11 +391,14 @@ const Analytics: React.FC = () => {
             <Button $variant="ghost" $size="sm" disabled={dataLoading} onClick={() => void pullData(true)}>
               Force rescrape
             </Button>
+            <span style={{ fontSize: 12, color: 'var(--text-3)', maxWidth: 420 }}>
+              Pull uses cache when available. Rescrape bypasses cache and hits live APIs (uses credits).
+            </span>
             {isStale && !dataLoading && hasData && (
-              <StaleNote>Filters changed — press "Pull data now" to update.</StaleNote>
+              <StaleNote>Date range or project changed — pull again to refresh all tabs.</StaleNote>
             )}
           </PullBar>
-        </>
+        </ControlCard>
       )}
 
       {error && <ErrorMessage message={error} />}
@@ -339,49 +416,55 @@ const Analytics: React.FC = () => {
         </GatheringBox>
       )}
 
-      {tab === 'overview' && !dataLoading && overview && (
+      {tab === 'overview' && !dataLoading && activeOverview && (
         <Stack $gap={4}>
           <Grid $cols={5} $min="160px">
             {METRIC_KEYS.map((key) => (
               <StatCard
                 key={key}
                 title={AN_METRIC_LABELS[key]}
-                value={overview.totals[key] ?? 0}
-                comparison={overview.comparisons[key]}
+                value={activeOverview.totals[key] ?? 0}
+                comparison={activeOverview.comparisons[key]}
                 large={key === 'views'}
               />
             ))}
           </Grid>
+          <PlatformBreakdown overview={activeOverview} onSelect={(p) => setTab(p)} />
           <Grid $min="420px">
             {METRIC_KEYS.map((key) => (
-              <AnalyticsChart key={key} data={overview.data} metric={key} />
+              <AnalyticsChart key={key} data={activeOverview.data} metric={key} />
             ))}
           </Grid>
-          <PlatformBreakdown overview={overview} />
         </Stack>
       )}
 
-      {AN_PLATFORMS.includes(tab as AnPlatform) && !dataLoading && (platformData.length > 0 || platformContent) && (
+      {activePlatform && !dataLoading && hasData && (
         <Stack $gap={4}>
-          {platformContent?.profile && (
-            <div style={{ fontSize: 13, color: 'var(--text-2)' }}>
-              <strong>{platformContent.profile.name}</strong>
-              {platformContent.profile.followerCount != null && (
-                <span> · {platformContent.profile.followerCount.toLocaleString()} followers</span>
-              )}
-            </div>
+          <PlatformHeader platform={activePlatform} content={activePlatformContent} />
+          {bundle!.platforms[activePlatform].contentError && (
+            <StaleNote>{bundle!.platforms[activePlatform].contentError}</StaleNote>
           )}
+          <Grid $cols={5} $min="160px">
+            {METRIC_KEYS.map((key) => (
+              <StatCard
+                key={key}
+                title={AN_METRIC_LABELS[key]}
+                value={activePlatformTotals[key]}
+                accent={PLATFORM_META[activePlatform].color}
+              />
+            ))}
+          </Grid>
           <Grid $min="420px">
             {METRIC_KEYS.map((key) => (
               <AnalyticsChart
                 key={key}
-                data={platformData}
+                data={activePlatformSeries}
                 metric={key}
-                platforms={[tab as AnPlatform]}
+                platforms={[activePlatform]}
               />
             ))}
           </Grid>
-          <ContentGrid items={platformContent?.items ?? []} platform={tab as AnPlatform} />
+          <ContentGrid items={activePlatformContent?.items ?? []} platform={activePlatform} />
         </Stack>
       )}
 
@@ -418,12 +501,18 @@ const Analytics: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedMasterRows.map((row, i) => (
+                  {sortedMasterRows.map((row, i) => {
+                    const Glyph = PLATFORM_GLYPHS[row.platform];
+                    return (
                     <tr key={row.accountId}>
                       <td>{i + 1}</td>
                       <td>{row.projectName}</td>
                       <td>{row.accountLabel}</td>
-                      <td>{AN_PLATFORM_LABELS[row.platform]}</td>
+                      <td>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: PLATFORM_META[row.platform].color, fontWeight: 600 }}>
+                          <Glyph size={13} /> {PLATFORM_META[row.platform].label}
+                        </span>
+                      </td>
                       {row.error ? (
                         <td colSpan={METRIC_KEYS.length} style={{ color: '#f87171' }}>{row.error}</td>
                       ) : (
@@ -434,7 +523,8 @@ const Analytics: React.FC = () => {
                         ))
                       )}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </MasterTable>
             </div>

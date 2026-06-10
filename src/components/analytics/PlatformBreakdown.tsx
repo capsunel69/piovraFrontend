@@ -1,52 +1,83 @@
 import React from 'react';
 import styled from 'styled-components';
 import type { AnMetricKey, AnOverviewResponse, AnPlatform } from '../../types/analytics';
-import {
-  AN_METRIC_LABELS,
-  AN_PLATFORM_COLORS,
-  AN_PLATFORM_LABELS,
-  AN_PLATFORMS,
-} from '../../types/analytics';
+import { AN_METRIC_LABELS, AN_PLATFORMS } from '../../types/analytics';
+import { PLATFORM_GLYPHS, PLATFORM_META } from './platformMeta';
 
 const Grid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: var(--s-3);
 `;
 
-const Card = styled.div`
-  background: var(--bg-2);
+const Card = styled.button<{ $color: string; $gradient: string }>`
+  text-align: left;
+  font: inherit;
+  background: ${(p) => p.$gradient}, var(--bg-2);
   border: 1px solid var(--border-1);
   border-radius: var(--r-lg);
   padding: var(--s-4);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.15s, transform 0.15s;
+
+  &:hover {
+    border-color: ${(p) => p.$color};
+    transform: translateY(-2px);
+  }
 `;
 
-const Header = styled.div`
+const Header = styled.div<{ $color: string }>`
   display: flex;
   align-items: center;
   gap: var(--s-2);
   margin-bottom: var(--s-3);
-`;
-
-const Dot = styled.span<{ $color: string }>`
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: ${(p) => p.$color};
+  color: ${(p) => p.$color};
 `;
 
 const Name = styled.span`
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-1);
 `;
 
-const MetricRow = styled.div`
+const HeroValue = styled.div`
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+
+  small {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+  }
+`;
+
+const MiniStats = styled.div`
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border-1);
+  font-size: 11px;
+  color: var(--text-3);
+
+  strong { color: var(--text-2); font-variant-numeric: tabular-nums; }
+`;
+
+const ErrorText = styled.span`
   font-size: 12px;
-  padding: 4px 0;
-  color: var(--text-2);
+  color: #f87171;
+  display: block;
+  word-break: break-word;
 `;
 
 function formatCompact(value: number): string {
@@ -55,41 +86,51 @@ function formatCompact(value: number): string {
   return String(value);
 }
 
+const MINI_KEYS: AnMetricKey[] = ['posts', 'likes', 'comments', 'shares'];
+
 interface PlatformBreakdownProps {
   overview: AnOverviewResponse | null;
-  metric?: AnMetricKey;
-  errors?: Partial<Record<AnPlatform, string>>;
+  onSelect?: (platform: AnPlatform) => void;
 }
 
-export const PlatformBreakdown: React.FC<PlatformBreakdownProps> = ({
-  overview,
-  metric = 'views',
-  errors = {},
-}) => {
+export const PlatformBreakdown: React.FC<PlatformBreakdownProps> = ({ overview, onSelect }) => {
   if (!overview) return null;
 
   return (
     <Grid>
       {AN_PLATFORMS.map((platform) => {
+        const meta = PLATFORM_META[platform];
+        const Glyph = PLATFORM_GLYPHS[platform];
         const stats = overview.byPlatform[platform];
-        const err = errors[platform] ?? overview.errors[platform];
+        const err = overview.errors[platform];
         return (
-          <Card key={platform}>
-            <Header>
-              <Dot $color={AN_PLATFORM_COLORS[platform]} />
-              <Name>{AN_PLATFORM_LABELS[platform]}</Name>
+          <Card
+            key={platform}
+            $color={meta.color}
+            $gradient={meta.gradient}
+            onClick={() => onSelect?.(platform)}
+            title={`Open ${meta.label} details`}
+          >
+            <Header $color={meta.color}>
+              <Glyph size={16} />
+              <Name>{meta.label}</Name>
             </Header>
             {err ? (
-              <span style={{ fontSize: 12, color: '#f87171' }}>{err}</span>
+              <ErrorText>{err}</ErrorText>
             ) : (
-              (Object.keys(AN_METRIC_LABELS) as AnMetricKey[]).map((key) => (
-                <MetricRow key={key}>
-                  <span>{AN_METRIC_LABELS[key]}</span>
-                  <strong style={{ color: key === metric ? 'var(--accent)' : undefined }}>
-                    {formatCompact(stats?.[key] ?? 0)}
-                  </strong>
-                </MetricRow>
-              ))
+              <>
+                <HeroValue>
+                  {formatCompact(stats?.views ?? 0)}
+                  <small>views</small>
+                </HeroValue>
+                <MiniStats>
+                  {MINI_KEYS.map((key) => (
+                    <span key={key}>
+                      {AN_METRIC_LABELS[key]} <strong>{formatCompact(stats?.[key] ?? 0)}</strong>
+                    </span>
+                  ))}
+                </MiniStats>
+              </>
             )}
           </Card>
         );

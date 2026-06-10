@@ -2,13 +2,25 @@ import React from 'react';
 import styled from 'styled-components';
 import type { AnMetricComparison } from '../../types/analytics';
 
-const Card = styled.div<{ $large?: boolean }>`
+const Card = styled.div<{ $large?: boolean; $accent?: string }>`
   background: var(--bg-2);
   border: 1px solid var(--border-1);
   border-radius: var(--r-lg);
   padding: ${(p) => (p.$large ? 'var(--s-6)' : 'var(--s-5)')};
   position: relative;
   overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: ${(p) =>
+      p.$accent
+        ? `linear-gradient(90deg, ${p.$accent}, transparent 70%)`
+        : 'linear-gradient(90deg, var(--accent), transparent 70%)'};
+    opacity: ${(p) => (p.$large || p.$accent ? 1 : 0)};
+  }
 `;
 
 const Title = styled.p`
@@ -78,16 +90,18 @@ interface StatCardProps {
   value: number;
   comparison?: AnMetricComparison | null;
   large?: boolean;
+  /** Brand color tint (platform pages). */
+  accent?: string;
 }
 
-export const StatCard: React.FC<StatCardProps> = ({ title, value, comparison, large }) => {
+export const StatCard: React.FC<StatCardProps> = ({ title, value, comparison, large, accent }) => {
   const percent = comparison?.percentChange ?? null;
   const isUp = percent !== null && percent > 0;
   const isDown = percent !== null && percent < 0;
   const isNew = comparison && comparison.previous === 0 && comparison.current > 0;
 
   return (
-    <Card $large={large}>
+    <Card $large={large} $accent={accent}>
       <Title>{title}</Title>
       <Value $large={large}>{formatCompact(value)}</Value>
       {comparison && (
