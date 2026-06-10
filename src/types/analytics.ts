@@ -18,12 +18,18 @@ export interface AnMetricComparison {
   current: number;
 }
 
+export interface AnPullMeta {
+  cacheHits: number;
+  liveCalls: number;
+}
+
 export interface AnOverviewResponse {
   data: AnDataPoint[];
   totals: Record<AnMetricKey, number>;
   comparisons: Record<AnMetricKey, AnMetricComparison>;
   byPlatform: Record<AnPlatform, Record<AnMetricKey, number>>;
   errors: Partial<Record<AnPlatform, string>>;
+  _meta?: AnPullMeta;
 }
 
 export interface AnProject {
@@ -82,6 +88,15 @@ export interface AnContentResponse {
   items: AnSocialPostItem[];
   dataSource: 'scrapecreators' | 'public';
   platform: AnPlatform;
+  _meta?: AnPullMeta;
+}
+
+export interface AnAdminAnProject {
+  projectId: string;
+  projectName: string;
+  accountCount: number;
+  isActive: boolean;
+  createdAt: string;
 }
 
 export interface AnLogEntry {

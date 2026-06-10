@@ -73,7 +73,7 @@ const ToastPill = styled.button`
  * pull finishes (success or error), wherever the user is.
  */
 export const AnalyticsPullIndicator: React.FC = () => {
-  const { status, error, completionId } = useAnalyticsPull();
+  const { status, error, completionId, progress } = useAnalyticsPull();
   const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -96,8 +96,12 @@ export const AnalyticsPullIndicator: React.FC = () => {
     <ToastPill onClick={() => navigate('/analytics')} title="Back to Analytics">
       <Spinner $size={16} />
       <span>
-        Gathering analytics data…
-        <span className="sub">Still running in the background — click to return.</span>
+        {progress?.message ?? 'Gathering analytics data…'}
+        <span className="sub">
+          {progress
+            ? `${progress.completedSteps}/${progress.totalSteps} sources · click to return`
+            : 'Still running in the background — click to return.'}
+        </span>
       </span>
     </ToastPill>
   );

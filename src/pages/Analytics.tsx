@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { IconAnalytics } from '../components/ui/icons';
+import {
+  IconAnalytics,
+  IconGrid,
+  IconSpark,
+  IconTerminal,
+  IconSettings,
+  IconDashboard,
+} from '../components/ui/icons';
 import {
   PageContainer,
   PageHeader,
@@ -26,6 +33,7 @@ import {
   platformsForMetric,
 } from '../components/analytics/platformMeta';
 import { StatCard } from '../components/analytics/StatCard';
+import { MasterStatCard } from '../components/analytics/MasterStatCard';
 import { ContentGrid } from '../components/analytics/ContentGrid';
 import { SettingsPanel } from '../components/analytics/SettingsPanel';
 import { UsagePanel } from '../components/analytics/UsagePanel';
@@ -54,10 +62,31 @@ type TabId = 'overview' | AnPlatform | 'master' | 'usage' | 'logs' | 'settings';
 
 const TabBar = styled.div`
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
   border-bottom: 1px solid var(--border-1);
   padding-bottom: var(--s-3);
+  flex-wrap: wrap;
+`;
+
+const SocialTabs = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  flex: 1;
+  min-width: 0;
+`;
+
+const UtilityTabs = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  padding: 4px;
+  border-radius: var(--r-lg);
+  background: var(--bg-2);
+  border: 1px solid var(--border-1);
+  flex-shrink: 0;
 `;
 
 const Tab = styled.button<{ $active?: boolean; $color?: string; $soft?: string }>`
@@ -80,6 +109,47 @@ const Tab = styled.button<{ $active?: boolean; $color?: string; $soft?: string }
     color: ${(p) => p.$color ?? 'var(--accent)'};
     svg { color: ${(p) => p.$color ?? 'var(--accent)'}; }
   }
+`;
+
+const UtilityTab = styled.button<{ $active?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: ${(p) => (p.$active ? 600 : 500)};
+  padding: 7px 12px;
+  border-radius: var(--r-md);
+  border: none;
+  cursor: pointer;
+  background: ${(p) => (p.$active ? 'var(--accent-soft)' : 'transparent')};
+  color: ${(p) => (p.$active ? 'var(--accent)' : 'var(--text-3)')};
+  transition: background 0.15s, color 0.15s;
+
+  svg { color: ${(p) => (p.$active ? 'var(--accent)' : 'var(--text-4)')}; }
+
+  &:hover {
+    color: var(--text-1);
+    background: var(--bg-3);
+    svg { color: var(--accent); }
+  }
+`;
+
+const PullStatusPill = styled.span<{ $mode: 'cache' | 'scrape' | 'mixed' }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: ${(p) =>
+    p.$mode === 'scrape'
+      ? 'rgba(251, 191, 36, 0.12)'
+      : p.$mode === 'mixed'
+        ? 'rgba(167, 139, 250, 0.12)'
+        : 'rgba(76, 194, 255, 0.12)'};
+  color: ${(p) =>
+    p.$mode === 'scrape' ? '#fbbf24' : p.$mode === 'mixed' ? '#a78bfa' : 'var(--accent)'};
 `;
 
 const ControlCard = styled.div`
@@ -332,6 +402,19 @@ const Analytics: React.FC = () => {
     [activeProjectId, range],
   );
 
+  // Auto-hydrate from backend cache when page loads or project/range changes.
+  useEffect(() => {
+    if (loading || !activeProjectId) return;
+    const key = bundleKey(activeProjectId, range.startDate, range.endDate);
+    if (pull.bundles[key] || pull.status === 'pulling') return;
+    void startAnalyticsPull({
+      projectId: activeProjectId,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      refresh: false,
+    });
+  }, [loading, activeProjectId, range.startDate, range.endDate, pull.bundles, pull.status]);
+
   // Refresh logs whenever a pull finishes (success or failure).
   useEffect(() => {
     if (pull.completionId > 0) void loadLogs();
@@ -419,6 +502,23 @@ const Analytics: React.FC = () => {
   if (loading) return <LoadingState message="Loading analytics…" />;
 
   const isDataTab = tab === 'overview' || tab === 'master' || AN_PLATFORMS.includes(tab as AnPlatform);
+  const isUtilityTab = tab === 'master' || tab === 'usage' || tab === 'logs' || tab === 'settings';
+
+  const pullStatusMode = useMemo(() => {
+    if (!pull.progress) return null;
+    const { mode, liveCalls, cacheHits } = pull.progress;
+    if (mode === 'scrape' || (liveCalls > 0 && cacheHits === 0)) return 'scrape' as const;
+    if (liveCalls > 0 && cacheHits > 0) return 'mixed' as const;
+    return 'cache' as const;
+  }, [pull.progress]);
+
+  const pullStatusLabel = useMemo(() => {
+    if (!pull.progress) return null;
+    const m = pullStatusMode;
+    if (m === 'scrape') return 'Live scrape';
+    if (m === 'mixed') return 'Cache + scrape';
+    return 'From cache';
+  }, [pull.progress, pullStatusMode]);
 
   return (
     <PageContainer>
@@ -427,7 +527,7 @@ const Analytics: React.FC = () => {
           <PageTitle><IconAnalytics size={24} /> Analytics</PageTitle>
           <PageSubtitle>Social media performance across YouTube, Facebook, Instagram, and TikTok</PageSubtitle>
         </div>
-        {projects.length > 0 && tab !== 'master' && (
+        {projects.length > 0 && !isUtilityTab && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {projects.map((p) => (
               <Button
@@ -447,32 +547,46 @@ const Analytics: React.FC = () => {
       </PageHeader>
 
       <TabBar>
-        <Tab $active={tab === 'overview'} onClick={() => setTab('overview')}>Overview</Tab>
-        {AN_PLATFORMS.map((p) => {
-          const Glyph = PLATFORM_GLYPHS[p];
-          const meta = PLATFORM_META[p];
-          const account = accountForPlatform(p);
-          const avatar = account?.avatarUrl
-            ? p === 'youtube'
-              ? account.avatarUrl
-              : mediaProxyUrl(account.avatarUrl)
-            : undefined;
-          return (
-            <Tab
-              key={p}
-              $active={tab === p}
-              $color={meta.color}
-              $soft={meta.soft}
-              onClick={() => setTab(p)}
-            >
-              <MediaAvatar src={avatar} size={16} glyph={<Glyph size={11} />} /> {meta.label}
-            </Tab>
-          );
-        })}
-        <Tab $active={tab === 'master'} onClick={() => setTab('master')}>Master</Tab>
-        <Tab $active={tab === 'usage'} onClick={() => setTab('usage')}>Usage</Tab>
-        <Tab $active={tab === 'logs'} onClick={() => setTab('logs')}>Logs</Tab>
-        <Tab $active={tab === 'settings'} onClick={() => setTab('settings')}>Settings</Tab>
+        <SocialTabs>
+          <Tab $active={tab === 'overview'} onClick={() => setTab('overview')}>
+            <IconDashboard size={15} /> Overview
+          </Tab>
+          {AN_PLATFORMS.map((p) => {
+            const Glyph = PLATFORM_GLYPHS[p];
+            const meta = PLATFORM_META[p];
+            const account = accountForPlatform(p);
+            const avatar = account?.avatarUrl
+              ? p === 'youtube'
+                ? account.avatarUrl
+                : mediaProxyUrl(account.avatarUrl)
+              : undefined;
+            return (
+              <Tab
+                key={p}
+                $active={tab === p}
+                $color={meta.color}
+                $soft={meta.soft}
+                onClick={() => setTab(p)}
+              >
+                <MediaAvatar src={avatar} size={16} glyph={<Glyph size={11} />} /> {meta.label}
+              </Tab>
+            );
+          })}
+        </SocialTabs>
+        <UtilityTabs>
+          <UtilityTab $active={tab === 'master'} onClick={() => setTab('master')}>
+            <IconGrid size={14} /> Master
+          </UtilityTab>
+          <UtilityTab $active={tab === 'usage'} onClick={() => setTab('usage')}>
+            <IconSpark size={14} /> Usage
+          </UtilityTab>
+          <UtilityTab $active={tab === 'logs'} onClick={() => setTab('logs')}>
+            <IconTerminal size={14} /> Logs
+          </UtilityTab>
+          <UtilityTab $active={tab === 'settings'} onClick={() => setTab('settings')}>
+            <IconSettings size={14} /> Settings
+          </UtilityTab>
+        </UtilityTabs>
       </TabBar>
 
       {isDataTab && (
@@ -480,8 +594,11 @@ const Analytics: React.FC = () => {
           <DateRangePicker range={range} onChange={setRange} />
           <PullBar>
             <Button $variant="primary" disabled={dataLoading} onClick={() => void pullData(false)}>
-              {dataLoading ? 'Gathering data…' : 'Pull data now'}
+              {dataLoading ? (pull.progress?.message ?? 'Gathering data…') : 'Pull data now'}
             </Button>
+            {dataLoading && pullStatusMode && pullStatusLabel && (
+              <PullStatusPill $mode={pullStatusMode}>{pullStatusLabel}</PullStatusPill>
+            )}
             <Button $variant="ghost" $size="sm" disabled={dataLoading} onClick={() => void pullData(true)}>
               Force rescrape
             </Button>
@@ -489,6 +606,12 @@ const Analytics: React.FC = () => {
             {hasData && (
               <LastPull>
                 Last pull: {formatDateTimeRo(bundle!.pulledAt)}
+                {(bundle!.pullMeta?.liveCalls ?? 0) === 0 && (bundle!.pullMeta?.cacheHits ?? 0) > 0 && (
+                  <> · from cache</>
+                )}
+                {(bundle!.pullMeta?.liveCalls ?? 0) > 0 && (
+                  <> · {bundle!.pullMeta!.liveCalls} live call{bundle!.pullMeta!.liveCalls !== 1 ? 's' : ''}</>
+                )}
               </LastPull>
             )}
           </PullBar>
@@ -500,13 +623,20 @@ const Analytics: React.FC = () => {
       {isDataTab && dataLoading && (
         <GatheringBox>
           <Spinner $size={28} />
-          <span>Gathering data from platforms… this can take a minute on first pull.</span>
+          <span>{pull.progress?.message ?? 'Loading analytics data…'}</span>
+          {pull.progress && (
+            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+              {pull.progress.completedSteps}/{pull.progress.totalSteps} sources
+              {pull.progress.liveCalls > 0 && ` · ${pull.progress.liveCalls} live`}
+              {pull.progress.cacheHits > 0 && ` · ${pull.progress.cacheHits} cached`}
+            </span>
+          )}
         </GatheringBox>
       )}
 
       {isDataTab && !dataLoading && !hasData && (
         <GatheringBox>
-          <span>No data loaded yet. Pick a date range and press "Pull data now".</span>
+          <span>No data available for this period. Try a different range or force rescrape.</span>
         </GatheringBox>
       )}
 
@@ -596,11 +726,12 @@ const Analytics: React.FC = () => {
           </div>
 
           {/* Summed stat cards (like Overview, across included projects) */}
-          <Grid $cols={5} $min="160px">
+          <Grid $cols={5} $min="170px">
             {METRIC_KEYS.map((key) => (
-              <StatCard
+              <MasterStatCard
                 key={key}
-                title={key === 'shares' ? 'Shares (FB + TikTok)' : AN_METRIC_LABELS[key]}
+                metric={key}
+                title={key === 'shares' ? 'Shares (FB + TikTok)' : undefined}
                 value={masterTotals[key]}
                 large={key === 'views'}
               />

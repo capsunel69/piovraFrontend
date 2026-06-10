@@ -18,10 +18,10 @@ import { PLATFORM_META } from './platformMeta';
 import { formatDateRo, formatDayMonthRo } from '../../utils/dateFormat';
 
 const Wrap = styled.div<{ $accent?: string }>`
-  background: var(--bg-2);
+  background: linear-gradient(180deg, var(--bg-3) 0%, var(--bg-2) 100%);
   border: 1px solid var(--border-1);
   border-radius: var(--r-lg);
-  padding: var(--s-5);
+  padding: var(--s-5) var(--s-5) var(--s-4);
   position: relative;
   overflow: hidden;
 
@@ -29,9 +29,11 @@ const Wrap = styled.div<{ $accent?: string }>`
     content: '';
     position: absolute;
     inset: 0 0 auto 0;
-    height: 2px;
+    height: 3px;
     background: ${(p) =>
-      p.$accent ? `linear-gradient(90deg, ${p.$accent}, transparent 70%)` : 'transparent'};
+      p.$accent
+        ? `linear-gradient(90deg, ${p.$accent}, ${p.$accent}44 40%, transparent 85%)`
+        : 'linear-gradient(90deg, var(--accent), transparent 70%)'};
   }
 `;
 
@@ -45,20 +47,31 @@ const HeaderRow = styled.div`
 `;
 
 const Title = styled.h3`
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--text-1);
+  letter-spacing: -0.01em;
+`;
+
+const ChipGroup = styled.div`
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--r-md);
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
 `;
 
 const Chip = styled.button<{ $active?: boolean }>`
   font-size: 11px;
   font-weight: 600;
-  padding: 4px 10px;
-  border-radius: var(--r-sm);
-  border: 1px solid ${(p) => (p.$active ? 'var(--accent)' : 'var(--border-1)')};
-  background: ${(p) => (p.$active ? 'rgba(76, 194, 255, 0.13)' : 'transparent')};
+  padding: 5px 11px;
+  border-radius: calc(var(--r-md) - 2px);
+  border: none;
+  background: ${(p) => (p.$active ? 'var(--accent-soft)' : 'transparent')};
   color: ${(p) => (p.$active ? 'var(--accent)' : 'var(--text-3)')};
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 `;
 
 export type ChartRow = Record<string, string | number>;
@@ -77,6 +90,58 @@ function buildChartRows(data: AnDataPoint[], metric: AnMetricKey): ChartRow[] {
     byDate.set(point.date, row);
   }
   return [...byDate.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
+const TooltipBox = styled.div`
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  font-size: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+
+  .label {
+    font-weight: 600;
+    color: var(--text-1);
+    margin-bottom: 6px;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    color: var(--text-2);
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+`;
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{ name: string; value: number; color: string }>;
+  label?: string;
+}
+
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+  if (!active || !payload?.length || !label) return null;
+  return (
+    <TooltipBox>
+      <div className="label">{formatDateRo(label)}</div>
+      {payload.map((entry) => (
+        <div key={entry.name} className="row">
+          <span className="dot" style={{ background: entry.color }} />
+          <span>{entry.name}</span>
+          <strong style={{ marginLeft: 'auto' }}>{formatNumber(entry.value)}</strong>
+        </div>
+      ))}
+    </TooltipBox>
+  );
 }
 
 interface AnalyticsChartProps {
@@ -100,7 +165,7 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
 
   if (loading) {
     return (
-      <Wrap $accent={accent} style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
+      <Wrap $accent={accent} style={{ minHeight: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
         Loading…
       </Wrap>
     );
@@ -108,63 +173,86 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
 
   if (rows.length === 0) {
     return (
-      <Wrap $accent={accent} style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
+      <Wrap $accent={accent} style={{ minHeight: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
         No {AN_METRIC_LABELS[metric].toLowerCase()} data for this period
       </Wrap>
     );
   }
 
   const Chart = chartType === 'area' ? AreaChart : BarChart;
+  const gridStroke = 'rgba(255,255,255,0.06)';
 
   return (
     <Wrap $accent={accent}>
       <HeaderRow>
         <Title>{AN_METRIC_LABELS[metric]}</Title>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <ChipGroup>
           <Chip $active={chartType === 'area'} onClick={() => setChartType('area')}>Area</Chip>
           <Chip $active={chartType === 'bar'} onClick={() => setChartType('bar')}>Bar</Chip>
-        </div>
+        </ChipGroup>
       </HeaderRow>
-      <ResponsiveContainer width="100%" height={240}>
-        <Chart data={rows}>
-          <CartesianGrid stroke="var(--border-1)" strokeDasharray="3 3" />
+      <ResponsiveContainer width="100%" height={260}>
+        <Chart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <defs>
+            {platforms.map((platform) => {
+              const color = PLATFORM_META[platform].color;
+              return (
+                <linearGradient key={platform} id={`grad-${platform}-${metric}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+                </linearGradient>
+              );
+            })}
+          </defs>
+          <CartesianGrid stroke={gridStroke} strokeDasharray="4 6" vertical={false} />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 11, fill: 'var(--text-3)' }}
+            tick={{ fontSize: 11, fill: 'var(--text-4)' }}
+            tickLine={false}
+            axisLine={{ stroke: gridStroke }}
             tickFormatter={formatDayMonthRo}
+            dy={8}
           />
-          <YAxis tick={{ fontSize: 11, fill: 'var(--text-3)' }} tickFormatter={formatNumber} />
-          <Tooltip
-            contentStyle={{
-              background: 'var(--bg-2)',
-              border: '1px solid var(--border-1)',
-              borderRadius: 8,
-              fontSize: 12,
-            }}
-            formatter={(value: number) => formatNumber(value)}
-            labelFormatter={(label: string) => formatDateRo(label)}
+          <YAxis
+            tick={{ fontSize: 11, fill: 'var(--text-4)' }}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={formatNumber}
+            width={44}
           />
-          {!single && <Legend />}
-          {platforms.map((platform) =>
-            chartType === 'area' ? (
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border-2)', strokeWidth: 1 }} />
+          {!single && (
+            <Legend
+              wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
+              iconType="circle"
+              iconSize={8}
+            />
+          )}
+          {platforms.map((platform) => {
+            const color = PLATFORM_META[platform].color;
+            return chartType === 'area' ? (
               <Area
                 key={platform}
                 type="monotone"
                 dataKey={platform}
                 name={PLATFORM_META[platform].label}
-                stroke={PLATFORM_META[platform].color}
-                fill={`${PLATFORM_META[platform].color}33`}
-                stackId="1"
+                stroke={color}
+                strokeWidth={2}
+                fill={`url(#grad-${platform}-${metric})`}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0, fill: color }}
               />
             ) : (
               <Bar
                 key={platform}
                 dataKey={platform}
                 name={PLATFORM_META[platform].label}
-                fill={PLATFORM_META[platform].color}
+                fill={color}
+                radius={[4, 4, 0, 0]}
+                maxBarSize={32}
               />
-            ),
-          )}
+            );
+          })}
         </Chart>
       </ResponsiveContainer>
     </Wrap>

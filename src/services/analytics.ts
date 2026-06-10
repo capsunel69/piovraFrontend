@@ -120,7 +120,9 @@ export const AnalyticsAPI = {
     fetchAn<AnContentResponse>(`content/${platform}?${toQuery({ ...query })}`),
 
   getMaster: (query: { startDate: string; endDate: string; refresh?: boolean }) =>
-    fetchAn<{ rows: AnMasterRow[] }>(`data/master?${toQuery({ ...query })}`),
+    fetchAn<{ rows: AnMasterRow[]; _meta?: import('../types/analytics').AnPullMeta }>(
+      `data/master?${toQuery({ ...query })}`,
+    ),
 
   getLogs: (limit = 200) => fetchAn<{ logs: AnLogEntry[] }>(`logs?limit=${limit}`),
 

@@ -86,6 +86,14 @@ interface CsAdminProject {
   commentCount: number;
 }
 
+interface AnAdminProject {
+  projectId: string;
+  projectName: string;
+  accountCount: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
 const MODULE_FEATURES: Array<{
   id: 'whatsapp' | 'comment_sentinel' | 'analytics';
   label: string;
@@ -707,6 +715,9 @@ const Admin: React.FC = () => {
   const [skillSaveBusy, setSkillSaveBusy] = useState(false);
   const [detailUser, setDetailUser] = useState<AdminUser | null>(null);
   const [csProjects, setCsProjects] = useState<CsAdminProject[] | null>(null);
+  const [anProjects, setAnProjects] = useState<AnAdminProject[] | null>(null);
+  const [anCopySelection, setAnCopySelection] = useState<Set<string>>(new Set());
+  const [anCopyBusy, setAnCopyBusy] = useState(false);
   const [featureSaveBusy, setFeatureSaveBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -720,16 +731,18 @@ const Admin: React.FC = () => {
   const load = useCallback(async (): Promise<void> => {
     setError(null);
     try {
-      const [u, m, cat, cs] = await Promise.all([
+      const [u, m, cat, cs, an] = await Promise.all([
         adminFetch<AdminUser[]>('/users'),
         adminFetch<AdminMetrics>('/metrics'),
         adminFetch<SkillCatalog>('/skill-catalog'),
         adminFetch<CsAdminProject[]>('/comment-sentinel/projects'),
+        adminFetch<AnAdminProject[]>('/analytics/projects'),
       ]);
       setUsers(u);
       setMetrics(m);
       setSkillCatalog(cat);
       setCsProjects(cs);
+      setAnProjects(an);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -1130,6 +1143,80 @@ const Admin: React.FC = () => {
                   })}
                 </FeatureList>
               </DetailSection>
+
+              {detailUser.id !== me?.id &&
+                !(detailUser.disabledFeatures ?? []).includes('analytics') &&
+                (anProjects?.length ?? 0) > 0 && (
+                <DetailSection>
+                  <DetailSectionTitle>Analytics projects</DetailSectionTitle>
+                  <MetaMuted style={{ lineHeight: 1.45, marginBottom: 'var(--s-3)' }}>
+                    Copy your analytics projects (with all accounts and profile data) to this user.
+                    They get their own copy and can pull data independently.
+                  </MetaMuted>
+                  <Stack $gap={2}>
+                    {anProjects!.map((p) => {
+                      const checked = anCopySelection.has(p.projectId);
+                      return (
+                        <label
+                          key={p.projectId}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            fontSize: 13,
+                            color: 'var(--text-2)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              setAnCopySelection((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(p.projectId)) next.delete(p.projectId);
+                                else next.add(p.projectId);
+                                return next;
+                              });
+                            }}
+                          />
+                          <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>{p.projectName}</span>
+                          <span style={{ color: 'var(--text-3)', fontSize: 12 }}>
+                            {p.accountCount} account{p.accountCount !== 1 ? 's' : ''}
+                          </span>
+                        </label>
+                      );
+                    })}
+                    <Button
+                      $size="sm"
+                      disabled={anCopyBusy || anCopySelection.size === 0}
+                      onClick={async () => {
+                        if (anCopySelection.size === 0) return;
+                        setAnCopyBusy(true);
+                        try {
+                          const result = await adminFetch<{ copied: number }>(
+                            `/users/${detailUser.id}/analytics-projects/copy`,
+                            {
+                              method: 'POST',
+                              body: JSON.stringify({ projectIds: [...anCopySelection] }),
+                            },
+                          );
+                          setAnCopySelection(new Set());
+                          alert(`Copied ${result.copied} project${result.copied !== 1 ? 's' : ''} to ${detailUser.email}.`);
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : String(err));
+                        } finally {
+                          setAnCopyBusy(false);
+                        }
+                      }}
+                    >
+                      {anCopyBusy
+                        ? 'Copying…'
+                        : `Copy ${anCopySelection.size} project${anCopySelection.size !== 1 ? 's' : ''} to user`}
+                    </Button>
+                  </Stack>
+                </DetailSection>
+              )}
 
               <DetailSection>
                 <DetailSectionTitle>Google</DetailSectionTitle>
