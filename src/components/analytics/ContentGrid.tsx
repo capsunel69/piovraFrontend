@@ -4,6 +4,7 @@ import type { AnPlatform, AnSocialPostItem } from '../../types/analytics';
 import { mediaProxyUrl } from '../../services/analytics';
 import { PLATFORM_GLYPHS, PLATFORM_META } from './platformMeta';
 import { MediaImg } from './MediaImg';
+import { formatDateRo } from '../../utils/dateFormat';
 
 const Grid = styled.div`
   display: grid;
@@ -137,7 +138,7 @@ export const ContentGrid: React.FC<ContentGridProps> = ({ items, platform, empty
           <Body>
             <Title>{item.title}</Title>
             <Meta>
-              <span>{new Date(item.publishedAt).toLocaleDateString()}</span>
+              <span>{formatDateRo(item.publishedAt)}</span>
               <span>{formatCompact(item.views)} views</span>
               <span>{formatCompact(item.likes)} likes</span>
             </Meta>

@@ -28,6 +28,7 @@ import {
 import { StatCard } from '../components/analytics/StatCard';
 import { ContentGrid } from '../components/analytics/ContentGrid';
 import { SettingsPanel } from '../components/analytics/SettingsPanel';
+import { UsagePanel } from '../components/analytics/UsagePanel';
 import { AnalyticsAPI, mediaProxyUrl } from '../services/analytics';
 import {
   bundleKey,
@@ -42,12 +43,14 @@ import type {
   AnOverviewResponse,
   AnPlatform,
   AnProject,
+  AnUsageResponse,
 } from '../types/analytics';
 import { AN_METRIC_LABELS, AN_PLATFORMS } from '../types/analytics';
+import { formatDateTimeRo } from '../utils/dateFormat';
 
 const STORAGE_KEY = 'piovra.analytics.dateRange';
 
-type TabId = 'overview' | AnPlatform | 'master' | 'logs' | 'settings';
+type TabId = 'overview' | AnPlatform | 'master' | 'usage' | 'logs' | 'settings';
 
 const TabBar = styled.div`
   display: flex;
@@ -143,6 +146,46 @@ const LogRow = styled.div<{ $level: string }>`
   .msg { color: var(--text-2); word-break: break-word; }
 `;
 
+const ProjectChip = styled.button<{ $on: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid ${(p) => (p.$on ? 'var(--accent)' : 'var(--border-2)')};
+  background: ${(p) => (p.$on ? 'var(--accent-soft)' : 'var(--bg-2)')};
+  color: ${(p) => (p.$on ? 'var(--accent)' : 'var(--text-3)')};
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  text-decoration: ${(p) => (p.$on ? 'none' : 'line-through')};
+
+  &:hover { border-color: var(--accent); }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: ${(p) => (p.$on ? 'var(--accent)' : 'var(--text-4)')};
+  }
+`;
+
+const IncludedBubble = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-1);
+  color: var(--text-2);
+
+  strong { color: var(--accent); }
+`;
+
 const MasterTable = styled.table`
   width: 100%;
   border-collapse: collapse;
@@ -205,8 +248,12 @@ const Analytics: React.FC = () => {
   const [activeProjectId, setActiveProjectId] = useState('');
   const [accounts, setAccounts] = useState<AnAccount[]>([]);
   const [masterMetric, setMasterMetric] = useState<AnMetricKey>('views');
+  /** Project ids excluded from the Master roll-up (default: include all). */
+  const [masterExcluded, setMasterExcluded] = useState<Set<string>>(new Set());
   const [logs, setLogs] = useState<AnLogEntry[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [usage, setUsage] = useState<AnUsageResponse | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -294,12 +341,80 @@ const Analytics: React.FC = () => {
     if (tab === 'logs') void loadLogs();
   }, [tab, loadLogs]);
 
+  // Usage is local DB data (cheap), so it auto-loads when the tab opens or the range changes.
+  useEffect(() => {
+    if (tab !== 'usage') return;
+    let cancelled = false;
+    setUsageLoading(true);
+    AnalyticsAPI.getUsage({ startDate: range.startDate, endDate: range.endDate })
+      .then((data) => {
+        if (!cancelled) setUsage(data);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load usage');
+      })
+      .finally(() => {
+        if (!cancelled) setUsageLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, range.startDate, range.endDate]);
+
+  const masterRows = hasData ? bundle!.master : null;
+
+  const masterProjects = useMemo(() => {
+    if (!masterRows) return [];
+    const seen = new Map<string, string>();
+    for (const row of masterRows) {
+      if (!seen.has(row.projectId)) seen.set(row.projectId, row.projectName);
+    }
+    return [...seen.entries()].map(([id, name]) => ({ id, name }));
+  }, [masterRows]);
+
+  const masterIncludedRows = useMemo(
+    () => (masterRows ?? []).filter((row) => !masterExcluded.has(row.projectId)),
+    [masterRows, masterExcluded],
+  );
+
   const sortedMasterRows = useMemo(() => {
-    if (!hasData) return null;
-    return [...bundle!.master].sort(
+    if (!masterRows) return null;
+    return [...masterIncludedRows].sort(
       (a, b) => (b.totals[masterMetric] ?? 0) - (a.totals[masterMetric] ?? 0),
     );
-  }, [bundle, hasData, masterMetric]);
+  }, [masterRows, masterIncludedRows, masterMetric]);
+
+  /** Sum daily series of the included rows per (date, platform) for charts. */
+  const masterSeries = useMemo(() => {
+    const byKey = new Map<string, AnDataPoint>();
+    for (const row of masterIncludedRows) {
+      for (const point of row.points ?? []) {
+        const key = `${point.date}:${point.platform}`;
+        const acc = byKey.get(key);
+        if (acc) {
+          acc.views += point.views;
+          acc.posts += point.posts;
+          acc.likes += point.likes;
+          acc.shares += point.shares;
+          acc.comments += point.comments;
+        } else {
+          byKey.set(key, { ...point });
+        }
+      }
+    }
+    return [...byKey.values()].sort((a, b) => a.date.localeCompare(b.date));
+  }, [masterIncludedRows]);
+
+  const masterTotals = useMemo(() => seriesTotals(masterSeries), [masterSeries]);
+
+  const toggleMasterProject = useCallback((projectId: string) => {
+    setMasterExcluded((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  }, []);
 
   if (loading) return <LoadingState message="Loading analytics…" />;
 
@@ -355,6 +470,7 @@ const Analytics: React.FC = () => {
           );
         })}
         <Tab $active={tab === 'master'} onClick={() => setTab('master')}>Master</Tab>
+        <Tab $active={tab === 'usage'} onClick={() => setTab('usage')}>Usage</Tab>
         <Tab $active={tab === 'logs'} onClick={() => setTab('logs')}>Logs</Tab>
         <Tab $active={tab === 'settings'} onClick={() => setTab('settings')}>Settings</Tab>
       </TabBar>
@@ -372,7 +488,7 @@ const Analytics: React.FC = () => {
             <InfoTip text="Pull uses cached data when available (free). Force rescrape bypasses the cache and hits live APIs — it uses ScrapeCreators credits." />
             {hasData && (
               <LastPull>
-                Last pull: {new Date(bundle!.pulledAt).toLocaleString()}
+                Last pull: {formatDateTimeRo(bundle!.pulledAt)}
               </LastPull>
             )}
           </PullBar>
@@ -460,7 +576,50 @@ const Analytics: React.FC = () => {
       )}
 
       {tab === 'master' && !dataLoading && sortedMasterRows && (
-        <Stack $gap={3}>
+        <Stack $gap={4}>
+          {/* Project filter chips + included-projects bubble */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            {masterProjects.map((p) => (
+              <ProjectChip
+                key={p.id}
+                $on={!masterExcluded.has(p.id)}
+                onClick={() => toggleMasterProject(p.id)}
+                title={masterExcluded.has(p.id) ? 'Include in summary' : 'Exclude from summary'}
+              >
+                <span className="dot" /> {p.name}
+              </ProjectChip>
+            ))}
+            <IncludedBubble>
+              Showing <strong>{masterProjects.length - masterExcluded.size}</strong> of{' '}
+              {masterProjects.length} projects
+            </IncludedBubble>
+          </div>
+
+          {/* Summed stat cards (like Overview, across included projects) */}
+          <Grid $cols={5} $min="160px">
+            {METRIC_KEYS.map((key) => (
+              <StatCard
+                key={key}
+                title={key === 'shares' ? 'Shares (FB + TikTok)' : AN_METRIC_LABELS[key]}
+                value={masterTotals[key]}
+                large={key === 'views'}
+              />
+            ))}
+          </Grid>
+
+          {/* Charts across included projects, split by platform */}
+          <Grid $min="420px">
+            {METRIC_KEYS.map((key) => (
+              <AnalyticsChart
+                key={key}
+                data={masterSeries}
+                metric={key}
+                platforms={platformsForMetric(key)}
+              />
+            ))}
+          </Grid>
+
+          {/* Ranking table */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {METRIC_KEYS.map((key) => (
               <Button
@@ -474,7 +633,7 @@ const Analytics: React.FC = () => {
             ))}
           </div>
           {sortedMasterRows.length === 0 ? (
-            <GatheringBox><span>No accounts configured in any project yet.</span></GatheringBox>
+            <GatheringBox><span>No accounts in the selected projects.</span></GatheringBox>
           ) : (
             <div style={{ overflowX: 'auto', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)' }}>
               <MasterTable>
@@ -525,6 +684,21 @@ const Analytics: React.FC = () => {
         </Stack>
       )}
 
+      {tab === 'usage' && (
+        <Stack $gap={4}>
+          <ControlCard>
+            <DateRangePicker range={range} onChange={setRange} />
+          </ControlCard>
+          {usageLoading && (
+            <GatheringBox>
+              <Spinner $size={28} />
+              <span>Loading usage…</span>
+            </GatheringBox>
+          )}
+          {!usageLoading && usage && <UsagePanel usage={usage} />}
+        </Stack>
+      )}
+
       {tab === 'logs' && (
         <Stack $gap={3}>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -551,7 +725,7 @@ const Analytics: React.FC = () => {
               {logs.map((entry) => (
                 <LogRow key={entry.id} $level={entry.level}>
                   <span className="level">{entry.level}</span>
-                  <span className="time">{new Date(entry.createdAt).toLocaleString()}</span>
+                  <span className="time">{formatDateTimeRo(entry.createdAt)}</span>
                   <span className="source">{entry.source}</span>
                   <span className="msg">
                     {entry.message}

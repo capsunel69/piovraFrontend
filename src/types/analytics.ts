@@ -100,7 +100,30 @@ export interface AnMasterRow {
   accountLabel: string;
   platform: AnPlatform;
   totals: Record<AnMetricKey, number>;
+  /** Daily series for cross-project charts. */
+  points: AnDataPoint[];
   error?: string;
+}
+
+export interface AnUsageBucket {
+  scCredits: number;
+  ytUnits: number;
+}
+
+export interface AnUsageProjectRow extends AnUsageBucket {
+  projectId: string | null;
+  projectName: string;
+  byPlatform: Record<string, AnUsageBucket>;
+  estCostUsd: number;
+}
+
+export interface AnUsageResponse {
+  startDate: string;
+  endDate: string;
+  creditCostUsd: number;
+  totals: AnUsageBucket & { calls: number; estCostUsd: number };
+  projects: AnUsageProjectRow[];
+  daily: Array<AnUsageBucket & { date: string }>;
 }
 
 export const AN_PLATFORMS: AnPlatform[] = ['youtube', 'facebook', 'instagram', 'tiktok'];

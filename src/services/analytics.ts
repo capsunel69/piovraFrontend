@@ -7,6 +7,7 @@ import type {
   AnOverviewResponse,
   AnPlatform,
   AnProject,
+  AnUsageResponse,
   AnWorkspaceState,
 } from '../types/analytics';
 
@@ -122,6 +123,9 @@ export const AnalyticsAPI = {
     fetchAn<{ rows: AnMasterRow[] }>(`data/master?${toQuery({ ...query })}`),
 
   getLogs: (limit = 200) => fetchAn<{ logs: AnLogEntry[] }>(`logs?limit=${limit}`),
+
+  getUsage: (query: { startDate: string; endDate: string }) =>
+    fetchAn<AnUsageResponse>(`usage?${toQuery({ ...query })}`),
 
   clearLogs: () => fetchAn<{ success: boolean }>('logs', { method: 'DELETE' }),
 };

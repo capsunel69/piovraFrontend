@@ -15,6 +15,7 @@ import {
 import type { AnDataPoint, AnMetricKey, AnPlatform } from '../../types/analytics';
 import { AN_METRIC_LABELS, AN_PLATFORMS } from '../../types/analytics';
 import { PLATFORM_META } from './platformMeta';
+import { formatDateRo, formatDayMonthRo } from '../../utils/dateFormat';
 
 const Wrap = styled.div<{ $accent?: string }>`
   background: var(--bg-2);
@@ -130,7 +131,7 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
           <XAxis
             dataKey="date"
             tick={{ fontSize: 11, fill: 'var(--text-3)' }}
-            tickFormatter={(d: string) => d.slice(5)}
+            tickFormatter={formatDayMonthRo}
           />
           <YAxis tick={{ fontSize: 11, fill: 'var(--text-3)' }} tickFormatter={formatNumber} />
           <Tooltip
@@ -141,6 +142,7 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
               fontSize: 12,
             }}
             formatter={(value: number) => formatNumber(value)}
+            labelFormatter={(label: string) => formatDateRo(label)}
           />
           {!single && <Legend />}
           {platforms.map((platform) =>

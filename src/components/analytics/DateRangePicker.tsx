@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import styled from 'styled-components';
 import { endOfMonth, format, startOfMonth, subDays, subMonths } from 'date-fns';
 import { Button } from '../ui/primitives';
+import { formatDateRo } from '../../utils/dateFormat';
 
 export type DateRangePreset = 'yesterday' | 'last7' | 'last14' | 'thisMonth' | 'lastMonth' | 'custom';
 
@@ -112,7 +113,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
   refreshing,
 }) => {
   const label = useMemo(
-    () => `${range.startDate} → ${range.endDate}`,
+    () => `${formatDateRo(range.startDate)} → ${formatDateRo(range.endDate)}`,
     [range.startDate, range.endDate],
   );
 
