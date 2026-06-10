@@ -82,6 +82,25 @@ export interface AnContentResponse {
   platform: AnPlatform;
 }
 
+export interface AnLogEntry {
+  id: string;
+  level: 'info' | 'warn' | 'error';
+  source: string;
+  message: string;
+  details?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AnMasterRow {
+  projectId: string;
+  projectName: string;
+  accountId: string;
+  accountLabel: string;
+  platform: AnPlatform;
+  totals: Record<AnMetricKey, number>;
+  error?: string;
+}
+
 export const AN_PLATFORMS: AnPlatform[] = ['youtube', 'facebook', 'instagram', 'tiktok'];
 
 export const AN_METRIC_LABELS: Record<AnMetricKey, string> = {

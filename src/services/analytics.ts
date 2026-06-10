@@ -2,6 +2,8 @@ import type {
   AnAccount,
   AnContentResponse,
   AnDataPoint,
+  AnLogEntry,
+  AnMasterRow,
   AnOverviewResponse,
   AnPlatform,
   AnProject,
@@ -115,4 +117,17 @@ export const AnalyticsAPI = {
 
   getPlatformContent: (platform: AnPlatform, query: DateRangeQuery) =>
     fetchAn<AnContentResponse>(`content/${platform}?${toQuery({ ...query })}`),
+
+  getMaster: (query: { startDate: string; endDate: string; refresh?: boolean }) =>
+    fetchAn<{ rows: AnMasterRow[] }>(`data/master?${toQuery({ ...query })}`),
+
+  getLogs: (limit = 200) => fetchAn<{ logs: AnLogEntry[] }>(`logs?limit=${limit}`),
+
+  clearLogs: () => fetchAn<{ success: boolean }>('logs', { method: 'DELETE' }),
 };
+
+/** Routes social CDN thumbnails (TikTok/IG/FB block hotlinking) through the backend proxy. */
+export function mediaProxyUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  return `${API_URL}/media/proxy?url=${encodeURIComponent(url)}`;
+}

@@ -27,21 +27,29 @@ const Wrap = styled.div`
   padding: var(--s-5);
 `;
 
-const Controls = styled.div`
+const HeaderRow = styled.div`
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--s-2);
   margin-bottom: var(--s-4);
+  flex-wrap: wrap;
 `;
 
-const Chip = styled.button<{ $active?: boolean; $color?: string }>`
+const Title = styled.h3`
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+`;
+
+const Chip = styled.button<{ $active?: boolean }>`
   font-size: 11px;
   font-weight: 600;
   padding: 4px 10px;
   border-radius: var(--r-sm);
-  border: 1px solid ${(p) => (p.$active ? (p.$color ?? 'var(--accent)') : 'var(--border-1)')};
-  background: ${(p) => (p.$active ? `${p.$color ?? 'var(--accent)'}22` : 'transparent')};
-  color: ${(p) => (p.$active ? (p.$color ?? 'var(--accent)') : 'var(--text-3)')};
+  border: 1px solid ${(p) => (p.$active ? 'var(--accent)' : 'var(--border-1)')};
+  background: ${(p) => (p.$active ? 'rgba(76, 194, 255, 0.13)' : 'transparent')};
+  color: ${(p) => (p.$active ? 'var(--accent)' : 'var(--text-3)')};
   cursor: pointer;
 `;
 
@@ -65,42 +73,49 @@ function buildChartRows(data: AnDataPoint[], metric: AnMetricKey): ChartRow[] {
 
 interface AnalyticsChartProps {
   data: AnDataPoint[];
+  metric: AnMetricKey;
   loading?: boolean;
   platforms?: AnPlatform[];
 }
 
 export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
   data,
+  metric,
   loading,
   platforms = AN_PLATFORMS,
 }) => {
-  const [metric, setMetric] = useState<AnMetricKey>('views');
   const [chartType, setChartType] = useState<'area' | 'bar'>('area');
 
   const rows = useMemo(() => buildChartRows(data, metric), [data, metric]);
 
   if (loading) {
-    return <Wrap style={{ minHeight: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>Loading chart…</Wrap>;
+    return (
+      <Wrap style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
+        Loading…
+      </Wrap>
+    );
   }
 
   if (rows.length === 0) {
-    return <Wrap style={{ minHeight: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>No data for this period</Wrap>;
+    return (
+      <Wrap style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
+        No {AN_METRIC_LABELS[metric].toLowerCase()} data for this period
+      </Wrap>
+    );
   }
 
   const Chart = chartType === 'area' ? AreaChart : BarChart;
 
   return (
     <Wrap>
-      <Controls>
-        {(Object.keys(AN_METRIC_LABELS) as AnMetricKey[]).map((m) => (
-          <Chip key={m} $active={metric === m} onClick={() => setMetric(m)}>
-            {AN_METRIC_LABELS[m]}
-          </Chip>
-        ))}
-        <Chip $active={chartType === 'area'} onClick={() => setChartType('area')}>Area</Chip>
-        <Chip $active={chartType === 'bar'} onClick={() => setChartType('bar')}>Bar</Chip>
-      </Controls>
-      <ResponsiveContainer width="100%" height={300}>
+      <HeaderRow>
+        <Title>{AN_METRIC_LABELS[metric]}</Title>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Chip $active={chartType === 'area'} onClick={() => setChartType('area')}>Area</Chip>
+          <Chip $active={chartType === 'bar'} onClick={() => setChartType('bar')}>Bar</Chip>
+        </div>
+      </HeaderRow>
+      <ResponsiveContainer width="100%" height={240}>
         <Chart data={rows}>
           <CartesianGrid stroke="var(--border-1)" strokeDasharray="3 3" />
           <XAxis

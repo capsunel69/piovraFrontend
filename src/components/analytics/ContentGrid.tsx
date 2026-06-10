@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
-import type { AnSocialPostItem } from '../../types/analytics';
+import type { AnPlatform, AnSocialPostItem } from '../../types/analytics';
+import { mediaProxyUrl } from '../../services/analytics';
 
 const Grid = styled.div`
   display: grid;
@@ -62,10 +63,15 @@ function formatCompact(value: number): string {
 
 interface ContentGridProps {
   items: AnSocialPostItem[];
+  platform?: AnPlatform;
   emptyLabel?: string;
 }
 
-export const ContentGrid: React.FC<ContentGridProps> = ({ items, emptyLabel }) => {
+export const ContentGrid: React.FC<ContentGridProps> = ({ items, platform, emptyLabel }) => {
+  // TikTok/IG/FB CDNs reject hotlinked images; route those through the backend proxy.
+  const resolveThumb = (url?: string) =>
+    platform && platform !== 'youtube' ? mediaProxyUrl(url) : url;
+
   if (items.length === 0) {
     return (
       <p style={{ color: 'var(--text-3)', fontSize: 13 }}>
@@ -84,7 +90,7 @@ export const ContentGrid: React.FC<ContentGridProps> = ({ items, emptyLabel }) =
           rel="noopener noreferrer"
           onClick={(e) => { if (!item.url) e.preventDefault(); }}
         >
-          <Thumb $url={item.thumbnailUrl} />
+          <Thumb $url={resolveThumb(item.thumbnailUrl)} />
           <Body>
             <Title>{item.title}</Title>
             <Meta>
