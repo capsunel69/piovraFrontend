@@ -4,6 +4,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import LoadingState from '../components/shared/LoadingState';
 import ErrorMessage from '../components/shared/ErrorMessage';
+import { useToast } from '../components/ui/Toast';
 import {
   PageContainer,
   PageHeader,
@@ -572,6 +573,148 @@ const EmptyHint = styled.div`
   font-size: 13px;
 `;
 
+const AnSharePanel = styled.div`
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-1);
+  background: linear-gradient(145deg, rgba(76, 194, 255, 0.05), var(--bg-3) 55%);
+  overflow: hidden;
+`;
+
+const AnShareHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-1);
+`;
+
+const AnShareIcon = styled.div`
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+`;
+
+const AnShareIntro = styled.div`
+  flex: 1;
+  min-width: 0;
+
+  .title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-1);
+  }
+
+  .desc {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-3);
+    line-height: 1.5;
+  }
+`;
+
+const AnProjectList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-2);
+  max-height: 220px;
+  overflow-y: auto;
+`;
+
+const AnProjectRow = styled.label<{ $selected?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid ${(p) => (p.$selected ? 'rgba(76, 194, 255, 0.35)' : 'transparent')};
+  background: ${(p) => (p.$selected ? 'rgba(76, 194, 255, 0.08)' : 'transparent')};
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+
+  &:hover {
+    background: ${(p) => (p.$selected ? 'rgba(76, 194, 255, 0.1)' : 'rgba(255, 255, 255, 0.03)')};
+    border-color: ${(p) => (p.$selected ? 'var(--accent)' : 'var(--border-1)')};
+  }
+
+  input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+
+  .check {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1.5px solid ${(p) => (p.$selected ? 'var(--accent)' : 'var(--border-2)')};
+    background: ${(p) => (p.$selected ? 'var(--accent)' : 'transparent')};
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    color: #0b1118;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .name {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-1);
+    word-break: break-word;
+  }
+
+  .badge {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    color: var(--text-3);
+    white-space: nowrap;
+  }
+`;
+
+const AnShareFooter = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 12px 14px;
+  border-top: 1px solid var(--border-1);
+  background: var(--bg-2);
+  flex-wrap: wrap;
+`;
+
+const AnShareLinkBtn = styled.button`
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+
+  &:hover:not(:disabled) {
+    text-decoration: underline;
+  }
+
+  &:disabled {
+    color: var(--text-4);
+    cursor: not-allowed;
+  }
+`;
+
 const ModalBackdrop = styled.div`
   position: fixed;
   inset: 0;
@@ -707,6 +850,7 @@ const SkillModalFooter = styled(ModalFooter)`
 
 const Admin: React.FC = () => {
   const { me } = useAuth();
+  const toast = useToast();
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [skillCatalog, setSkillCatalog] = useState<SkillCatalog | null>(null);
@@ -751,6 +895,10 @@ const Admin: React.FC = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setAnCopySelection(new Set());
+  }, [detailUser?.id]);
 
   const sortedUsers = useMemo(
     () =>
@@ -1149,72 +1297,99 @@ const Admin: React.FC = () => {
                 (anProjects?.length ?? 0) > 0 && (
                 <DetailSection>
                   <DetailSectionTitle>Analytics projects</DetailSectionTitle>
-                  <MetaMuted style={{ lineHeight: 1.45, marginBottom: 'var(--s-3)' }}>
-                    Copy your analytics projects (with all accounts and profile data) to this user.
-                    They get their own copy and can pull data independently.
-                  </MetaMuted>
-                  <Stack $gap={2}>
-                    {anProjects!.map((p) => {
-                      const checked = anCopySelection.has(p.projectId);
-                      return (
-                        <label
-                          key={p.projectId}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 10,
-                            fontSize: 13,
-                            color: 'var(--text-2)',
-                            cursor: 'pointer',
-                          }}
+                  <AnSharePanel>
+                    <AnShareHeader>
+                      <AnShareIcon>
+                        <IconAnalytics size={18} />
+                      </AnShareIcon>
+                      <AnShareIntro>
+                        <div className="title">Share projects with {detailUser.name ?? detailUser.email}</div>
+                        <div className="desc">
+                          Creates an independent copy of each selected project — all linked accounts,
+                          handles, and profile images included. The user can pull data on their own.
+                        </div>
+                      </AnShareIntro>
+                    </AnShareHeader>
+                    <AnProjectList>
+                      {anProjects!.map((p) => {
+                        const checked = anCopySelection.has(p.projectId);
+                        return (
+                          <AnProjectRow key={p.projectId} $selected={checked}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setAnCopySelection((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(p.projectId)) next.delete(p.projectId);
+                                  else next.add(p.projectId);
+                                  return next;
+                                });
+                              }}
+                            />
+                            <span className="check" aria-hidden>
+                              {checked && <IconCheck size={12} strokeWidth={3} />}
+                            </span>
+                            <span className="name">{p.projectName}</span>
+                            <span className="badge">
+                              {p.accountCount} account{p.accountCount !== 1 ? 's' : ''}
+                            </span>
+                          </AnProjectRow>
+                        );
+                      })}
+                    </AnProjectList>
+                    <AnShareFooter>
+                      <div style={{ display: 'flex', gap: 12 }}>
+                        <AnShareLinkBtn
+                          type="button"
+                          disabled={anCopyBusy}
+                          onClick={() =>
+                            setAnCopySelection(new Set(anProjects!.map((p) => p.projectId)))
+                          }
                         >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => {
-                              setAnCopySelection((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(p.projectId)) next.delete(p.projectId);
-                                else next.add(p.projectId);
-                                return next;
-                              });
-                            }}
-                          />
-                          <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>{p.projectName}</span>
-                          <span style={{ color: 'var(--text-3)', fontSize: 12 }}>
-                            {p.accountCount} account{p.accountCount !== 1 ? 's' : ''}
-                          </span>
-                        </label>
-                      );
-                    })}
-                    <Button
-                      $size="sm"
-                      disabled={anCopyBusy || anCopySelection.size === 0}
-                      onClick={async () => {
-                        if (anCopySelection.size === 0) return;
-                        setAnCopyBusy(true);
-                        try {
-                          const result = await adminFetch<{ copied: number }>(
-                            `/users/${detailUser.id}/analytics-projects/copy`,
-                            {
-                              method: 'POST',
-                              body: JSON.stringify({ projectIds: [...anCopySelection] }),
-                            },
-                          );
-                          setAnCopySelection(new Set());
-                          alert(`Copied ${result.copied} project${result.copied !== 1 ? 's' : ''} to ${detailUser.email}.`);
-                        } catch (err) {
-                          setError(err instanceof Error ? err.message : String(err));
-                        } finally {
-                          setAnCopyBusy(false);
-                        }
-                      }}
-                    >
-                      {anCopyBusy
-                        ? 'Copying…'
-                        : `Copy ${anCopySelection.size} project${anCopySelection.size !== 1 ? 's' : ''} to user`}
-                    </Button>
-                  </Stack>
+                          Select all
+                        </AnShareLinkBtn>
+                        <AnShareLinkBtn
+                          type="button"
+                          disabled={anCopyBusy || anCopySelection.size === 0}
+                          onClick={() => setAnCopySelection(new Set())}
+                        >
+                          Clear
+                        </AnShareLinkBtn>
+                      </div>
+                      <Button
+                        $size="sm"
+                        $variant={anCopySelection.size > 0 ? 'primary' : 'ghost'}
+                        disabled={anCopyBusy || anCopySelection.size === 0}
+                        onClick={async () => {
+                          if (anCopySelection.size === 0) return;
+                          setAnCopyBusy(true);
+                          try {
+                            const result = await adminFetch<{ copied: number }>(
+                              `/users/${detailUser.id}/analytics-projects/copy`,
+                              {
+                                method: 'POST',
+                                body: JSON.stringify({ projectIds: [...anCopySelection] }),
+                              },
+                            );
+                            setAnCopySelection(new Set());
+                            toast.success(
+                              'Projects copied',
+                              `${result.copied} project${result.copied !== 1 ? 's' : ''} added to ${detailUser.email}.`,
+                            );
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : String(err));
+                          } finally {
+                            setAnCopyBusy(false);
+                          }
+                        }}
+                      >
+                        {anCopyBusy
+                          ? 'Copying…'
+                          : `Copy ${anCopySelection.size} to user`}
+                      </Button>
+                    </AnShareFooter>
+                  </AnSharePanel>
                 </DetailSection>
               )}
 

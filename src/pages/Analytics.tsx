@@ -54,7 +54,7 @@ import type {
   AnUsageResponse,
 } from '../types/analytics';
 import { AN_METRIC_LABELS, AN_PLATFORMS } from '../types/analytics';
-import { formatDateTimeRo } from '../utils/dateFormat';
+import { formatDateRo, formatDateTimeRo } from '../utils/dateFormat';
 
 const STORAGE_KEY = 'piovra.analytics.dateRange';
 
@@ -179,6 +179,39 @@ const LastPull = styled.span`
   color: var(--text-3);
   margin-left: auto;
   font-variant-numeric: tabular-nums;
+`;
+
+const StaleRangeBanner = styled.div`
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 12px 16px;
+  border-radius: var(--r-lg);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(251, 191, 36, 0.03));
+  font-size: 13px;
+  color: var(--text-2);
+  flex-wrap: wrap;
+
+  .icon {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: var(--r-md);
+    display: grid;
+    place-items: center;
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+    font-size: 15px;
+  }
+
+  .body {
+    flex: 1;
+    min-width: 200px;
+    line-height: 1.45;
+
+    strong { color: #fbbf24; font-variant-numeric: tabular-nums; }
+  }
 `;
 
 const GatheringBox = styled.div`
@@ -359,8 +392,33 @@ const Analytics: React.FC = () => {
   }, [range]);
 
   const currentCacheKey = bundleKey(activeProjectId, range.startDate, range.endDate);
-  const bundle = pull.bundles[currentCacheKey] ?? null;
+  const exactBundle = pull.bundles[currentCacheKey] ?? null;
+
+  // When the selected range hasn't been pulled, fall back to the most recent
+  // bundle for this project so the user still sees data — with a clear
+  // "incomplete" warning — instead of auto-scraping the new range.
+  const fallbackBundle = useMemo(() => {
+    if (exactBundle || !activeProjectId) return null;
+    const candidates = Object.values(pull.bundles).filter((b) =>
+      b.cacheKey.startsWith(`${activeProjectId}:`),
+    );
+    if (candidates.length === 0) return null;
+    return candidates.reduce((a, b) => (b.pulledAt > a.pulledAt ? b : a));
+  }, [exactBundle, activeProjectId, pull.bundles]);
+
+  const bundle = exactBundle ?? fallbackBundle;
   const hasData = bundle !== null;
+  const isStaleRange = !exactBundle && fallbackBundle !== null;
+
+  // cacheKey format: `projectId:startDate:endDate`
+  const staleRangeLabel = useMemo(() => {
+    if (!isStaleRange || !fallbackBundle) return null;
+    const parts = fallbackBundle.cacheKey.split(':');
+    const start = parts[1];
+    const end = parts[2];
+    if (!start || !end) return null;
+    return { start, end };
+  }, [isStaleRange, fallbackBundle]);
 
   const activePlatform = AN_PLATFORMS.includes(tab as AnPlatform) ? (tab as AnPlatform) : null;
   const activeOverview = hasData ? bundle!.overview : null;
@@ -402,16 +460,20 @@ const Analytics: React.FC = () => {
     [activeProjectId, range],
   );
 
-  // Auto-hydrate from backend cache when page loads or project/range changes.
-  // Each (project, range) is attempted at most once per session so a failing
-  // pull doesn't loop forever; manual "Pull data now" is unaffected.
+  // Auto-hydrate on first visit per project only. Changing the date range
+  // afterwards never auto-pulls (which could trigger live scrapes) — instead
+  // the last pulled bundle is shown with an "incomplete data" warning and the
+  // user decides when to press "Pull data now".
   const autoPullAttempted = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (loading || !activeProjectId) return;
-    const key = bundleKey(activeProjectId, range.startDate, range.endDate);
-    if (pull.bundles[key] || pull.status === 'pulling') return;
-    if (autoPullAttempted.current.has(key)) return;
-    autoPullAttempted.current.add(key);
+    if (pull.status === 'pulling') return;
+    const hasAnyForProject = Object.keys(pull.bundles).some((k) =>
+      k.startsWith(`${activeProjectId}:`),
+    );
+    if (hasAnyForProject) return;
+    if (autoPullAttempted.current.has(activeProjectId)) return;
+    autoPullAttempted.current.add(activeProjectId);
     void startAnalyticsPull({
       projectId: activeProjectId,
       startDate: range.startDate,
@@ -625,6 +687,21 @@ const Analytics: React.FC = () => {
       )}
 
       {(error ?? pull.error) && <ErrorMessage message={(error ?? pull.error)!} />}
+
+      {isDataTab && !dataLoading && isStaleRange && staleRangeLabel && (
+        <StaleRangeBanner>
+          <span className="icon">⚠</span>
+          <span className="body">
+            Data shown is from your last pull covering{' '}
+            <strong>{formatDateRo(staleRangeLabel.start)} → {formatDateRo(staleRangeLabel.end)}</strong>
+            {' '}— it may be incomplete for the selected period. Press{' '}
+            <strong>Pull data now</strong> to fetch the full range.
+          </span>
+          <Button $size="sm" $variant="primary" onClick={() => void pullData(false)}>
+            Pull data now
+          </Button>
+        </StaleRangeBanner>
+      )}
 
       {isDataTab && dataLoading && (
         <GatheringBox>
