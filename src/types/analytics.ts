@@ -78,6 +78,20 @@ export interface AnSocialPostItem {
   snapshotAt?: string;
 }
 
+export interface AnCoverageGap {
+  start: string;
+  end: string;
+  reason: 'before_coverage' | 'after_available';
+}
+
+export interface AnRangeCoverage {
+  requestedStart: string;
+  requestedEnd: string;
+  coveredFrom: string | null;
+  availableThrough: string;
+  missing: AnCoverageGap[];
+}
+
 export interface AnContentResponse {
   profile?: {
     name: string;
@@ -92,6 +106,7 @@ export interface AnContentResponse {
   platform: AnPlatform;
   /** ISO datetime this account's data was last refreshed from the platform. */
   asOf?: string;
+  coverage?: AnRangeCoverage;
   _meta?: AnPullMeta;
 }
 

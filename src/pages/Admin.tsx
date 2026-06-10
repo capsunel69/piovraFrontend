@@ -1305,8 +1305,9 @@ const Admin: React.FC = () => {
                       <AnShareIntro>
                         <div className="title">Share projects with {detailUser.name ?? detailUser.email}</div>
                         <div className="desc">
-                          Creates an independent copy of each selected project — all linked accounts,
-                          handles, and profile images included. The user can pull data on their own.
+                          Syncs a full copy of each selected project — accounts, stored clips, metric
+                          history, and scrape coverage from your admin data. Re-copying replaces an
+                          existing project with the same name on this user.
                         </div>
                       </AnShareIntro>
                     </AnShareHeader>
@@ -1365,7 +1366,11 @@ const Admin: React.FC = () => {
                           if (anCopySelection.size === 0) return;
                           setAnCopyBusy(true);
                           try {
-                            const result = await adminFetch<{ copied: number }>(
+                            const result = await adminFetch<{
+                              copied: number;
+                              postsCopied?: number;
+                              snapshotsCopied?: number;
+                            }>(
                               `/users/${detailUser.id}/analytics-projects/copy`,
                               {
                                 method: 'POST',
@@ -1373,9 +1378,13 @@ const Admin: React.FC = () => {
                               },
                             );
                             setAnCopySelection(new Set());
+                            const clips =
+                              result.postsCopied != null
+                                ? ` · ${result.postsCopied} clip${result.postsCopied !== 1 ? 's' : ''}`
+                                : '';
                             toast.success(
-                              'Projects copied',
-                              `${result.copied} project${result.copied !== 1 ? 's' : ''} added to ${detailUser.email}.`,
+                              'Projects synced',
+                              `${result.copied} project${result.copied !== 1 ? 's' : ''} copied to ${detailUser.email}${clips}.`,
                             );
                           } catch (err) {
                             setError(err instanceof Error ? err.message : String(err));
@@ -1385,8 +1394,8 @@ const Admin: React.FC = () => {
                         }}
                       >
                         {anCopyBusy
-                          ? 'Copying…'
-                          : `Copy ${anCopySelection.size} to user`}
+                          ? 'Syncing…'
+                          : `Sync ${anCopySelection.size} to user`}
                       </Button>
                     </AnShareFooter>
                   </AnSharePanel>

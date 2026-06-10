@@ -2,11 +2,13 @@ import { useSyncExternalStore } from 'react';
 import { AnalyticsAPI } from '../services/analytics';
 import type {
   AnContentResponse,
+  AnCoverageGap,
   AnMasterRow,
   AnMetricKey,
   AnOverviewResponse,
   AnPlatform,
   AnPullMeta,
+  AnRangeCoverage,
 } from '../types/analytics';
 import { AN_PLATFORMS } from '../types/analytics';
 
@@ -25,6 +27,8 @@ export type PulledBundle = {
   pullMeta: AnPullMeta;
   /** Oldest platform refresh time in this bundle (ISO) — "data as of". */
   dataAsOf: string | null;
+  /** Union of per-platform gaps in the selected date range. */
+  coverage: AnRangeCoverage | null;
 };
 
 export type PullStatus = 'idle' | 'pulling' | 'done' | 'error';
@@ -70,6 +74,63 @@ function addDays(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00`);
   d.setDate(d.getDate() + days);
   return fmtDate(d);
+}
+
+function mergeCoverageGaps(gaps: AnCoverageGap[]): AnCoverageGap[] {
+  if (gaps.length === 0) return [];
+  const sorted = [...gaps].sort((a, b) => a.start.localeCompare(b.start));
+  const out: AnCoverageGap[] = [{ ...sorted[0]! }];
+  for (let i = 1; i < sorted.length; i++) {
+    const cur = sorted[i]!;
+    const last = out[out.length - 1]!;
+    if (cur.start <= addDays(last.end, 1)) {
+      if (cur.end > last.end) last.end = cur.end;
+      if (cur.reason === 'before_coverage') last.reason = 'before_coverage';
+    } else {
+      out.push({ ...cur });
+    }
+  }
+  return out;
+}
+
+/** Union gaps across platforms; recompute for a sliced sub-range. */
+export function mergePlatformCoverage(
+  platforms: Record<AnPlatform, { content: AnContentResponse | null }>,
+  startDate: string,
+  endDate: string,
+): AnRangeCoverage | null {
+  const pieces = AN_PLATFORMS.map((p) => platforms[p]?.content?.coverage).filter(
+    (c): c is AnRangeCoverage => Boolean(c),
+  );
+  if (pieces.length === 0) return null;
+
+  const today = fmtDate(new Date());
+  const availableThrough = endDate < today ? endDate : today;
+  const coveredFrom = pieces.reduce<string | null>((acc, c) => {
+    if (!c.coveredFrom) return acc;
+    if (!acc || c.coveredFrom < acc) return c.coveredFrom;
+    return acc;
+  }, null);
+
+  const missing: AnCoverageGap[] = [];
+  if (coveredFrom && coveredFrom > startDate) {
+    missing.push({ start: startDate, end: addDays(coveredFrom, -1), reason: 'before_coverage' });
+  }
+  if (endDate > availableThrough) {
+    missing.push({
+      start: addDays(availableThrough, 1),
+      end: endDate,
+      reason: 'after_available',
+    });
+  }
+
+  return {
+    requestedStart: startDate,
+    requestedEnd: endDate,
+    coveredFrom,
+    availableThrough,
+    missing: mergeCoverageGaps(missing),
+  };
 }
 
 function daysBetween(start: string, end: string): number {
@@ -161,6 +222,7 @@ export function deriveBundleForRange(src: PulledBundle, start: string, end: stri
     pulledAt: src.pulledAt,
     pullMeta: src.pullMeta,
     dataAsOf: src.dataAsOf,
+    coverage: mergePlatformCoverage(platforms, start, end),
   };
 }
 
@@ -325,6 +387,7 @@ export async function startAnalyticsPull(params: PullParams): Promise<void> {
       .map((r) => r.content?.asOf)
       .filter((v): v is string => Boolean(v));
     const dataAsOf = asOfValues.length > 0 ? asOfValues.reduce((a, b) => (a < b ? a : b)) : null;
+    const coverage = mergePlatformCoverage(platforms, startDate, endDate);
 
     setState({
       status: 'done',
@@ -338,6 +401,7 @@ export async function startAnalyticsPull(params: PullParams): Promise<void> {
           pulledAt: Date.now(),
           pullMeta: aggMeta,
           dataAsOf,
+          coverage,
         },
       },
       completionId: state.completionId + 1,

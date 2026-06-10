@@ -47,6 +47,7 @@ import {
 } from '../stores/analyticsPull';
 import type {
   AnAccount,
+  AnCoverageGap,
   AnDataPoint,
   AnLogEntry,
   AnMetricKey,
@@ -61,6 +62,14 @@ import { formatDateRo, formatDateTimeRo } from '../utils/dateFormat';
 const STORAGE_KEY = 'piovra.analytics.dateRange';
 
 type TabId = 'overview' | AnPlatform | 'master' | 'usage' | 'logs' | 'settings';
+
+function gapLabel(gap: AnCoverageGap): string {
+  const range = `${formatDateRo(gap.start)} → ${formatDateRo(gap.end)}`;
+  if (gap.reason === 'before_coverage') {
+    return `no stored data for ${range} (pull a wider range to backfill)`;
+  }
+  return `no data yet for ${range} (future dates or not refreshed)`;
+}
 
 const TabBar = styled.div`
   display: flex;
@@ -437,6 +446,13 @@ const Analytics: React.FC = () => {
     return { start, end };
   }, [isStaleRange, fallbackBundle]);
 
+  const partialCoverage = useMemo(() => {
+    if (!hasData || isStaleRange) return null;
+    const missing = bundle?.coverage?.missing ?? [];
+    if (missing.length === 0) return null;
+    return missing;
+  }, [hasData, isStaleRange, bundle?.coverage?.missing]);
+
   const activePlatform = AN_PLATFORMS.includes(tab as AnPlatform) ? (tab as AnPlatform) : null;
   const activeOverview = hasData ? bundle!.overview : null;
   const activePlatformSeries = activeOverview && activePlatform
@@ -727,6 +743,27 @@ const Analytics: React.FC = () => {
           <Button $size="sm" $variant="primary" onClick={() => void pullData(false)}>
             Pull data now
           </Button>
+        </StaleRangeBanner>
+      )}
+
+      {isDataTab && !dataLoading && partialCoverage && bundle?.coverage && (
+        <StaleRangeBanner>
+          <span className="icon">⚠</span>
+          <span className="body">
+            Totals and comparisons only include{' '}
+            <strong>
+              {formatDateRo(bundle.coverage.requestedStart)} →{' '}
+              {formatDateRo(bundle.coverage.availableThrough)}
+            </strong>
+            .{' '}
+            {partialCoverage.map((gap) => (
+              <React.Fragment key={`${gap.start}-${gap.end}`}>
+                <strong>{gapLabel(gap)}</strong>.{' '}
+              </React.Fragment>
+            ))}
+            {partialCoverage.some((g) => g.reason === 'after_available') &&
+              'Period-over-period % changes may look low until the full period is available.'}
+          </span>
         </StaleRangeBanner>
       )}
 
