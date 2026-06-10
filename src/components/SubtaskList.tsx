@@ -27,7 +27,7 @@ const Wrap = styled.div`
 
 const Item = styled.div<{ $done?: boolean }>`
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--s-2);
   padding: 4px 6px;
   border-radius: var(--r-xs);
@@ -50,9 +50,9 @@ const TitleText = styled.button<{ $done?: boolean }>`
   padding: 4px 2px;
   text-align: left;
   cursor: text;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 
   &:focus-visible {
     outline: 1px solid var(--accent);
@@ -62,9 +62,6 @@ const TitleText = styled.button<{ $done?: boolean }>`
 
   @media (max-width: 720px) {
     font-size: 14px;
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
   }
 `;
 
@@ -89,9 +86,10 @@ const EditInput = styled.input<{ $done?: boolean }>`
 
 const Actions = styled.div`
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 2px;
   flex-shrink: 0;
+  padding-top: 2px;
 `;
 
 const ActionBtn = styled.button<{ $tone?: 'default' | 'danger' | 'accent' }>`
