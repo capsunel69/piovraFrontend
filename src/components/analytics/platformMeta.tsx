@@ -88,13 +88,13 @@ export const PLATFORM_GLYPHS: Record<AnPlatform, React.FC<GlyphProps>> = {
 
 /**
  * Metrics each platform can actually report. Share counts are not exposed by
- * the YouTube Data API nor by public Facebook/Instagram scraping — only
- * TikTok returns them — so we hide "Shares" elsewhere instead of showing a
- * misleading 0.
+ * the YouTube Data API nor by public Instagram scraping; TikTok returns them
+ * directly and Facebook via per-post lookups — so we hide "Shares" for
+ * YouTube/Instagram instead of showing a misleading 0.
  */
 export const PLATFORM_METRIC_KEYS: Record<AnPlatform, AnMetricKey[]> = {
   youtube: ['views', 'posts', 'likes', 'comments'],
-  facebook: ['views', 'posts', 'likes', 'comments'],
+  facebook: ['views', 'posts', 'likes', 'comments', 'shares'],
   instagram: ['views', 'posts', 'likes', 'comments'],
   tiktok: ['views', 'posts', 'likes', 'comments', 'shares'],
 };

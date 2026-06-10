@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import type { AnAccount, AnContentResponse, AnPlatform } from '../../types/analytics';
 import { mediaProxyUrl } from '../../services/analytics';
 import { PLATFORM_GLYPHS, PLATFORM_META } from './platformMeta';
+import { MediaAvatar } from './MediaImg';
 
 const Hero = styled.div<{ $gradient: string; $cover?: string }>`
   position: relative;
@@ -58,16 +59,7 @@ const BrandWatermark = styled.div<{ $color: string }>`
   svg { width: 140px; height: 140px; }
 `;
 
-const Avatar = styled.div<{ $url?: string; $color: string }>`
-  width: 64px;
-  height: 64px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  border: 2px solid ${(p) => p.$color};
-  background: ${(p) => (p.$url ? `url(${p.$url}) center/cover` : 'var(--bg-3)')};
-  display: grid;
-  place-items: center;
-  color: ${(p) => p.$color};
+const HeroAvatar = styled(MediaAvatar)`
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 `;
 
@@ -146,9 +138,13 @@ export const PlatformHeader: React.FC<PlatformHeaderProps> = ({ platform, conten
     <Hero $gradient={meta.gradient} $cover={coverUrl}>
       <BrandWatermark $color={meta.color}><Glyph /></BrandWatermark>
       <Content>
-        <Avatar $url={avatarUrl} $color={meta.color}>
-          {!avatarUrl && <Glyph size={28} />}
-        </Avatar>
+        <HeroAvatar
+          src={avatarUrl}
+          size={64}
+          color={meta.color}
+          borderWidth={2}
+          glyph={<Glyph size={28} />}
+        />
         <Info>
           <NameRow>
             <Name>{displayName}</Name>

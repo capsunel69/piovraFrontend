@@ -4,6 +4,7 @@ import type { AnAccount, AnMetricKey, AnOverviewResponse, AnPlatform } from '../
 import { AN_METRIC_LABELS, AN_PLATFORMS } from '../../types/analytics';
 import { mediaProxyUrl } from '../../services/analytics';
 import { PLATFORM_GLYPHS, PLATFORM_META, PLATFORM_METRIC_KEYS } from './platformMeta';
+import { MediaAvatar } from './MediaImg';
 
 const Grid = styled.div`
   display: grid;
@@ -37,17 +38,6 @@ const Header = styled.div<{ $color: string }>`
   color: ${(p) => p.$color};
 `;
 
-const MiniAvatar = styled.span<{ $url?: string; $color: string }>`
-  width: 26px;
-  height: 26px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  border: 1.5px solid ${(p) => p.$color};
-  background: ${(p) => (p.$url ? `url(${p.$url}) center/cover` : 'var(--bg-3)')};
-  display: grid;
-  place-items: center;
-  color: ${(p) => p.$color};
-`;
 
 const Name = styled.span`
   font-size: 13px;
@@ -136,9 +126,13 @@ export const PlatformBreakdown: React.FC<PlatformBreakdownProps> = ({
             title={`Open ${meta.label} details`}
           >
             <Header $color={meta.color}>
-              <MiniAvatar $url={avatarUrl} $color={meta.color}>
-                {!avatarUrl && <Glyph size={13} />}
-              </MiniAvatar>
+              <MediaAvatar
+                src={avatarUrl}
+                size={26}
+                color={meta.color}
+                borderWidth={1.5}
+                glyph={<Glyph size={13} />}
+              />
               <Name>{account?.displayName ?? meta.label}</Name>
             </Header>
             {err ? (

@@ -18,6 +18,7 @@ import { AnalyticsChart } from '../components/analytics/AnalyticsChart';
 import { DateRangePicker, getDateRangeFromPreset, type DateRange } from '../components/analytics/DateRangePicker';
 import { PlatformBreakdown } from '../components/analytics/PlatformBreakdown';
 import { PlatformHeader } from '../components/analytics/PlatformHeader';
+import { MediaAvatar } from '../components/analytics/MediaImg';
 import {
   PLATFORM_GLYPHS,
   PLATFORM_META,
@@ -76,13 +77,6 @@ const Tab = styled.button<{ $active?: boolean; $color?: string; $soft?: string }
     color: ${(p) => p.$color ?? 'var(--accent)'};
     svg { color: ${(p) => p.$color ?? 'var(--accent)'}; }
   }
-`;
-
-const TabAvatar = styled.img`
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  object-fit: cover;
 `;
 
 const ControlCard = styled.div`
@@ -356,7 +350,7 @@ const Analytics: React.FC = () => {
               $soft={meta.soft}
               onClick={() => setTab(p)}
             >
-              {avatar ? <TabAvatar src={avatar} alt="" /> : <Glyph size={14} />} {meta.label}
+              <MediaAvatar src={avatar} size={16} glyph={<Glyph size={11} />} /> {meta.label}
             </Tab>
           );
         })}
@@ -406,7 +400,7 @@ const Analytics: React.FC = () => {
             {METRIC_KEYS.map((key) => (
               <StatCard
                 key={key}
-                title={key === 'shares' ? 'Shares (TikTok only)' : AN_METRIC_LABELS[key]}
+                title={key === 'shares' ? 'Shares (FB + TikTok)' : AN_METRIC_LABELS[key]}
                 value={activeOverview.totals[key] ?? 0}
                 comparison={activeOverview.comparisons[key]}
                 large={key === 'views'}

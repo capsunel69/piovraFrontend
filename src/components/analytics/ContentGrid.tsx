@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import type { AnPlatform, AnSocialPostItem } from '../../types/analytics';
 import { mediaProxyUrl } from '../../services/analytics';
 import { PLATFORM_GLYPHS, PLATFORM_META } from './platformMeta';
+import { MediaImg } from './MediaImg';
 
 const Grid = styled.div`
   display: grid;
@@ -27,13 +28,23 @@ const Card = styled.a<{ $color?: string }>`
   }
 `;
 
-const Thumb = styled.div<{ $url?: string; $color?: string }>`
+const Thumb = styled.div<{ $color?: string; $soft?: string }>`
   aspect-ratio: 16 / 9;
   position: relative;
-  background: ${(p) => (p.$url ? `url(${p.$url}) center/cover` : 'var(--bg-3)')};
+  background: ${(p) =>
+    p.$soft ? `linear-gradient(140deg, ${p.$soft}, transparent 70%), var(--bg-3)` : 'var(--bg-3)'};
   display: grid;
   place-items: center;
   color: ${(p) => p.$color ?? 'var(--text-4)'};
+  overflow: hidden;
+`;
+
+const ThumbImg = styled(MediaImg)`
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 `;
 
 const ThumbBadge = styled.span<{ $color: string }>`
@@ -116,9 +127,10 @@ export const ContentGrid: React.FC<ContentGridProps> = ({ items, platform, empty
           onClick={(e) => { if (!item.url) e.preventDefault(); }}
           $color={meta?.color}
         >
-          <Thumb $url={thumb} $color={meta?.color}>
-            {!thumb && Glyph && <Glyph size={28} />}
-            {thumb && meta && Glyph && (
+          <Thumb $color={meta?.color} $soft={meta?.soft}>
+            {Glyph && <Glyph size={28} />}
+            <ThumbImg src={thumb} />
+            {meta && Glyph && (
               <ThumbBadge $color={meta.color}><Glyph size={13} /></ThumbBadge>
             )}
           </Thumb>
