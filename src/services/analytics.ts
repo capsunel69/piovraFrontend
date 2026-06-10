@@ -114,7 +114,9 @@ export const AnalyticsAPI = {
     fetchAn<AnOverviewResponse>(`data/overview?${toQuery({ ...query })}`),
 
   getPlatformAnalytics: (platform: AnPlatform, query: DateRangeQuery) =>
-    fetchAn<AnDataPoint[]>(`data/${platform}?${toQuery({ ...query })}`),
+    fetchAn<{ data: AnDataPoint[]; _meta?: import('../types/analytics').AnPullMeta }>(
+      `data/${platform}?${toQuery({ ...query })}`,
+    ),
 
   getPlatformContent: (platform: AnPlatform, query: DateRangeQuery) =>
     fetchAn<AnContentResponse>(`content/${platform}?${toQuery({ ...query })}`),

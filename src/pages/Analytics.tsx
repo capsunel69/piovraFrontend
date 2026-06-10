@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import {
   IconAnalytics,
@@ -403,10 +403,15 @@ const Analytics: React.FC = () => {
   );
 
   // Auto-hydrate from backend cache when page loads or project/range changes.
+  // Each (project, range) is attempted at most once per session so a failing
+  // pull doesn't loop forever; manual "Pull data now" is unaffected.
+  const autoPullAttempted = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (loading || !activeProjectId) return;
     const key = bundleKey(activeProjectId, range.startDate, range.endDate);
     if (pull.bundles[key] || pull.status === 'pulling') return;
+    if (autoPullAttempted.current.has(key)) return;
+    autoPullAttempted.current.add(key);
     void startAnalyticsPull({
       projectId: activeProjectId,
       startDate: range.startDate,
@@ -504,21 +509,22 @@ const Analytics: React.FC = () => {
   const isDataTab = tab === 'overview' || tab === 'master' || AN_PLATFORMS.includes(tab as AnPlatform);
   const isUtilityTab = tab === 'master' || tab === 'usage' || tab === 'logs' || tab === 'settings';
 
-  const pullStatusMode = useMemo(() => {
+  const pullStatusMode = ((): 'cache' | 'scrape' | 'mixed' | null => {
     if (!pull.progress) return null;
     const { mode, liveCalls, cacheHits } = pull.progress;
-    if (mode === 'scrape' || (liveCalls > 0 && cacheHits === 0)) return 'scrape' as const;
-    if (liveCalls > 0 && cacheHits > 0) return 'mixed' as const;
-    return 'cache' as const;
-  }, [pull.progress]);
+    if (mode === 'scrape' || (liveCalls > 0 && cacheHits === 0)) return 'scrape';
+    if (liveCalls > 0 && cacheHits > 0) return 'mixed';
+    return 'cache';
+  })();
 
-  const pullStatusLabel = useMemo(() => {
-    if (!pull.progress) return null;
-    const m = pullStatusMode;
-    if (m === 'scrape') return 'Live scrape';
-    if (m === 'mixed') return 'Cache + scrape';
-    return 'From cache';
-  }, [pull.progress, pullStatusMode]);
+  const pullStatusLabel =
+    pullStatusMode === 'scrape'
+      ? 'Live scrape'
+      : pullStatusMode === 'mixed'
+        ? 'Cache + scrape'
+        : pullStatusMode === 'cache'
+          ? 'From cache'
+          : null;
 
   return (
     <PageContainer>
