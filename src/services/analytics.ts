@@ -83,6 +83,17 @@ export const AnalyticsAPI = {
       method: 'DELETE',
     }),
 
+  getSchedule: (projectId: string) =>
+    fetchAn<{ enabled: boolean; time: string | null; lastFired: string | null }>(
+      `projects/${projectId}/schedule`,
+    ),
+
+  updateSchedule: (projectId: string, input: { enabled: boolean; time: string | null }) =>
+    fetchAn<{ success: boolean; enabled: boolean; time: string | null; lastFired: string | null }>(
+      `projects/${projectId}/schedule`,
+      { method: 'PUT', body: JSON.stringify(input) },
+    ),
+
   listAccounts: (projectId: string) =>
     fetchAn<{ accounts: AnAccount[] }>(`projects/${projectId}/accounts`),
 

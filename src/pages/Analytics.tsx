@@ -185,6 +185,133 @@ const StaleNote = styled.span`
   color: var(--warn, #fbbf24);
 `;
 
+const ScheduleBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border-1);
+  font-size: 13px;
+  color: var(--text-2);
+`;
+
+const ScheduleToggleLabel = styled.label`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+
+  input {
+    accent-color: var(--accent);
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+  }
+`;
+
+const TimeInput = styled.input`
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-md);
+  color: var(--text-1);
+  padding: 5px 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+function ScheduleControls({ projectId }: { projectId: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const [time, setTime] = useState('08:00');
+  const [lastFired, setLastFired] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoaded(false);
+    AnalyticsAPI.getSchedule(projectId)
+      .then((s) => {
+        if (cancelled) return;
+        setEnabled(s.enabled);
+        if (s.time) setTime(s.time);
+        setLastFired(s.lastFired);
+        setLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  const save = useCallback(
+    async (nextEnabled: boolean, nextTime: string) => {
+      setSaving(true);
+      setScheduleError(null);
+      try {
+        const res = await AnalyticsAPI.updateSchedule(projectId, {
+          enabled: nextEnabled,
+          time: nextTime || null,
+        });
+        setEnabled(res.enabled);
+        if (res.time) setTime(res.time);
+        setLastFired(res.lastFired);
+      } catch (e) {
+        setScheduleError(e instanceof Error ? e.message : 'Failed to save schedule');
+      } finally {
+        setSaving(false);
+      }
+    },
+    [projectId],
+  );
+
+  return (
+    <ScheduleBar>
+      <ScheduleToggleLabel>
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={!loaded || saving}
+          onChange={(e) => void save(e.target.checked, time)}
+        />
+        Auto-pull daily at
+      </ScheduleToggleLabel>
+      <TimeInput
+        type="time"
+        value={time}
+        disabled={!loaded || saving}
+        onChange={(e) => setTime(e.target.value)}
+        onBlur={() => {
+          if (enabled && time) void save(true, time);
+        }}
+      />
+      <InfoTip text="When enabled, the latest data (last 7 days) is scraped fresh from the platforms every day at this time and saved to the database — so your pulls are always up to date without spending extra credits manually." />
+      {saving && <StaleNote style={{ color: 'var(--text-3)' }}>Saving…</StaleNote>}
+      {scheduleError && <StaleNote>{scheduleError}</StaleNote>}
+      {enabled && lastFired && (
+        <LastPull>Last auto-pull: {formatDateTimeRo(new Date(lastFired).getTime())}</LastPull>
+      )}
+      {enabled && !lastFired && <LastPull>Scheduled — hasn't run yet</LastPull>}
+    </ScheduleBar>
+  );
+}
+
 const LastPull = styled.span`
   font-size: 12px;
   color: var(--text-3);
@@ -726,6 +853,7 @@ const Analytics: React.FC = () => {
               </LastPull>
             )}
           </PullBar>
+          {activeProjectId && <ScheduleControls projectId={activeProjectId} />}
         </ControlCard>
       )}
 

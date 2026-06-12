@@ -505,7 +505,8 @@ const EntityReport = {
     container.classList.remove('hidden');
 
     const data = r.report_data || {};
-    const entities = data.entities || [];
+    // Hide entities with no scoreable data (older reports may still contain them).
+    const entities = (data.entities || []).filter(e => e.sentiment_score != null);
     const platformStats = data.platform_stats || {};
 
     const ps = ['facebook', 'tiktok', 'youtube'].map(p => {
