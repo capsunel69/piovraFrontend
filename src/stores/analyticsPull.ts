@@ -327,18 +327,20 @@ export async function startAnalyticsPull(params: PullParams): Promise<void> {
   });
 
   const key = bundleKey(projectId, startDate, endDate);
-  const query = { startDate, endDate, projectId, refresh };
 
-  try {
-    const overviewPromise = AnalyticsAPI.getOverview(query).then((raw) => {
-      const { data, meta } = stripMeta(raw);
-      aggMeta = mergeMeta(aggMeta, meta);
-      completedSteps += 1;
-      updateProgress();
-      return data;
-    });
+  const loadOverview = (withRefresh: boolean) =>
+    AnalyticsAPI.getOverview({ startDate, endDate, projectId, refresh: withRefresh }).then(
+      (raw) => {
+        const { data, meta } = stripMeta(raw);
+        aggMeta = mergeMeta(aggMeta, meta);
+        completedSteps += 1;
+        updateProgress();
+        return data;
+      },
+    );
 
-    const masterPromise = AnalyticsAPI.getMaster({ startDate, endDate, refresh }).then((raw) => {
+  const loadMaster = (withRefresh: boolean) =>
+    AnalyticsAPI.getMaster({ startDate, endDate, refresh: withRefresh }).then((raw) => {
       if (raw._meta) {
         aggMeta = mergeMeta(aggMeta, raw._meta);
         completedSteps += 1;
@@ -347,31 +349,48 @@ export async function startAnalyticsPull(params: PullParams): Promise<void> {
       return raw.rows;
     });
 
-    const contentPromises = AN_PLATFORMS.map((platform) =>
-      AnalyticsAPI.getPlatformContent(platform, query)
-        .then((raw) => {
-          const { data, meta } = stripMeta(raw);
-          aggMeta = mergeMeta(aggMeta, meta);
-          completedSteps += 1;
-          updateProgress();
-          return { platform, content: data };
-        })
-        .catch((e: unknown) => {
-          completedSteps += 1;
-          updateProgress();
-          return {
-            platform,
-            content: null,
-            error: e instanceof Error ? e.message : 'Failed to load content',
-          };
-        }),
-    );
+  const loadContent = (platform: AnPlatform, withRefresh: boolean) =>
+    AnalyticsAPI.getPlatformContent(platform, { startDate, endDate, projectId, refresh: withRefresh })
+      .then((raw) => {
+        const { data, meta } = stripMeta(raw);
+        aggMeta = mergeMeta(aggMeta, meta);
+        completedSteps += 1;
+        updateProgress();
+        return { platform, content: data };
+      })
+      .catch((e: unknown) => {
+        completedSteps += 1;
+        updateProgress();
+        return {
+          platform,
+          content: null,
+          error: e instanceof Error ? e.message : 'Failed to load content',
+        };
+      });
 
-    const [overview, master, ...contentResults] = await Promise.all([
-      overviewPromise,
-      masterPromise,
-      ...contentPromises,
-    ]);
+  try {
+    let overview: AnOverviewResponse;
+    let master: AnMasterRow[];
+    let contentResults: Array<{ platform: AnPlatform; content: AnContentResponse | null; error?: string }>;
+
+    if (refresh) {
+      // Force rescrape in two phases. Scraping everything through the single
+      // overview/master requests can exceed the browser's ~5 min fetch cap
+      // ("Failed to fetch" while the server keeps scraping), so instead each
+      // platform is scraped in its own shorter request, and overview/master
+      // are then aggregated from the freshly-written store.
+      contentResults = await Promise.all(AN_PLATFORMS.map((p) => loadContent(p, true)));
+      [overview, master] = await Promise.all([loadOverview(false), loadMaster(false)]);
+    } else {
+      const results = await Promise.all([
+        loadOverview(false),
+        loadMaster(false),
+        ...AN_PLATFORMS.map((p) => loadContent(p, false)),
+      ]);
+      overview = results[0];
+      master = results[1];
+      contentResults = results.slice(2) as typeof contentResults;
+    }
 
     const platforms = {} as Record<AnPlatform, PlatformBundle>;
     for (const result of contentResults) {
