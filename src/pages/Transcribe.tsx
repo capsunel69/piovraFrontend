@@ -5,6 +5,7 @@ import {
   IconTrash,
   IconCheck,
   IconExternal,
+  IconMic,
 } from '../components/ui/icons';
 import {
   PageContainer,
@@ -56,79 +57,140 @@ function formatTime(sec: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+const FieldLabel = styled.label`
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-3);
+`;
+
 const OptionsRow = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s-4);
+  gap: var(--s-5);
   align-items: flex-end;
 `;
 
 const LangSelect = styled.select`
-  padding: var(--s-2) var(--s-3);
+  height: 40px;
+  padding: 0 var(--s-3);
   border-radius: var(--r-md);
   border: 1px solid var(--border-1);
   background: var(--surface-1);
   color: var(--text-1);
   font-size: var(--text-sm);
+  cursor: pointer;
+  transition: border-color 0.15s;
+  &:hover { border-color: var(--border-2); }
+  &:focus { outline: none; border-color: var(--accent); }
 `;
 
 const ModeSwitcher = styled.div`
-  display: flex;
+  display: inline-flex;
+  height: 40px;
+  padding: 3px;
+  gap: 3px;
   border: 1px solid var(--border-1);
   border-radius: var(--r-md);
-  overflow: hidden;
+  background: var(--surface-1);
 `;
 
 const ModeBtn = styled.button<{ $active?: boolean }>`
-  padding: var(--s-2) var(--s-4);
+  padding: 0 var(--s-4);
   border: none;
-  background: ${(p) => (p.$active ? 'var(--accent)' : 'var(--surface-1)')};
+  border-radius: calc(var(--r-md) - 3px);
+  background: ${(p) => (p.$active ? 'var(--accent)' : 'transparent')};
   color: ${(p) => (p.$active ? 'var(--on-accent)' : 'var(--text-2)')};
   font-size: var(--text-sm);
+  font-weight: ${(p) => (p.$active ? 600 : 400)};
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
   &:hover {
-    background: ${(p) => (p.$active ? 'var(--accent)' : 'var(--surface-2)')};
+    background: ${(p) => (p.$active ? 'var(--accent)' : 'var(--surface-3)')};
   }
+`;
+
+const ToggleCard = styled.label<{ $active?: boolean }>`
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid ${(p) => (p.$active ? 'var(--accent)' : 'var(--border-1)')};
+  border-radius: var(--r-md);
+  background: ${(p) => (p.$active ? 'var(--accent-muted)' : 'var(--surface-1)')};
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  &:hover { border-color: var(--border-2); }
+
+  input { margin-top: 2px; cursor: pointer; flex-shrink: 0; }
 `;
 
 const TabSwitcher = styled.div`
   display: flex;
-  gap: var(--s-2);
+  gap: var(--s-1);
   border-bottom: 1px solid var(--border-1);
-  padding-bottom: var(--s-2);
 `;
 
 const TabBtn = styled.button<{ $active?: boolean }>`
-  padding: var(--s-2) var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  margin-bottom: -1px;
   border: none;
   background: transparent;
-  color: ${(p) => (p.$active ? 'var(--accent)' : 'var(--text-2)')};
-  font-weight: ${(p) => (p.$active ? 600 : 400)};
+  font-size: var(--text-sm);
+  color: ${(p) => (p.$active ? 'var(--text-1)' : 'var(--text-3)')};
+  font-weight: ${(p) => (p.$active ? 600 : 500)};
   border-bottom: 2px solid ${(p) => (p.$active ? 'var(--accent)' : 'transparent')};
   cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  &:hover { color: var(--text-1); }
 `;
 
 const Dropzone = styled.div<{ $dragging?: boolean; $hasFile?: boolean }>`
-  border: 2px dashed ${(p) => (p.$dragging ? 'var(--accent)' : 'var(--border-2)')};
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  min-height: 180px;
+  border: 1.5px dashed ${(p) => (p.$dragging ? 'var(--accent)' : 'var(--border-2)')};
   border-radius: var(--r-lg);
   padding: var(--s-8);
   text-align: center;
   cursor: pointer;
-  background: ${(p) => (p.$hasFile ? 'var(--surface-2)' : 'var(--surface-1)')};
+  background: ${(p) =>
+    p.$dragging ? 'var(--accent-muted)' : p.$hasFile ? 'var(--surface-2)' : 'var(--surface-1)'};
   transition: border-color 0.15s, background 0.15s;
   &:hover {
     border-color: var(--accent);
+    background: var(--surface-2);
   }
+`;
+
+const DropIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  color: var(--text-2);
 `;
 
 const UrlInput = styled.input`
   width: 100%;
-  padding: var(--s-3) var(--s-4);
+  height: 44px;
+  padding: 0 var(--s-4);
   border-radius: var(--r-md);
   border: 1px solid var(--border-1);
   background: var(--surface-1);
   color: var(--text-1);
   font-size: var(--text-base);
+  transition: border-color 0.15s;
+  &::placeholder { color: var(--text-3); }
+  &:hover { border-color: var(--border-2); }
+  &:focus { outline: none; border-color: var(--accent); }
 `;
 
 const ProgressTrack = styled.div`
@@ -388,10 +450,8 @@ export default function Transcribe() {
           <CardBody>
             <Stack $gap={5}>
               <OptionsRow>
-                <Stack $gap={1}>
-                  <label htmlFor="lang-select" style={{ fontSize: 'var(--text-sm)', color: 'var(--text-2)' }}>
-                    Language
-                  </label>
+                <Stack $gap={2}>
+                  <FieldLabel htmlFor="lang-select">Language</FieldLabel>
                   <LangSelect
                     id="lang-select"
                     value={language}
@@ -406,36 +466,40 @@ export default function Transcribe() {
                   </LangSelect>
                 </Stack>
 
-                <ModeSwitcher>
-                  <ModeBtn $active={mode === 'text'} onClick={() => setMode('text')} disabled={isProcessing}>
-                    Text
-                  </ModeBtn>
-                  <ModeBtn
-                    $active={mode === 'subtitles'}
-                    onClick={() => setMode('subtitles')}
-                    disabled={isProcessing}
-                  >
-                    Subtitles
-                  </ModeBtn>
-                </ModeSwitcher>
+                <Stack $gap={2}>
+                  <FieldLabel as="span">Output</FieldLabel>
+                  <ModeSwitcher>
+                    <ModeBtn $active={mode === 'text'} onClick={() => setMode('text')} disabled={isProcessing}>
+                      Text
+                    </ModeBtn>
+                    <ModeBtn
+                      $active={mode === 'subtitles'}
+                      onClick={() => setMode('subtitles')}
+                      disabled={isProcessing}
+                    >
+                      Subtitles
+                    </ModeBtn>
+                  </ModeSwitcher>
+                </Stack>
               </OptionsRow>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-2)', cursor: 'pointer' }}>
+              <ToggleCard $active={isPodcast}>
                 <input
                   type="checkbox"
                   checked={isPodcast}
                   onChange={(e) => setIsPodcast(e.target.checked)}
                   disabled={isProcessing}
                 />
-                <span style={{ fontSize: 'var(--text-sm)' }}>
-                  Podcast mode — label host (Gazdă) and guest (Invitat)
-                </span>
-              </label>
-              {isPodcast && (
-                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-3)' }}>
-                  Uses voice diarization when available; falls back to heuristic labeling if pyannote is unavailable.
-                </span>
-              )}
+                <Stack $gap={1}>
+                  <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
+                    Podcast mode
+                  </span>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-3)' }}>
+                    Labels speakers as host (Gazdă) and guest (Invitat). Uses voice diarization when
+                    available, with heuristic fallback.
+                  </span>
+                </Stack>
+              </ToggleCard>
 
               <TabSwitcher>
                 <TabBtn $active={activeTab === 'upload'} onClick={() => switchTab('upload')}>
@@ -478,15 +542,18 @@ export default function Transcribe() {
                       accept="audio/*,video/*"
                       hidden
                     />
+                    <DropIcon>
+                      <IconMic size={22} />
+                    </DropIcon>
                     {file ? (
-                      <Stack $gap={1}>
+                      <Stack $gap={1} style={{ alignItems: 'center' }}>
                         <strong>{file.name}</strong>
                         <span style={{ color: 'var(--text-3)', fontSize: 'var(--text-sm)' }}>
-                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                          {(file.size / 1024 / 1024).toFixed(2)} MB · click to change
                         </span>
                       </Stack>
                     ) : (
-                      <Stack $gap={2}>
+                      <Stack $gap={1} style={{ alignItems: 'center' }}>
                         <strong>Drag & drop or click to select</strong>
                         <span style={{ color: 'var(--text-3)', fontSize: 'var(--text-sm)' }}>
                           MP3, MP4, WAV, MKV and more (max 2 GB)
@@ -517,11 +584,14 @@ export default function Transcribe() {
               )}
 
               <Button
+                $variant="primary"
+                $size="md"
+                $block
                 onClick={() => void runTranscribe()}
                 disabled={isProcessing || !canTranscribe}
               >
                 {isProcessing ? (
-                    <>
+                  <>
                     <Spinner /> Processing...
                   </>
                 ) : isPodcast ? (
