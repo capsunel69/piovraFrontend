@@ -33,6 +33,7 @@ import {
   IconChat,
   IconCommentSentinel,
   IconAnalytics,
+  IconTranscribe,
 } from '../components/ui/icons';
 
 const MOBILE_BP = 720;
@@ -96,7 +97,7 @@ interface AnAdminProject {
 }
 
 const MODULE_FEATURES: Array<{
-  id: 'whatsapp' | 'comment_sentinel' | 'analytics';
+  id: 'whatsapp' | 'comment_sentinel' | 'analytics' | 'transcribe';
   label: string;
   description: string;
   Icon: React.FC<React.SVGProps<SVGSVGElement> & { size?: number }>;
@@ -118,6 +119,12 @@ const MODULE_FEATURES: Array<{
     label: 'Analytics',
     description: 'Social media analytics for YouTube, Facebook, Instagram, TikTok.',
     Icon: IconAnalytics,
+  },
+  {
+    id: 'transcribe',
+    label: 'Audio Transcribe',
+    description: 'Upload audio/video or paste a URL to transcribe with Whisper.',
+    Icon: IconTranscribe,
   },
 ];
 
