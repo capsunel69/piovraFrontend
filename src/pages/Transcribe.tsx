@@ -1,11 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import {
   IconTranscribe,
   IconTrash,
   IconCheck,
-  IconExternal,
+  IconCopy,
+  IconDownload,
   IconMic,
+  IconUpload,
+  IconLink,
+  IconFileText,
 } from '../components/ui/icons';
 import {
   PageContainer,
@@ -57,125 +61,220 @@ function formatTime(sec: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-const FieldLabel = styled.label`
+/* ── Section scaffolding ──────────────────────────────────────────────── */
+
+const Section = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+`;
+
+const SectionLabel = styled.span`
   font-size: var(--text-xs);
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-3);
 `;
 
-const OptionsRow = styled.div`
+/* ── Segmented control ────────────────────────────────────────────────── */
+
+const Segmented = styled.div`
+  display: inline-flex;
+  padding: 4px;
+  gap: 4px;
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-md);
+`;
+
+const SegBtn = styled.button<{ $active?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: ${(p) => (p.$active ? 'var(--bg-3)' : 'transparent')};
+  color: ${(p) => (p.$active ? 'var(--text-1)' : 'var(--text-3)')};
+  font-size: var(--text-sm);
+  font-weight: ${(p) => (p.$active ? 600 : 500)};
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  svg { width: 15px; height: 15px; }
+  &:hover:not(:disabled) { color: var(--text-1); }
+  &:disabled { cursor: not-allowed; }
+`;
+
+/* ── Settings bar ─────────────────────────────────────────────────────── */
+
+const SettingsBar = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-4);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-md);
+  background: var(--bg-1);
+`;
+
+const SettingsTop = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-5);
   align-items: flex-end;
 `;
 
+const FieldLabel = styled.label`
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 6px;
+  display: block;
+`;
+
 const LangSelect = styled.select`
-  height: 40px;
-  padding: 0 var(--s-3);
-  border-radius: var(--r-md);
-  border: 1px solid var(--border-1);
-  background: var(--surface-1);
+  height: 38px;
+  padding: 0 32px 0 var(--s-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-2);
+  background: var(--bg-2)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a4adbb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")
+    no-repeat right 10px center;
+  appearance: none;
   color: var(--text-1);
   font-size: var(--text-sm);
   cursor: pointer;
-  transition: border-color 0.15s;
-  &:hover { border-color: var(--border-2); }
-  &:focus { outline: none; border-color: var(--accent); }
+  transition: border-color 0.15s, box-shadow 0.15s;
+  &:hover:not(:disabled) { border-color: var(--border-3); }
+  &:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  option { background: var(--bg-1); color: var(--text-1); }
 `;
 
-const ModeSwitcher = styled.div`
-  display: inline-flex;
-  height: 40px;
-  padding: 3px;
-  gap: 3px;
-  border: 1px solid var(--border-1);
-  border-radius: var(--r-md);
-  background: var(--surface-1);
-`;
-
-const ModeBtn = styled.button<{ $active?: boolean }>`
-  padding: 0 var(--s-4);
-  border: none;
-  border-radius: calc(var(--r-md) - 3px);
-  background: ${(p) => (p.$active ? 'var(--accent)' : 'transparent')};
-  color: ${(p) => (p.$active ? 'var(--on-accent)' : 'var(--text-2)')};
-  font-size: var(--text-sm);
-  font-weight: ${(p) => (p.$active ? 600 : 400)};
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  &:hover {
-    background: ${(p) => (p.$active ? 'var(--accent)' : 'var(--surface-3)')};
-  }
-`;
-
-const ToggleCard = styled.label<{ $active?: boolean }>`
+const PodcastRow = styled.div`
   display: flex;
   align-items: flex-start;
   gap: var(--s-3);
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid ${(p) => (p.$active ? 'var(--accent)' : 'var(--border-1)')};
-  border-radius: var(--r-md);
-  background: ${(p) => (p.$active ? 'var(--accent-muted)' : 'var(--surface-1)')};
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-  &:hover { border-color: var(--border-2); }
-
-  input { margin-top: 2px; cursor: pointer; flex-shrink: 0; }
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--border-1);
 `;
 
-const TabSwitcher = styled.div`
-  display: flex;
-  gap: var(--s-1);
-  border-bottom: 1px solid var(--border-1);
-`;
-
-const TabBtn = styled.button<{ $active?: boolean }>`
-  padding: var(--s-3) var(--s-4);
-  margin-bottom: -1px;
+const Switch = styled.button<{ $on?: boolean }>`
+  position: relative;
+  flex-shrink: 0;
+  width: 38px;
+  height: 22px;
+  margin-top: 1px;
   border: none;
-  background: transparent;
-  font-size: var(--text-sm);
-  color: ${(p) => (p.$active ? 'var(--text-1)' : 'var(--text-3)')};
-  font-weight: ${(p) => (p.$active ? 600 : 500)};
-  border-bottom: 2px solid ${(p) => (p.$active ? 'var(--accent)' : 'transparent')};
+  border-radius: 999px;
+  background: ${(p) => (p.$on ? 'var(--accent)' : 'var(--bg-4)')};
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-  &:hover { color: var(--text-1); }
+  transition: background 0.2s;
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  &::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: ${(p) => (p.$on ? '19px' : '3px')};
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: ${(p) => (p.$on ? '#06121d' : 'var(--text-3)')};
+    transition: left 0.2s, background 0.2s;
+  }
+`;
+
+/* ── Dropzone ─────────────────────────────────────────────────────────── */
+
+const dropPulse = keyframes`
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.06); opacity: 0.85; }
 `;
 
 const Dropzone = styled.div<{ $dragging?: boolean; $hasFile?: boolean }>`
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--s-3);
-  min-height: 180px;
+  min-height: 200px;
   border: 1.5px dashed ${(p) => (p.$dragging ? 'var(--accent)' : 'var(--border-2)')};
   border-radius: var(--r-lg);
-  padding: var(--s-8);
+  padding: var(--s-7);
   text-align: center;
   cursor: pointer;
   background: ${(p) =>
-    p.$dragging ? 'var(--accent-muted)' : p.$hasFile ? 'var(--surface-2)' : 'var(--surface-1)'};
-  transition: border-color 0.15s, background 0.15s;
+    p.$dragging
+      ? 'var(--accent-soft)'
+      : 'radial-gradient(120% 120% at 50% 0%, var(--bg-3), var(--bg-1))'};
+  transition: border-color 0.18s, background 0.18s;
   &:hover {
     border-color: var(--accent);
-    background: var(--surface-2);
+    background: var(--accent-soft);
   }
 `;
 
-const DropIcon = styled.div`
+const DropIcon = styled.div<{ $dragging?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   border-radius: var(--r-full);
-  background: var(--surface-3);
-  color: var(--text-2);
+  background: var(--accent-soft);
+  color: var(--accent);
+  ${(p) => p.$dragging && `animation: ${dropPulse} 1s ease-in-out infinite;`}
+`;
+
+const DropHint = styled.span`
+  font-size: var(--text-sm);
+  color: var(--text-3);
+`;
+
+/* ── Selected file chip ───────────────────────────────────────────────── */
+
+const FileChip = styled.div`
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-md);
+  background: var(--bg-1);
+`;
+
+const FileIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+`;
+
+const FileMeta = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  .name {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .size { font-size: var(--text-xs); color: var(--text-3); }
 `;
 
 const UrlInput = styled.input`
@@ -183,19 +282,37 @@ const UrlInput = styled.input`
   height: 44px;
   padding: 0 var(--s-4);
   border-radius: var(--r-md);
-  border: 1px solid var(--border-1);
-  background: var(--surface-1);
+  border: 1px solid var(--border-2);
+  background: var(--bg-1);
   color: var(--text-1);
   font-size: var(--text-base);
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
   &::placeholder { color: var(--text-3); }
-  &:hover { border-color: var(--border-2); }
-  &:focus { outline: none; border-color: var(--accent); }
+  &:hover { border-color: var(--border-3); }
+  &:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--bg-2); }
+  @media (max-width: 720px) { font-size: 16px; }
+`;
+
+/* ── Progress ─────────────────────────────────────────────────────────── */
+
+const shimmer = keyframes`
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+`;
+
+const ProgressCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-md);
+  background: var(--bg-1);
 `;
 
 const ProgressTrack = styled.div`
-  height: 6px;
-  background: var(--surface-3);
+  height: 8px;
+  background: var(--bg-4);
   border-radius: var(--r-full);
   overflow: hidden;
 `;
@@ -203,20 +320,45 @@ const ProgressTrack = styled.div`
 const ProgressFill = styled.div<{ $pct: number }>`
   height: 100%;
   width: ${(p) => p.$pct}%;
-  background: var(--accent);
-  transition: width 0.3s ease;
+  border-radius: var(--r-full);
+  background: linear-gradient(90deg, var(--accent-strong), var(--accent), var(--accent-strong));
+  background-size: 200% 100%;
+  animation: ${shimmer} 1.4s linear infinite;
+  transition: width 0.35s ease;
+`;
+
+/* ── Results ──────────────────────────────────────────────────────────── */
+
+const ResultHead = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+`;
+
+const ResultTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-1);
+  svg { color: var(--accent); }
 `;
 
 const TranscriptBox = styled.pre`
   white-space: pre-wrap;
   word-break: break-word;
   padding: var(--s-4);
-  background: var(--surface-2);
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
   border-radius: var(--r-md);
   font-family: inherit;
   font-size: var(--text-sm);
-  line-height: 1.6;
-  max-height: 400px;
+  line-height: 1.7;
+  color: var(--text-1);
+  max-height: 420px;
   overflow-y: auto;
 `;
 
@@ -226,22 +368,33 @@ const HistoryList = styled.div`
   gap: var(--s-2);
 `;
 
-const HistoryItem = styled.button`
+const HistoryItem = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--s-3);
   padding: var(--s-3) var(--s-4);
   border: 1px solid var(--border-1);
   border-radius: var(--r-md);
-  background: var(--surface-1);
-  text-align: left;
+  background: var(--bg-1);
   cursor: pointer;
-  width: 100%;
+  transition: background 0.15s, border-color 0.15s;
   color: var(--text-1);
   &:hover {
-    background: var(--surface-2);
+    background: var(--bg-3);
+    border-color: var(--border-3);
   }
+`;
+
+const HistoryIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: var(--r-sm);
+  background: var(--bg-3);
+  color: var(--text-3);
 `;
 
 const SpeakerBadge = styled.span<{ $host?: boolean }>`
@@ -250,7 +403,7 @@ const SpeakerBadge = styled.span<{ $host?: boolean }>`
   border-radius: var(--r-sm);
   font-size: var(--text-xs);
   font-weight: 600;
-  background: ${(p) => (p.$host ? 'var(--accent-muted)' : 'var(--surface-3)')};
+  background: ${(p) => (p.$host ? 'var(--accent-soft)' : 'var(--bg-3)')};
   color: ${(p) => (p.$host ? 'var(--accent)' : 'var(--text-2)')};
   margin-right: var(--s-2);
 `;
@@ -262,30 +415,51 @@ const PodcastLine = styled.div`
 const SubtitleLine = styled.div`
   display: flex;
   gap: var(--s-4);
-  padding: var(--s-2) 0;
+  padding: var(--s-3) 0;
   border-bottom: 1px solid var(--border-1);
   font-size: var(--text-sm);
+  line-height: 1.6;
+  &:last-child { border-bottom: none; }
 `;
 
 const SubtitleTime = styled.div`
   flex-shrink: 0;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
   min-width: 120px;
+  padding-top: 1px;
 `;
+
+const STAGE_LABELS: Record<string, string> = {
+  starting: 'Starting',
+  uploading: 'Uploading',
+  downloading: 'Downloading',
+  converting: 'Converting',
+  transcribing: 'Transcribing',
+  diarizing: 'Identifying speakers',
+  complete: 'Complete',
+};
 
 function ProgressPanel({ progress }: { progress: TranscribeProgress | null }) {
   if (!progress) return null;
+  const stage = STAGE_LABELS[progress.stage] ?? progress.stage;
   return (
-    <Stack $gap={2}>
+    <ProgressCard>
       <Row style={{ justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-2)' }}>{progress.message}</span>
-        <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{progress.percent}%</span>
+        <Row $gap={2}>
+          <Spinner $size={15} />
+          <SectionLabel>{stage}</SectionLabel>
+        </Row>
+        <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+          {progress.percent}%
+        </span>
       </Row>
       <ProgressTrack>
         <ProgressFill $pct={progress.percent} />
       </ProgressTrack>
-    </Stack>
+      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-3)' }}>{progress.message}</span>
+    </ProgressCard>
   );
 }
 
@@ -426,6 +600,7 @@ export default function Transcribe() {
   };
 
   const switchTab = (tab: 'upload' | 'url') => {
+    if (isProcessing) return;
     setActiveTab(tab);
     resetResults();
     setFile(null);
@@ -439,79 +614,72 @@ export default function Transcribe() {
   return (
     <PageContainer>
       <PageHeader>
-        <PageTitle>
-          <IconTranscribe size={24} /> Transcribe
-        </PageTitle>
-        <PageSubtitle>Convert audio and video to text or subtitles with Whisper.</PageSubtitle>
+        <div>
+          <PageTitle>
+            <IconTranscribe size={24} /> Transcribe
+          </PageTitle>
+          <PageSubtitle>Convert audio and video to text or subtitles with Whisper.</PageSubtitle>
+        </div>
       </PageHeader>
 
       <Stack $gap={6}>
         <Card>
           <CardBody>
-            <Stack $gap={5}>
-              <OptionsRow>
-                <Stack $gap={2}>
-                  <FieldLabel htmlFor="lang-select">Language</FieldLabel>
-                  <LangSelect
-                    id="lang-select"
-                    value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
+            <Stack $gap={5} style={{ padding: '0 var(--s-5)' }}>
+              {/* Source */}
+              <Section>
+                <SectionLabel>Source</SectionLabel>
+                <Segmented role="tablist">
+                  <SegBtn
+                    $active={activeTab === 'upload'}
+                    onClick={() => switchTab('upload')}
                     disabled={isProcessing}
                   >
-                    {LANGUAGES.map((l) => (
-                      <option key={l.code} value={l.code}>
-                        {l.label}
-                      </option>
-                    ))}
-                  </LangSelect>
-                </Stack>
+                    <IconUpload /> Upload file
+                  </SegBtn>
+                  <SegBtn
+                    $active={activeTab === 'url'}
+                    onClick={() => switchTab('url')}
+                    disabled={isProcessing}
+                  >
+                    <IconLink /> Video URL
+                  </SegBtn>
+                </Segmented>
+              </Section>
 
-                <Stack $gap={2}>
-                  <FieldLabel as="span">Output</FieldLabel>
-                  <ModeSwitcher>
-                    <ModeBtn $active={mode === 'text'} onClick={() => setMode('text')} disabled={isProcessing}>
-                      Text
-                    </ModeBtn>
-                    <ModeBtn
-                      $active={mode === 'subtitles'}
-                      onClick={() => setMode('subtitles')}
+              {/* Input */}
+              {activeTab === 'upload' ? (
+                file ? (
+                  <FileChip>
+                    <FileIcon>
+                      <IconFileText size={20} />
+                    </FileIcon>
+                    <FileMeta>
+                      <span className="name">{file.name}</span>
+                      <span className="size">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                    </FileMeta>
+                    <Button
+                      $variant="ghost"
+                      $size="sm"
+                      onClick={() => fileInputRef.current?.click()}
                       disabled={isProcessing}
                     >
-                      Subtitles
-                    </ModeBtn>
-                  </ModeSwitcher>
-                </Stack>
-              </OptionsRow>
-
-              <ToggleCard $active={isPodcast}>
-                <input
-                  type="checkbox"
-                  checked={isPodcast}
-                  onChange={(e) => setIsPodcast(e.target.checked)}
-                  disabled={isProcessing}
-                />
-                <Stack $gap={1}>
-                  <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
-                    Podcast mode
-                  </span>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-3)' }}>
-                    Labels speakers as host (Gazdă) and guest (Invitat). Uses voice diarization when
-                    available, with heuristic fallback.
-                  </span>
-                </Stack>
-              </ToggleCard>
-
-              <TabSwitcher>
-                <TabBtn $active={activeTab === 'upload'} onClick={() => switchTab('upload')}>
-                  Upload file
-                </TabBtn>
-                <TabBtn $active={activeTab === 'url'} onClick={() => switchTab('url')}>
-                  Video URL
-                </TabBtn>
-              </TabSwitcher>
-
-              {activeTab === 'upload' && (
-                <Stack $gap={4}>
+                      Change
+                    </Button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) {
+                          setFile(e.target.files[0]);
+                          resetResults();
+                        }
+                      }}
+                      accept="audio/*,video/*"
+                      hidden
+                    />
+                  </FileChip>
+                ) : (
                   <Dropzone
                     $dragging={isDragging}
                     $hasFile={!!file}
@@ -542,30 +710,19 @@ export default function Transcribe() {
                       accept="audio/*,video/*"
                       hidden
                     />
-                    <DropIcon>
-                      <IconMic size={22} />
+                    <DropIcon $dragging={isDragging}>
+                      <IconMic size={24} />
                     </DropIcon>
-                    {file ? (
-                      <Stack $gap={1} style={{ alignItems: 'center' }}>
-                        <strong>{file.name}</strong>
-                        <span style={{ color: 'var(--text-3)', fontSize: 'var(--text-sm)' }}>
-                          {(file.size / 1024 / 1024).toFixed(2)} MB · click to change
-                        </span>
-                      </Stack>
-                    ) : (
-                      <Stack $gap={1} style={{ alignItems: 'center' }}>
-                        <strong>Drag & drop or click to select</strong>
-                        <span style={{ color: 'var(--text-3)', fontSize: 'var(--text-sm)' }}>
-                          MP3, MP4, WAV, MKV and more (max 2 GB)
-                        </span>
-                      </Stack>
-                    )}
+                    <Stack $gap={1} style={{ alignItems: 'center' }}>
+                      <strong style={{ fontSize: 'var(--text-base)' }}>
+                        {isDragging ? 'Drop to upload' : 'Drag & drop or click to select'}
+                      </strong>
+                      <DropHint>MP3, MP4, WAV, MKV and more · up to 2 GB</DropHint>
+                    </Stack>
                   </Dropzone>
-                </Stack>
-              )}
-
-              {activeTab === 'url' && (
-                <Stack $gap={2}>
+                )
+              ) : (
+                <Section>
                   <UrlInput
                     type="url"
                     placeholder="https://www.youtube.com/watch?v=..."
@@ -574,14 +731,72 @@ export default function Transcribe() {
                       setUrl(e.target.value);
                       resetResults();
                     }}
-                    onKeyDown={(e) => e.key === 'Enter' && canTranscribe && !isProcessing && void runTranscribe()}
+                    onKeyDown={(e) =>
+                      e.key === 'Enter' && canTranscribe && !isProcessing && void runTranscribe()
+                    }
                     disabled={isProcessing}
                   />
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-3)' }}>
-                    Supports YouTube, TikTok, Facebook, Vimeo, and 1000+ sites via yt-dlp.
-                  </span>
-                </Stack>
+                  <DropHint>Supports YouTube, TikTok, Facebook, Vimeo, and 1000+ sites via yt-dlp.</DropHint>
+                </Section>
               )}
+
+              {/* Settings */}
+              <SettingsBar>
+                <SettingsTop>
+                  <div>
+                    <FieldLabel htmlFor="lang-select">Language</FieldLabel>
+                    <LangSelect
+                      id="lang-select"
+                      value={language}
+                      onChange={(e) => setLanguage(e.target.value)}
+                      disabled={isProcessing}
+                    >
+                      {LANGUAGES.map((l) => (
+                        <option key={l.code} value={l.code}>
+                          {l.label}
+                        </option>
+                      ))}
+                    </LangSelect>
+                  </div>
+
+                  <div>
+                    <FieldLabel as="span">Output</FieldLabel>
+                    <Segmented>
+                      <SegBtn $active={mode === 'text'} onClick={() => setMode('text')} disabled={isProcessing}>
+                        Text
+                      </SegBtn>
+                      <SegBtn
+                        $active={mode === 'subtitles'}
+                        onClick={() => setMode('subtitles')}
+                        disabled={isProcessing}
+                      >
+                        Subtitles
+                      </SegBtn>
+                    </Segmented>
+                  </div>
+                </SettingsTop>
+
+                <PodcastRow>
+                  <Switch
+                    type="button"
+                    $on={isPodcast}
+                    onClick={() => setIsPodcast((v) => !v)}
+                    disabled={isProcessing}
+                    role="switch"
+                    aria-checked={isPodcast}
+                    aria-label="Podcast mode"
+                  />
+                  <Stack $gap={1}>
+                    <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-1)' }}>
+                      Podcast mode
+                    </span>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-3)', lineHeight: 1.5 }}>
+                      Labels speakers as host (Gazdă) and guest (Invitat). Uses voice diarization when
+                      available, with heuristic fallback.
+                    </span>
+                  </Stack>
+                </PodcastRow>
+              </SettingsBar>
 
               <Button
                 $variant="primary"
@@ -592,19 +807,24 @@ export default function Transcribe() {
               >
                 {isProcessing ? (
                   <>
-                    <Spinner /> Processing...
+                    <Spinner $size={16} /> Processing...
                   </>
-                ) : isPodcast ? (
-                  mode === 'subtitles' ? 'Transcribe podcast + subtitles' : 'Transcribe podcast'
-                ) : mode === 'subtitles' ? (
-                  'Generate subtitles'
                 ) : (
-                  'Transcribe'
+                  <>
+                    <IconTranscribe size={16} />
+                    {isPodcast
+                      ? mode === 'subtitles'
+                        ? 'Transcribe podcast + subtitles'
+                        : 'Transcribe podcast'
+                      : mode === 'subtitles'
+                        ? 'Generate subtitles'
+                        : 'Transcribe'}
+                  </>
                 )}
               </Button>
 
               {isProcessing && <ProgressPanel progress={progress} />}
-              {error && <ErrorMessage message={error} />}
+              {error && <ErrorMessage message={error} onRetry={canTranscribe ? () => void runTranscribe() : undefined} />}
             </Stack>
           </CardBody>
         </Card>
@@ -612,24 +832,33 @@ export default function Transcribe() {
         {hasResult && mode === 'text' && (
           <Card>
             <CardBody>
-              <Stack $gap={4}>
-                <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                  <strong>{showPodcastLayout ? 'Podcast transcript' : 'Transcript'}</strong>
-                  <Badge>{transcript.split(/\s+/).filter(Boolean).length} words</Badge>
-                </Row>
+              <Stack $gap={4} style={{ padding: '0 var(--s-5)' }}>
+                <ResultHead>
+                  <ResultTitle>
+                    <IconFileText size={18} />
+                    {showPodcastLayout ? 'Podcast transcript' : 'Transcript'}
+                    <Badge $variant="accent">
+                      {transcript.split(/\s+/).filter(Boolean).length} words
+                    </Badge>
+                  </ResultTitle>
+                  <Row $gap={2}>
+                    <Button $variant="secondary" $size="sm" onClick={handleCopy}>
+                      {copied ? <IconCheck size={14} /> : <IconCopy size={14} />} {copied ? 'Copied' : 'Copy'}
+                    </Button>
+                    <Button
+                      $variant="secondary"
+                      $size="sm"
+                      onClick={() => downloadFile(transcript, 'transcript.txt')}
+                    >
+                      <IconDownload size={14} /> TXT
+                    </Button>
+                  </Row>
+                </ResultHead>
                 {showPodcastLayout && speakerSegments ? (
                   <PodcastTranscript segments={speakerSegments} />
                 ) : (
                   <TranscriptBox>{transcript}</TranscriptBox>
                 )}
-                <Row $gap={2}>
-                  <Button $variant="secondary" onClick={handleCopy}>
-                    <IconCheck size={16} /> {copied ? 'Copied!' : 'Copy'}
-                  </Button>
-                  <Button $variant="secondary" onClick={() => downloadFile(transcript, 'transcript.txt')}>
-                    <IconExternal size={16} /> TXT
-                  </Button>
-                </Row>
               </Stack>
             </CardBody>
           </Card>
@@ -638,11 +867,31 @@ export default function Transcribe() {
         {hasResult && mode === 'subtitles' && segments && (
           <Card>
             <CardBody>
-              <Stack $gap={4}>
-                <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                  <strong>{showPodcastLayout ? 'Podcast subtitles' : 'Subtitles'}</strong>
-                  <Badge>{segments.length} segments</Badge>
-                </Row>
+              <Stack $gap={4} style={{ padding: '0 var(--s-5)' }}>
+                <ResultHead>
+                  <ResultTitle>
+                    <IconFileText size={18} />
+                    {showPodcastLayout ? 'Podcast subtitles' : 'Subtitles'}
+                    <Badge $variant="accent">{segments.length} segments</Badge>
+                  </ResultTitle>
+                  <Row $gap={2}>
+                    <Button $variant="secondary" $size="sm" onClick={handleCopy}>
+                      {copied ? <IconCheck size={14} /> : <IconCopy size={14} />} {copied ? 'Copied' : 'Copy SRT'}
+                    </Button>
+                    {srt && (
+                      <Button $variant="secondary" $size="sm" onClick={() => downloadFile(srt, 'subtitles.srt')}>
+                        <IconDownload size={14} /> SRT
+                      </Button>
+                    )}
+                    <Button
+                      $variant="secondary"
+                      $size="sm"
+                      onClick={() => downloadFile(transcript, 'transcript.txt')}
+                    >
+                      <IconDownload size={14} /> TXT
+                    </Button>
+                  </Row>
+                </ResultHead>
                 <div>
                   {segments.map((seg, i) => (
                     <SubtitleLine key={i}>
@@ -660,19 +909,6 @@ export default function Transcribe() {
                     </SubtitleLine>
                   ))}
                 </div>
-                <Row $gap={2}>
-                  <Button $variant="secondary" onClick={handleCopy}>
-                    <IconCheck size={16} /> {copied ? 'Copied!' : 'Copy SRT'}
-                  </Button>
-                  {srt && (
-                    <Button $variant="secondary" onClick={() => downloadFile(srt, 'subtitles.srt')}>
-                      <IconExternal size={16} /> SRT
-                    </Button>
-                  )}
-                  <Button $variant="secondary" onClick={() => downloadFile(transcript, 'transcript.txt')}>
-                    <IconExternal size={16} /> TXT
-                  </Button>
-                </Row>
               </Stack>
             </CardBody>
           </Card>
@@ -680,8 +916,10 @@ export default function Transcribe() {
 
         <Card>
           <CardBody>
-            <Stack $gap={4}>
-              <strong>History</strong>
+            <Stack $gap={4} style={{ padding: '0 var(--s-5)' }}>
+              <ResultTitle>
+                <IconTranscribe size={18} /> History
+              </ResultTitle>
               {historyLoading ? (
                 <LoadingState message="Loading history..." />
               ) : history.length === 0 ? (
@@ -692,8 +930,18 @@ export default function Transcribe() {
                 <HistoryList>
                   {history.map((item) => (
                     <HistoryItem key={item.id} onClick={() => void loadFromHistory(item.id)}>
+                      <HistoryIcon>
+                        {item.source === 'url' ? <IconLink size={16} /> : <IconFileText size={16} />}
+                      </HistoryIcon>
                       <Stack $gap={1} style={{ flex: 1, minWidth: 0 }}>
-                        <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <strong
+                          style={{
+                            fontSize: 'var(--text-sm)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
                           {item.sourceName || (item.source === 'url' ? 'URL' : 'File')}
                         </strong>
                         <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-3)' }}>
@@ -703,6 +951,7 @@ export default function Transcribe() {
                       </Stack>
                       <Button
                         $variant="ghost"
+                        $size="sm"
                         onClick={(e) => void handleDelete(item.id, e)}
                         aria-label="Delete"
                       >
