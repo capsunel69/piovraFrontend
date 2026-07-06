@@ -172,9 +172,14 @@ const Tasks: React.FC = () => {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    // New tasks go to the top: one below the smallest existing manual order.
+    const minOrder = tasks
+      .filter(t => !t.completed && typeof t.order === 'number')
+      .reduce((min, t) => Math.min(min, t.order as number), 0);
     addTask({
       title, description, priority, completed: false,
       dueDate: dueDate ? new Date(dueDate) : undefined,
+      order: minOrder - 1,
     });
     reset();
   };

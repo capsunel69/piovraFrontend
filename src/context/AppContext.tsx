@@ -433,7 +433,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setError(null);
     try {
       const newTask = await TasksAPI.create(task);
-      setTasks(prev => [...prev, newTask]);
+      setTasks(prev => [newTask, ...prev]);
       toast.success('Task created', newTask.title);
     } catch (err) {
       console.error('Error adding task:', err);

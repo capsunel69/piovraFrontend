@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import type { Subtask, Task } from '../types';
 import { Checkbox } from './ui/primitives';
-import { IconPlus, IconTrash, IconEdit, IconCheck, IconX } from './ui/icons';
+import { IconPlus, IconTrash, IconEdit, IconCheck, IconX, IconGrip } from './ui/icons';
 
 /**
  * Inline checklist for a Task.
@@ -25,7 +25,7 @@ const Wrap = styled.div`
   padding: 4px 0 2px;
 `;
 
-const Item = styled.div<{ $done?: boolean }>`
+const Item = styled.div<{ $done?: boolean; $dragging?: boolean; $over?: boolean }>`
   display: flex;
   align-items: flex-start;
   gap: var(--s-2);
@@ -33,9 +33,31 @@ const Item = styled.div<{ $done?: boolean }>`
   border-radius: var(--r-xs);
   transition: background 0.15s;
   min-height: 28px;
+  opacity: ${(p) => (p.$dragging ? 0.4 : 1)};
+  ${(p) => p.$over && 'box-shadow: inset 0 2px 0 var(--accent);'}
 
   &:hover { background: var(--bg-3); }
   &:hover .actions > button { opacity: 1; }
+  &:hover .grip { opacity: 1; }
+`;
+
+const Grip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 0;
+  color: var(--text-4);
+  opacity: 0;
+  cursor: grab;
+  transition: opacity 0.15s;
+  touch-action: none;
+
+  &:active { cursor: grabbing; }
+
+  svg { width: 11px; height: 11px; }
+
+  @media (hover: none) {
+    opacity: 0.5;
+  }
 `;
 
 const TitleText = styled.button<{ $done?: boolean }>`
@@ -213,6 +235,8 @@ const SubtaskList: React.FC<Props> = ({ task, onChange, disabled, compact }) => 
   const [draftTitle, setDraftTitle] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
   // True when the user pressed Esc / Cancel and we shouldn't commit on blur.
   const cancelEditRef = useRef(false);
   const editInputRef = useRef<HTMLInputElement | null>(null);
@@ -220,6 +244,20 @@ const SubtaskList: React.FC<Props> = ({ task, onChange, disabled, compact }) => 
 
   const persist = (next: Subtask[]): void => {
     onChange(task.id, { subtasks: next });
+  };
+
+  const dropOn = (targetId: string): void => {
+    setOverId(null);
+    const sourceId = draggedId;
+    setDraggedId(null);
+    if (!sourceId || sourceId === targetId) return;
+    const next = [...subtasks];
+    const from = next.findIndex((s) => s.id === sourceId);
+    const to = next.findIndex((s) => s.id === targetId);
+    if (from === -1 || to === -1) return;
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    persist(next);
   };
 
   const toggle = (id: string): void => {
@@ -328,7 +366,39 @@ const SubtaskList: React.FC<Props> = ({ task, onChange, disabled, compact }) => 
       {subtasks.map((s) => {
         const isEditing = editingId === s.id;
         return (
-          <Item key={s.id} $done={s.completed}>
+          <Item
+            key={s.id}
+            $done={s.completed}
+            $dragging={draggedId === s.id}
+            $over={overId === s.id && draggedId !== s.id}
+            onDragOver={(e) => {
+              if (!draggedId) return;
+              e.preventDefault();
+              if (s.id !== draggedId) setOverId(s.id);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              dropOn(s.id);
+            }}
+          >
+            {!disabled && subtasks.length > 1 && (
+              <Grip
+                className="grip"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDraggedId(s.id);
+                }}
+                onDragEnd={() => {
+                  setDraggedId(null);
+                  setOverId(null);
+                }}
+                title="Drag to reorder"
+                aria-label="Drag to reorder"
+              >
+                <IconGrip />
+              </Grip>
+            )}
             <Checkbox
               $checked={s.completed}
               onClick={() => toggle(s.id)}

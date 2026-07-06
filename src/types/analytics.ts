@@ -41,6 +41,15 @@ export interface AnProject {
   updatedAt: string;
 }
 
+/** Channel-level stats scraped from the platform profile endpoint. */
+export interface AnProfileMetrics {
+  followers?: number;
+  following?: number;
+  likes?: number;
+  totalViews?: number;
+  videos?: number;
+}
+
 export interface AnAccount {
   id: string;
   projectId: string;
@@ -50,6 +59,7 @@ export interface AnAccount {
   displayName: string | null;
   avatarUrl: string | null;
   coverUrl: string | null;
+  profileMetrics: AnProfileMetrics | null;
   enabled: boolean;
   sortOrder: number;
   createdAt: string;
@@ -100,6 +110,7 @@ export interface AnContentResponse {
     coverUrl?: string;
     followerCount?: number;
     postCount?: number;
+    metrics?: AnProfileMetrics;
   };
   items: AnSocialPostItem[];
   dataSource: 'scrapecreators' | 'public' | 'stored';

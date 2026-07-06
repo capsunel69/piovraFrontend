@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import type { AnAccount, AnContentResponse, AnPlatform } from '../../types/analytics';
+import type { AnAccount, AnContentResponse, AnPlatform, AnProfileMetrics } from '../../types/analytics';
 import { mediaProxyUrl } from '../../services/analytics';
 import { PLATFORM_GLYPHS, PLATFORM_META } from './platformMeta';
 import { MediaAvatar } from './MediaImg';
@@ -107,6 +107,60 @@ const Stats = styled.div`
   strong { color: var(--text-1); font-variant-numeric: tabular-nums; }
 `;
 
+const MetricsRow = styled.div`
+  display: flex;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  margin-top: 4px;
+`;
+
+const MetricPill = styled.span`
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-2);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(4px);
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+
+  strong {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-1);
+    font-variant-numeric: tabular-nums;
+  }
+`;
+
+/** Which channel metrics to show per platform, in display order. */
+const PROFILE_METRIC_DEFS: Record<
+  AnPlatform,
+  Array<{ key: keyof AnProfileMetrics; label: string }>
+> = {
+  youtube: [
+    { key: 'followers', label: 'subscribers' },
+    { key: 'totalViews', label: 'total views' },
+    { key: 'videos', label: 'videos' },
+  ],
+  facebook: [
+    { key: 'followers', label: 'followers' },
+    { key: 'likes', label: 'page likes' },
+  ],
+  instagram: [
+    { key: 'followers', label: 'followers' },
+    { key: 'following', label: 'following' },
+    { key: 'videos', label: 'posts' },
+  ],
+  tiktok: [
+    { key: 'followers', label: 'followers' },
+    { key: 'likes', label: 'likes' },
+    { key: 'videos', label: 'videos' },
+  ],
+};
+
 function formatCompact(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
@@ -134,6 +188,14 @@ export const PlatformHeader: React.FC<PlatformHeaderProps> = ({ platform, conten
   const coverUrl = proxied(profile?.coverUrl ?? account?.coverUrl);
   const displayName = profile?.name ?? account?.displayName ?? account?.label ?? meta.label;
 
+  const metrics: AnProfileMetrics =
+    profile?.metrics ?? account?.profileMetrics ?? (
+      profile?.followerCount != null ? { followers: profile.followerCount } : {}
+    );
+  const metricEntries = PROFILE_METRIC_DEFS[platform]
+    .map((def) => ({ ...def, value: metrics[def.key] }))
+    .filter((m): m is typeof m & { value: number } => m.value != null);
+
   return (
     <Hero $gradient={meta.gradient} $cover={coverUrl}>
       <BrandWatermark $color={meta.color}><Glyph /></BrandWatermark>
@@ -156,13 +218,22 @@ export const PlatformHeader: React.FC<PlatformHeaderProps> = ({ platform, conten
             {(profile?.handle ?? account?.handle) && (
               <span>{profile?.handle ?? account?.handle}</span>
             )}
-            {profile?.followerCount != null && (
+            {metricEntries.length === 0 && profile?.followerCount != null && (
               <span><strong>{formatCompact(profile.followerCount)}</strong> followers</span>
             )}
             {profile?.postCount != null && (
               <span><strong>{profile.postCount}</strong> posts in range</span>
             )}
           </Stats>
+          {metricEntries.length > 0 && (
+            <MetricsRow>
+              {metricEntries.map((m) => (
+                <MetricPill key={m.key}>
+                  <strong>{formatCompact(m.value)}</strong> {m.label}
+                </MetricPill>
+              ))}
+            </MetricsRow>
+          )}
         </Info>
       </Content>
     </Hero>
