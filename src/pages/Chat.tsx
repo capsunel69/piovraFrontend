@@ -209,11 +209,21 @@ const Chat: React.FC = () => {
     activeChannel, isAdmin, totalUnread, searchQuery, setSearchQuery, deleteChannel,
     notificationsSupported, notificationsPermission, notificationsEnabled,
     enableNotifications, disableNotifications, testNotification,
+    setChatPageOpen, markActiveChannelRead,
   } = useWorkChat();
   const [showPinned, setShowPinned] = useState(false);
   const [mobileSidebar, setMobileSidebar] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setChatPageOpen(true);
+    void markActiveChannelRead();
+    return () => {
+      void markActiveChannelRead();
+      setChatPageOpen(false);
+    };
+  }, [setChatPageOpen, markActiveChannelRead]);
 
   useEffect(() => {
     document.title = activeChannel

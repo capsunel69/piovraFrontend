@@ -4,6 +4,7 @@ import React, {
 import { useAuth } from './AuthContext';
 import * as chatApi from '../services/chat';
 import * as notify from '../services/chatNotifications';
+import { buildKnownHandles, type MentionableUser } from '../utils/mentions';
 import type {
   ChatChannel, ChatMessage, ChatUser, ChannelReadState, ChatGifAttachment,
 } from '../types';
@@ -52,6 +53,13 @@ interface WorkChatContextValue {
   disableNotifications: () => void;
   /** Fire a "test" desktop notification — returns false if not possible. */
   testNotification: () => boolean;
+
+  /** Workspace users for @mention autocomplete. */
+  chatUsers: MentionableUser[];
+  /** Lowercase handles that should render as highlighted mentions. */
+  mentionHandles: Set<string>;
+  /** Called by the Chat page on mount/unmount. */
+  setChatPageOpen: (open: boolean) => void;
 }
 
 const WorkChatContext = createContext<WorkChatContextValue | null>(null);
@@ -107,6 +115,8 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [chatUsers, setChatUsers] = useState<MentionableUser[]>([]);
+  const [isChatPageOpen, setIsChatPageOpen] = useState(false);
 
   /* Desktop notifications: derive state from the OS permission + a local
    * "muted" toggle. The toggle defaults to true once permission is granted. */
@@ -121,7 +131,16 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   /* Track whether the chat page is mounted (we poll faster when it is). */
   const isVisibleRef = useRef(false);
+  const isChatPageOpenRef = useRef(false);
   const setActivePolling = useCallback((on: boolean) => { isVisibleRef.current = on; }, []);
+  const setChatPageOpen = useCallback((open: boolean) => {
+    isChatPageOpenRef.current = open;
+    setIsChatPageOpen(open);
+    setActivePolling(open);
+    if (!open && activeChannelIdRef.current) {
+      setUnreadByChannel((prev) => ({ ...prev, [activeChannelIdRef.current!]: 0 }));
+    }
+  }, [setActivePolling]);
 
   /* ── Loaders ───────────────────────────────────────────────────────── */
 
@@ -145,6 +164,10 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setReads(r);
       const map: Record<string, number> = {};
       for (const row of u) map[row.channelId] = row.unreadCount;
+      // While viewing a channel on the chat page, treat it as read locally
+      // so the nav badge doesn't flash stale counts from the server.
+      const viewing = isChatPageOpenRef.current ? activeChannelIdRef.current : null;
+      if (viewing) map[viewing] = 0;
       setUnreadByChannel(map);
       setLoadError(null);
     } catch (err) {
@@ -200,6 +223,12 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     void (async () => {
       await reloadChannels();
       await reloadReadsAndUnread();
+      try {
+        const users = await chatApi.listChatUsers();
+        setChatUsers(users);
+      } catch {
+        /* mention autocomplete is optional */
+      }
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -389,6 +418,32 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         } catch { /* swallow */ }
       });
 
+      es.addEventListener('mention.created', (ev) => {
+        try {
+          const data = JSON.parse((ev as MessageEvent).data) as {
+            channelId: string;
+            mentionedUserIds: string[];
+            payload: ChatMessage;
+          };
+          if (!me?.id || !data.mentionedUserIds.includes(me.id)) return;
+          const isActiveChannel = data.channelId === activeChannelIdRef.current;
+          const tabHidden = typeof document !== 'undefined' && document.visibilityState !== 'visible';
+          const onChatPage = isChatPageOpenRef.current;
+          if (onChatPage && isActiveChannel && !tabHidden) return;
+          if (notificationsLiveRef.current) {
+            const channel = channelsRef.current.find((c) => c.id === data.channelId) ?? null;
+            notify.showMentionNotification({
+              message: data.payload,
+              channel,
+              onClick: () => {
+                setActiveChannelIdState(data.channelId);
+                try { localStorage.setItem(STORAGE_ACTIVE_CHANNEL, data.channelId); } catch { /* noop */ }
+              },
+            });
+          }
+        } catch { /* swallow */ }
+      });
+
       es.addEventListener('channel.created', (ev) => {
         try {
           const data = JSON.parse((ev as MessageEvent).data) as { channel: ChatChannel };
@@ -570,18 +625,15 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     void markChannelReadAt(activeChannelId, latest.createdAt);
   }, [me, activeChannelId, messages, markChannelReadAt]);
 
-  /* When the Chat page mounts/unmounts it bumps polling speed. We expose
-   * `setActivePolling` indirectly via a small effect on `activeChannelId`:
-   * the chat page calls `markActiveChannelRead` on mount, but we also want
-   * polling to ramp up. Simpler: ramp up whenever an active channel is set. */
-  useEffect(() => {
-    setActivePolling(Boolean(activeChannelId));
-  }, [activeChannelId, setActivePolling]);
+  const mentionHandles = useMemo(() => buildKnownHandles(chatUsers), [chatUsers]);
 
-  const totalUnread = useMemo(
-    () => Object.values(unreadByChannel).reduce((a, b) => a + b, 0),
-    [unreadByChannel],
-  );
+  const totalUnread = useMemo(() => {
+    const viewing = isChatPageOpen ? activeChannelId : null;
+    return Object.entries(unreadByChannel).reduce((sum, [channelId, count]) => {
+      if (viewing && channelId === viewing) return sum;
+      return sum + count;
+    }, 0);
+  }, [unreadByChannel, activeChannelId, isChatPageOpen]);
 
   const activeChannel = useMemo(
     () => channels.find((c) => c.id === activeChannelId) ?? null,
@@ -644,6 +696,7 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     searchQuery, setSearchQuery,
     notificationsSupported, notificationsPermission, notificationsEnabled,
     enableNotifications, disableNotifications, testNotification,
+    chatUsers, mentionHandles, setChatPageOpen,
   }), [
     me, isAdmin,
     channels, activeChannelId, activeChannel, setActiveChannel,
@@ -654,6 +707,7 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     searchQuery,
     notificationsSupported, notificationsPermission, notificationsEnabled,
     enableNotifications, disableNotifications, testNotification,
+    chatUsers, mentionHandles, setChatPageOpen,
   ]);
 
   return <WorkChatContext.Provider value={value}>{children}</WorkChatContext.Provider>;

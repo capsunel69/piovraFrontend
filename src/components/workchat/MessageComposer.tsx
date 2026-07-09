@@ -5,6 +5,12 @@ import { IconSmile, IconGif, IconSend, IconX } from '../ui/icons';
 import { useWorkChat } from '../../context/WorkChatContext';
 import EmojiPicker from './EmojiPicker';
 import GifPicker from './GifPicker';
+import {
+  filterMentionCandidates,
+  insertMention,
+  mentionQueryAtCaret,
+  type MentionableUser,
+} from '../../utils/mentions';
 import type { ChatGifAttachment } from '../../types';
 
 const Wrap = styled.div`
@@ -106,12 +112,62 @@ const Hint = styled.div`
   margin-right: var(--s-2);
 `;
 
+const ComposerField = styled.div`
+  position: relative;
+`;
+
+const MentionMenu = styled.ul`
+  position: absolute;
+  left: var(--s-2);
+  right: var(--s-2);
+  bottom: calc(100% + 6px);
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 65;
+`;
+
+const MentionItem = styled.li<{ $active: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  background: ${(p) => (p.$active ? 'var(--accent-soft)' : 'transparent')};
+
+  &:hover { background: var(--accent-soft); }
+
+  .handle {
+    font-size: 13px;
+    font-weight: 600;
+    color: #4cc2ff;
+  }
+
+  .name {
+    font-size: 12px;
+    color: var(--text-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+`;
+
 const MessageComposer: React.FC = () => {
-  const { activeChannel, send } = useWorkChat();
+  const { activeChannel, send, chatUsers, me } = useWorkChat();
   const [text, setText] = useState('');
   const [gif, setGif] = useState<ChatGifAttachment | null>(null);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const gifRef = useRef<HTMLDivElement>(null);
@@ -121,8 +177,40 @@ const MessageComposer: React.FC = () => {
     setGif(null);
     setShowEmoji(false);
     setShowGif(false);
+    setMentionStart(null);
+    setMentionQuery('');
     taRef.current?.focus();
   }, [activeChannel?.id]);
+
+  const mentionCandidates = filterMentionCandidates(chatUsers, mentionQuery, me?.id);
+  const showMentions = mentionStart !== null && mentionCandidates.length > 0;
+
+  const syncMentionState = (nextText: string, caret: number): void => {
+    const hit = mentionQueryAtCaret(nextText, caret);
+    if (!hit) {
+      setMentionStart(null);
+      setMentionQuery('');
+      setMentionIndex(0);
+      return;
+    }
+    setMentionStart(hit.start);
+    setMentionQuery(hit.query);
+    setMentionIndex(0);
+  };
+
+  const pickMention = (user: MentionableUser): void => {
+    const el = taRef.current;
+    if (!el || mentionStart === null) return;
+    const caret = el.selectionStart ?? text.length;
+    const { next, nextCaret } = insertMention(text, mentionStart, caret, user.mentionHandle);
+    setText(next);
+    setMentionStart(null);
+    setMentionQuery('');
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(nextCaret, nextCaret);
+    });
+  };
 
   useEffect(() => {
     const el = taRef.current;
@@ -155,6 +243,29 @@ const MessageComposer: React.FC = () => {
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (showMentions) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((i) => (i + 1) % mentionCandidates.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((i) => (i - 1 + mentionCandidates.length) % mentionCandidates.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        pickMention(mentionCandidates[mentionIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionStart(null);
+        setMentionQuery('');
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       submit();
@@ -185,14 +296,40 @@ const MessageComposer: React.FC = () => {
   return (
     <Wrap>
       <Box onSubmit={submit}>
-        <Textarea
-          ref={taRef}
-          placeholder={placeholder}
-          value={text}
-          disabled={!activeChannel}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={onKeyDown}
-        />
+        <ComposerField>
+          {showMentions && (
+            <MentionMenu role="listbox" aria-label="Mention someone">
+              {mentionCandidates.map((user, i) => (
+                <MentionItem
+                  key={user.id}
+                  $active={i === mentionIndex}
+                  role="option"
+                  aria-selected={i === mentionIndex}
+                  onMouseDown={(ev) => {
+                    ev.preventDefault();
+                    pickMention(user);
+                  }}
+                >
+                  <span className="handle">@{user.mentionHandle}</span>
+                  <span className="name">{user.name}</span>
+                </MentionItem>
+              ))}
+            </MentionMenu>
+          )}
+          <Textarea
+            ref={taRef}
+            placeholder={placeholder}
+            value={text}
+            disabled={!activeChannel}
+            onChange={(e) => {
+              const next = e.target.value;
+              setText(next);
+              syncMentionState(next, e.target.selectionStart ?? next.length);
+            }}
+            onKeyDown={onKeyDown}
+            onClick={(e) => syncMentionState(text, e.currentTarget.selectionStart ?? text.length)}
+          />
+        </ComposerField>
         {gif && (
           <GifChip>
             <img src={gif.previewUrl} alt={gif.alt} />
@@ -247,7 +384,7 @@ const MessageComposer: React.FC = () => {
             )}
           </PopAnchor>
           <Spacer />
-          <Hint>Enter to send · Shift+Enter for new line</Hint>
+          <Hint>@ to mention · Enter to send</Hint>
           <Button
             type="submit"
             $variant="primary"

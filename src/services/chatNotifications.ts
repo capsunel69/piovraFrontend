@@ -63,6 +63,8 @@ interface ShowMessageOpts {
   message: ChatMessage;
   channel: ChatChannel | null;
   onClick?: () => void;
+  /** Override the notification title (e.g. for @mentions). */
+  title?: string;
 }
 
 /**
@@ -86,7 +88,7 @@ export function showMessageNotification(opts: ShowMessageOpts): void {
 
   const { message, channel, onClick } = opts;
   const channelLabel = channel ? `#${channel.name}` : 'Chat';
-  const title = `${message.authorName} — ${channelLabel}`;
+  const title = opts.title ?? `${message.authorName} — ${channelLabel}`;
   const body = buildBody(message);
 
   try {
@@ -116,6 +118,14 @@ export function showMessageNotification(opts: ShowMessageOpts): void {
  * permission is actually granted — site-level permission is necessary but
  * not sufficient. Returns false when not supported / permission missing.
  */
+export function showMentionNotification(opts: ShowMessageOpts): void {
+  const channelLabel = opts.channel ? `#${opts.channel.name}` : 'Chat';
+  showMessageNotification({
+    ...opts,
+    title: `${opts.message.authorName} mentioned you in ${channelLabel}`,
+  });
+}
+
 export function showTestNotification(opts: { title?: string; body?: string } = {}): boolean {
   if (!isSupported()) return false;
   if (Notification.permission !== 'granted') return false;

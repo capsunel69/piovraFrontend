@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 import { format, isSameDay } from 'date-fns';
 import { IconButton } from '../ui/primitives';
@@ -8,7 +8,7 @@ import {
 import { detectLinks } from '../../services/chat';
 import { useWorkChat } from '../../context/WorkChatContext';
 import LinkPreview from './LinkPreview';
-import EmojiPicker from './EmojiPicker';
+import ReactionPicker from './ReactionPicker';
 import Menu from './Menu';
 import type { ChatMessage } from '../../types';
 
@@ -78,7 +78,7 @@ const Column = styled.div<{ $mine: boolean }>`
 `;
 
 /* No CSS triangle — sender's top corner is squared off (4px), the rest are rounded. */
-const Bubble = styled.div<{ $mine: boolean; $first: boolean; $pinned: boolean; $hasText: boolean }>`
+const Bubble = styled.div<{ $mine: boolean; $first: boolean; $pinned: boolean }>`
   position: relative;
   padding: 6px 10px 4px;
   border-radius: 12px;
@@ -117,16 +117,6 @@ const Bubble = styled.div<{ $mine: boolean; $first: boolean; $pinned: boolean; $
     css`
       box-shadow: 0 0 0 1px rgba(76, 194, 255, 0.45), 0 1px 1px rgba(0, 0, 0, 0.18);
     `}
-
-  /* Reserve space for the inline footer (time + ticks) on the last line. */
-  ${(p) => p.$hasText && css`
-    & > .msg-text::after {
-      content: '';
-      display: inline-block;
-      width: ${p.$mine ? '74px' : '54px'};
-      height: 1px;
-    }
-  `}
 `;
 
 const AuthorLine = styled.div`
@@ -159,6 +149,14 @@ const Body = styled.div`
   }
 `;
 
+const Mention = styled.span`
+  color: #4cc2ff;
+  font-weight: 600;
+  background: rgba(76, 194, 255, 0.12);
+  border-radius: 3px;
+  padding: 0 2px;
+`;
+
 const Gif = styled.img`
   display: block;
   max-width: 100%;
@@ -167,17 +165,15 @@ const Gif = styled.img`
   border-radius: 8px;
 `;
 
-const Footer = styled.div<{ $mine: boolean }>`
-  position: absolute;
-  right: 8px;
-  bottom: 3px;
-  display: inline-flex;
+const MetaRow = styled.div<{ $mine: boolean }>`
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
+  margin-top: 2px;
   font-size: 10.5px;
   color: ${(p) => (p.$mine ? 'rgba(255, 255, 255, 0.5)' : 'var(--text-4)')};
   font-variant-numeric: tabular-nums;
-  pointer-events: none;
   user-select: none;
   line-height: 1;
 
@@ -209,7 +205,10 @@ const PinBadge = styled.span`
 const MenuBtnWrap = styled.div<{ $mine: boolean }>`
   position: absolute;
   top: 0;
-  ${(p) => (p.$mine ? 'left: -32px;' : 'right: -32px;')}
+  ${(p) => (p.$mine ? 'left: -64px;' : 'right: -64px;')}
+  display: flex;
+  align-items: center;
+  gap: 2px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.12s ease;
@@ -245,12 +244,6 @@ const Pill = styled.button<{ $mine: boolean }>`
   &:hover { border-color: var(--accent); }
 `;
 
-const EmojiPop = styled.div<{ $mine: boolean }>`
-  position: absolute;
-  top: 0;
-  ${(p) => (p.$mine ? 'right: 100%; margin-right: 8px;' : 'left: 100%; margin-left: 8px;')}
-  z-index: 70;
-`;
 
 const PreviewWrap = styled.div<{ $mine: boolean }>`
   display: flex;
@@ -262,6 +255,7 @@ const PreviewWrap = styled.div<{ $mine: boolean }>`
 `;
 
 const URL_RE = /(https?:\/\/[^\s<>"']+)/gi;
+const MENTION_TOKEN_RE = /@([a-zA-Z0-9_.-]+)/g;
 
 function highlightInString(text: string, query: string): React.ReactNode[] {
   if (!query) return [text];
@@ -283,7 +277,52 @@ function highlightInString(text: string, query: string): React.ReactNode[] {
   return out;
 }
 
-function linkifyAndHighlight(text: string, query: string): React.ReactNode[] {
+function renderPlainChunk(
+  text: string,
+  query: string,
+  knownHandles: Set<string>,
+): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  let mLast = 0;
+  let key = 0;
+  MENTION_TOKEN_RE.lastIndex = 0;
+  let mm: RegExpExecArray | null;
+  while ((mm = MENTION_TOKEN_RE.exec(text))) {
+    const offset = mm.index;
+    if (offset > mLast) {
+      out.push(
+        <React.Fragment key={`t-${key++}`}>
+          {highlightInString(text.slice(mLast, offset), query)}
+        </React.Fragment>,
+      );
+    }
+    const token = mm[0];
+    if (knownHandles.has(mm[1].toLowerCase())) {
+      out.push(<Mention key={`mn-${key++}`}>{token}</Mention>);
+    } else {
+      out.push(
+        <React.Fragment key={`t-${key++}`}>
+          {highlightInString(token, query)}
+        </React.Fragment>,
+      );
+    }
+    mLast = offset + token.length;
+  }
+  if (mLast < text.length) {
+    out.push(
+      <React.Fragment key={`t-${key++}`}>
+        {highlightInString(text.slice(mLast), query)}
+      </React.Fragment>,
+    );
+  }
+  return out;
+}
+
+function linkifyAndHighlight(
+  text: string,
+  query: string,
+  knownHandles: Set<string>,
+): React.ReactNode[] {
   const out: React.ReactNode[] = [];
   let last = 0;
   let key = 0;
@@ -292,7 +331,7 @@ function linkifyAndHighlight(text: string, query: string): React.ReactNode[] {
     if (o > last) {
       out.push(
         <React.Fragment key={`t-${key++}`}>
-          {highlightInString(text.slice(last, o), query)}
+          {renderPlainChunk(text.slice(last, o), query, knownHandles)}
         </React.Fragment>,
       );
     }
@@ -307,7 +346,7 @@ function linkifyAndHighlight(text: string, query: string): React.ReactNode[] {
   if (last < text.length) {
     out.push(
       <React.Fragment key={`t-${key++}`}>
-        {highlightInString(text.slice(last), query)}
+        {renderPlainChunk(text.slice(last), query, knownHandles)}
       </React.Fragment>,
     );
   }
@@ -315,22 +354,15 @@ function linkifyAndHighlight(text: string, query: string): React.ReactNode[] {
 }
 
 const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highlight }) => {
-  const { me, isAdmin, toggleReaction, pinMessage, unpinMessage, deleteMessage } = useWorkChat();
-  const [showEmoji, setShowEmoji] = useState(false);
-  const emojiRef = useRef<HTMLDivElement>(null);
+  const { me, isAdmin, toggleReaction, pinMessage, unpinMessage, deleteMessage, mentionHandles } = useWorkChat();
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const bubbleRef = useRef<HTMLDivElement>(null);
 
   const links = useMemo(() => detectLinks(message.text), [message.text]);
   const isMine = me?.id === message.authorId;
   const isPinned = Boolean(message.pinnedAt);
 
-  useEffect(() => {
-    if (!showEmoji) return;
-    const onDoc = (e: MouseEvent): void => {
-      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) setShowEmoji(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [showEmoji]);
+  const openReactionPicker = (): void => setShowReactionPicker(true);
 
   const createdAt = useMemo(() => new Date(message.createdAt), [message.createdAt]);
   const today = new Date();
@@ -347,7 +379,7 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highl
       id: 'react',
       label: 'Add reaction',
       icon: <IconSmile />,
-      onSelect: () => setShowEmoji(true),
+      onSelect: openReactionPicker,
     },
     ...(isAdmin
       ? [{
@@ -385,14 +417,23 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highl
         </AvatarSlot>
       )}
 
-      <Column $mine={Boolean(isMine)}>
+      <Column $mine={Boolean(isMine)} ref={bubbleRef}>
         <Bubble
           $mine={Boolean(isMine)}
           $first={showAuthor}
           $pinned={isPinned}
-          $hasText={hasText}
         >
           <MenuBtnWrap $mine={Boolean(isMine)} className="msg-menu">
+            <IconButton
+              type="button"
+              $size="sm"
+              $variant="ghost"
+              aria-label="React to message"
+              title="React"
+              onClick={openReactionPicker}
+            >
+              <IconSmile />
+            </IconButton>
             <Menu
               ariaLabel="Message actions"
               align={isMine ? 'left' : 'right'}
@@ -408,18 +449,6 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highl
               }
               items={menuItems}
             />
-            <div ref={emojiRef}>
-              {showEmoji && (
-                <EmojiPop $mine={Boolean(isMine)}>
-                  <EmojiPicker
-                    onSelect={(e) => {
-                      void toggleReaction(message.id, e);
-                      setShowEmoji(false);
-                    }}
-                  />
-                </EmojiPop>
-              )}
-            </div>
           </MenuBtnWrap>
 
           {isPinned && showAuthor && (
@@ -430,7 +459,9 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highl
           )}
 
           {hasText && (
-            <Body className="msg-text">{linkifyAndHighlight(message.text, highlight ?? '')}</Body>
+            <Body className="msg-text">
+              {linkifyAndHighlight(message.text, highlight ?? '', mentionHandles)}
+            </Body>
           )}
           {message.gif && (
             <Gif
@@ -441,14 +472,14 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highl
             />
           )}
 
-          <Footer $mine={Boolean(isMine)} title={createdAt.toLocaleString()}>
+          <MetaRow $mine={Boolean(isMine)} title={createdAt.toLocaleString()}>
             <span>{timeLabel}</span>
             {isMine && (
               <SeenTick $seen={seenByOthers} title={seenByOthers ? 'Seen' : 'Sent'}>
                 {seenByOthers ? <IconCheckDouble /> : <IconCheck />}
               </SeenTick>
             )}
-          </Footer>
+          </MetaRow>
         </Bubble>
 
         {(links.length > 0 || Object.keys(message.reactions).length > 0) && (
@@ -478,6 +509,14 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highl
           </PreviewWrap>
         )}
       </Column>
+
+      {showReactionPicker && (
+        <ReactionPicker
+          anchorEl={bubbleRef.current}
+          onSelect={(emoji) => void toggleReaction(message.id, emoji)}
+          onClose={() => setShowReactionPicker(false)}
+        />
+      )}
     </Row>
   );
 };

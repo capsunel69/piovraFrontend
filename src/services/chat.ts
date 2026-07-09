@@ -51,6 +51,18 @@ export function listChannels(): Promise<ChatChannel[]> {
   return http<ChatChannel[]>('/channels');
 }
 
+export interface ChatMentionUser {
+  id: string;
+  name: string;
+  email: string;
+  pictureUrl: string | null;
+  mentionHandle: string;
+}
+
+export function listChatUsers(): Promise<ChatMentionUser[]> {
+  return http<ChatMentionUser[]>('/users');
+}
+
 export function createChannel(input: { name: string; topic?: string }): Promise<ChatChannel> {
   return http<ChatChannel>('/channels', {
     method: 'POST',
