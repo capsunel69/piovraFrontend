@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { IconButton, Button } from '../ui/primitives';
-import { IconSmile, IconGif, IconSend, IconX } from '../ui/icons';
+import { IconButton, Button, Spinner } from '../ui/primitives';
+import { IconSmile, IconGif, IconSend, IconX, IconPaperclip, IconFileText } from '../ui/icons';
 import { useWorkChat } from '../../context/WorkChatContext';
+import { uploadAttachments } from '../../services/chat';
 import EmojiPicker from './EmojiPicker';
 import GifPicker from './GifPicker';
 import {
@@ -12,6 +13,19 @@ import {
   type MentionableUser,
 } from '../../utils/mentions';
 import type { ChatGifAttachment } from '../../types';
+
+interface PendingFile {
+  id: string;
+  file: File;
+  /** Object URL for image/video/audio previews; null for generic files. */
+  preview: string | null;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
 
 const Wrap = styled.div`
   border-top: 1px solid var(--border-1);
@@ -99,6 +113,79 @@ const PopAnchor = styled.div`
   position: relative;
 `;
 
+const AttachStrip = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-2) 0;
+`;
+
+const AttachItem = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-2);
+  background: var(--bg-2);
+
+  .thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: var(--bg-3);
+    display: grid;
+    place-items: center;
+    color: var(--text-3);
+    overflow: hidden;
+  }
+  .thumb img,
+  .thumb video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .name {
+    font-size: 12px;
+    color: var(--text-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .size {
+    font-size: 10.5px;
+    color: var(--text-4);
+  }
+
+  button.remove {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--bg-4);
+    border: 1px solid var(--border-2);
+    color: var(--text-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    svg { width: 11px; height: 11px; }
+    &:hover { color: var(--danger); }
+  }
+`;
+
 const Pop = styled.div`
   position: absolute;
   bottom: calc(100% + 8px);
@@ -163,6 +250,8 @@ const MessageComposer: React.FC = () => {
   const { activeChannel, send, chatUsers, me } = useWorkChat();
   const [text, setText] = useState('');
   const [gif, setGif] = useState<ChatGifAttachment | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
   const [mentionStart, setMentionStart] = useState<number | null>(null);
@@ -171,16 +260,61 @@ const MessageComposer: React.FC = () => {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const gifRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const clearPending = (): void => {
+    setPendingFiles((prev) => {
+      for (const p of prev) if (p.preview) URL.revokeObjectURL(p.preview);
+      return [];
+    });
+  };
 
   useEffect(() => {
     setText('');
     setGif(null);
+    clearPending();
     setShowEmoji(false);
     setShowGif(false);
     setMentionStart(null);
     setMentionQuery('');
     taRef.current?.focus();
   }, [activeChannel?.id]);
+
+  useEffect(() => () => clearPending(), []);
+
+  const addFiles = (files: FileList | File[]): void => {
+    const list = Array.from(files);
+    if (list.length === 0) return;
+    setPendingFiles((prev) => {
+      const next = [...prev];
+      for (const f of list) {
+        if (next.length >= 10) break;
+        const isMedia = /^(image|video|audio)\//.test(f.type);
+        next.push({
+          id: crypto.randomUUID(),
+          file: f,
+          preview: isMedia ? URL.createObjectURL(f) : null,
+        });
+      }
+      return next;
+    });
+  };
+
+  const removePending = (id: string): void => {
+    setPendingFiles((prev) => {
+      const t = prev.find((p) => p.id === id);
+      if (t?.preview) URL.revokeObjectURL(t.preview);
+      return prev.filter((p) => p.id !== id);
+    });
+  };
+
+  const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>): void => {
+    const files = e.clipboardData.files;
+    if (files && files.length > 0) {
+      e.preventDefault();
+      addFiles(files);
+    }
+  };
 
   const mentionCandidates = filterMentionCandidates(chatUsers, mentionQuery, me?.id);
   const showMentions = mentionStart !== null && mentionCandidates.length > 0;
@@ -234,12 +368,29 @@ const MessageComposer: React.FC = () => {
 
   const submit = (e?: React.FormEvent): void => {
     e?.preventDefault();
-    if (!activeChannel) return;
-    if (!text.trim() && !gif) return;
-    send(text, gif ?? undefined);
-    setText('');
-    setGif(null);
-    taRef.current?.focus();
+    if (!activeChannel || uploading) return;
+    if (!text.trim() && !gif && pendingFiles.length === 0) return;
+
+    const outText = text;
+    const outGif = gif;
+    const filesToSend = pendingFiles.map((p) => p.file);
+
+    void (async () => {
+      try {
+        let attachments;
+        if (filesToSend.length > 0) {
+          setUploading(true);
+          attachments = await uploadAttachments(activeChannel.id, filesToSend);
+        }
+        await send(outText, outGif ?? undefined, attachments);
+        setText('');
+        setGif(null);
+        clearPending();
+        taRef.current?.focus();
+      } finally {
+        setUploading(false);
+      }
+    })();
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -327,6 +478,7 @@ const MessageComposer: React.FC = () => {
               syncMentionState(next, e.target.selectionStart ?? next.length);
             }}
             onKeyDown={onKeyDown}
+            onPaste={onPaste}
             onClick={(e) => syncMentionState(text, e.currentTarget.selectionStart ?? text.length)}
           />
         </ComposerField>
@@ -338,7 +490,58 @@ const MessageComposer: React.FC = () => {
             </button>
           </GifChip>
         )}
+        {pendingFiles.length > 0 && (
+          <AttachStrip>
+            {pendingFiles.map((p) => (
+              <AttachItem key={p.id}>
+                <span className="thumb">
+                  {p.file.type.startsWith('image/') && p.preview ? (
+                    <img src={p.preview} alt="" />
+                  ) : p.file.type.startsWith('video/') && p.preview ? (
+                    <video src={p.preview} muted />
+                  ) : (
+                    <IconFileText size={18} />
+                  )}
+                </span>
+                <span className="meta">
+                  <span className="name">{p.file.name}</span>
+                  <span className="size">{formatBytes(p.file.size)}</span>
+                </span>
+                <button
+                  type="button"
+                  className="remove"
+                  onClick={() => removePending(p.id)}
+                  aria-label={`Remove ${p.file.name}`}
+                  disabled={uploading}
+                >
+                  <IconX />
+                </button>
+              </AttachItem>
+            ))}
+          </AttachStrip>
+        )}
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            if (e.target.files?.length) addFiles(e.target.files);
+            e.target.value = '';
+          }}
+        />
         <Toolbar>
+          <IconButton
+            type="button"
+            $variant="ghost"
+            $size="sm"
+            onClick={() => fileRef.current?.click()}
+            title="Attach files"
+            aria-label="Attach files"
+            disabled={!activeChannel || uploading}
+          >
+            <IconPaperclip />
+          </IconButton>
           <PopAnchor ref={emojiRef}>
             <IconButton
               type="button"
@@ -389,9 +592,11 @@ const MessageComposer: React.FC = () => {
             type="submit"
             $variant="primary"
             $size="sm"
-            disabled={!activeChannel || (!text.trim() && !gif)}
+            disabled={
+              !activeChannel || uploading || (!text.trim() && !gif && pendingFiles.length === 0)
+            }
           >
-            <IconSend /> Send
+            {uploading ? <Spinner $size={14} /> : <IconSend />} {uploading ? 'Uploading…' : 'Send'}
           </Button>
         </Toolbar>
       </Box>

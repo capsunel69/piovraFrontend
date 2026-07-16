@@ -142,6 +142,17 @@ export interface ChatGifAttachment {
   alt: string;
 }
 
+export interface ChatAttachment {
+  /** Stable id; also the last segment of `url`. */
+  id: string;
+  /** Server path (relative to VITE_PIOVRA_BASE_URL), e.g. /v1/chat/attachments/<id>. */
+  url: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  kind: 'image' | 'video' | 'audio' | 'file';
+}
+
 export interface ChatMessage {
   id: string;
   channelId: string;
@@ -152,6 +163,8 @@ export interface ChatMessage {
   text: string;
   /** Optional GIF attachment selected from the picker. */
   gif?: ChatGifAttachment;
+  /** Uploaded files (images, video, audio, docs) stored on the server. */
+  attachments?: ChatAttachment[];
   createdAt: string;
   editedAt?: string;
   /** Emoji → user ids who reacted with it. */

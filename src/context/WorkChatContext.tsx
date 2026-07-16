@@ -6,7 +6,7 @@ import * as chatApi from '../services/chat';
 import * as notify from '../services/chatNotifications';
 import { buildKnownHandles, type MentionableUser } from '../utils/mentions';
 import type {
-  ChatChannel, ChatMessage, ChatUser, ChannelReadState, ChatGifAttachment,
+  ChatChannel, ChatMessage, ChatUser, ChannelReadState, ChatGifAttachment, ChatAttachment,
 } from '../types';
 
 interface WorkChatContextValue {
@@ -19,7 +19,7 @@ interface WorkChatContextValue {
   setActiveChannel: (id: string) => void;
 
   messages: ChatMessage[];
-  send: (text: string, gif?: ChatGifAttachment) => Promise<void>;
+  send: (text: string, gif?: ChatGifAttachment, attachments?: ChatAttachment[]) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
   pinMessage: (messageId: string) => Promise<void>;
@@ -521,12 +521,22 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [me]);
 
-  const send = useCallback(async (text: string, gif?: ChatGifAttachment): Promise<void> => {
+  const send = useCallback(async (
+    text: string,
+    gif?: ChatGifAttachment,
+    attachments?: ChatAttachment[],
+  ): Promise<void> => {
     if (!me || !activeChannelId) return;
     const trimmed = text.trim();
-    if (!trimmed && !gif) return;
+    const hasAttachments = (attachments?.length ?? 0) > 0;
+    if (!trimmed && !gif && !hasAttachments) return;
     try {
-      const created = await chatApi.sendMessage({ channelId: activeChannelId, text: trimmed, gif });
+      const created = await chatApi.sendMessage({
+        channelId: activeChannelId,
+        text: trimmed,
+        gif,
+        attachments,
+      });
       setMessages((prev) => dedupeMessagesAppend(prev, [created]));
       // Server already marked sender as read; mirror locally to avoid flash.
       await markChannelReadAt(activeChannelId, created.createdAt);

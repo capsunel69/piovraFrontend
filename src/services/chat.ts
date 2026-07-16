@@ -15,10 +15,16 @@ import type {
   ChannelReadState,
   LinkPreviewData,
   ChatGifAttachment,
+  ChatAttachment,
 } from '../types';
 
 const PIOVRA_BASE_URL = (import.meta.env.VITE_PIOVRA_BASE_URL as string | undefined) ?? '';
 const BASE = `${PIOVRA_BASE_URL}/v1/chat`;
+
+/** Resolve a server-relative attachment URL to an absolute one for media tags. */
+export function attachmentSrc(att: Pick<ChatAttachment, 'url'>): string {
+  return att.url.startsWith('http') ? att.url : `${PIOVRA_BASE_URL}${att.url}`;
+}
 
 async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -98,10 +104,49 @@ export function sendMessage(input: {
   channelId: string;
   text: string;
   gif?: ChatGifAttachment;
+  attachments?: ChatAttachment[];
 }): Promise<ChatMessage> {
   return http<ChatMessage>(`/channels/${input.channelId}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ text: input.text, gif: input.gif }),
+    body: JSON.stringify({
+      text: input.text,
+      gif: input.gif,
+      attachments: input.attachments,
+    }),
+  });
+}
+
+/** Upload one or more files to a channel; returns stored attachment metadata. */
+export async function uploadAttachments(
+  channelId: string,
+  files: File[],
+  onProgress?: (fraction: number) => void,
+): Promise<ChatAttachment[]> {
+  const form = new FormData();
+  for (const f of files) form.append('files', f);
+
+  return new Promise<ChatAttachment[]>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE}/channels/${channelId}/attachments`);
+    xhr.withCredentials = true;
+    xhr.responseType = 'json';
+
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(e.loaded / e.total);
+      };
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const body = xhr.response as { attachments: ChatAttachment[] };
+        resolve(body.attachments ?? []);
+      } else {
+        const err = (xhr.response as { error?: string })?.error;
+        reject(new ChatApiError(xhr.status, err ?? `upload failed (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new ChatApiError(0, 'network error during upload'));
+    xhr.send(form);
   });
 }
 
