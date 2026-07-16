@@ -24,13 +24,16 @@ const Shell = styled.div<{ $showPinned: boolean; $sidebarOpen: boolean }>`
     ${(p) => (p.$showPinned ? '320px' : '0px')};
   gap: var(--s-4);
   align-items: stretch;
-  min-height: calc(100vh - 200px);
+  height: calc(100vh - 200px);
+  max-height: calc(100vh - 200px);
+  min-height: 420px;
   transition: grid-template-columns .2s;
 
   @media (max-width: ${MOBILE_BP}px) {
     grid-template-columns: ${(p) => (p.$sidebarOpen ? '1fr' : '0px')} 1fr 0px;
     gap: ${(p) => (p.$sidebarOpen ? 'var(--s-3)' : '0')};
-    min-height: calc(100vh - 180px);
+    height: calc(100dvh - 150px);
+    max-height: calc(100dvh - 150px);
   }
 `;
 

@@ -5,9 +5,18 @@ import { useWorkChat } from '../../context/WorkChatContext';
 import { IconChat } from '../ui/icons';
 import MessageItem from './MessageItem';
 
+const Region = styled.div`
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+`;
+
 const Wrap = styled.div`
-  flex: 1;
+  flex: 1 1 auto;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--s-3) 0 var(--s-4);
   display: flex;
   flex-direction: column;
@@ -18,6 +27,22 @@ const Wrap = styled.div`
   @media (prefers-reduced-motion: reduce) {
     scroll-behavior: auto;
   }
+`;
+
+const FadeTop = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 34px;
+  pointer-events: none;
+  z-index: 4;
+  background: linear-gradient(
+    180deg,
+    var(--bg-0, #0b1018) 0%,
+    color-mix(in srgb, var(--bg-0, #0b1018) 70%, transparent) 45%,
+    transparent 100%
+  );
 `;
 
 const DayDivider = styled.div`
@@ -188,7 +213,9 @@ const MessageList: React.FC = () => {
   }
 
   return (
-    <Wrap ref={scrollRef}>
+    <Region>
+      <FadeTop aria-hidden />
+      <Wrap ref={scrollRef}>
       {trimmed && (
         <SearchSummary>
           {filtered.length === 0 ? (
@@ -233,7 +260,8 @@ const MessageList: React.FC = () => {
           </React.Fragment>
         );
       })}
-    </Wrap>
+      </Wrap>
+    </Region>
   );
 };
 
