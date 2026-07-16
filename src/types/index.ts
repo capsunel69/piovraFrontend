@@ -151,6 +151,8 @@ export interface ChatAttachment {
   mimeType: string;
   size: number;
   kind: 'image' | 'video' | 'audio' | 'file';
+  uploadedAt?: string;
+  expired?: boolean;
 }
 
 export interface ChatMessage {

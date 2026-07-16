@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { IconButton, Button, Spinner } from '../ui/primitives';
 import { IconSmile, IconGif, IconSend, IconX, IconPaperclip, IconFileText } from '../ui/icons';
 import { useWorkChat } from '../../context/WorkChatContext';
-import { uploadAttachments } from '../../services/chat';
+import { uploadAttachments, getChatUploadLimits, formatUploadLimit, CHAT_UPLOAD_LIMITS_DEFAULT, type ChatUploadLimits } from '../../services/chat';
 import EmojiPicker from './EmojiPicker';
 import GifPicker from './GifPicker';
 import {
@@ -197,6 +197,20 @@ const Hint = styled.div`
   font-size: 11px;
   color: var(--text-4);
   margin-right: var(--s-2);
+  text-align: right;
+  line-height: 1.35;
+  max-width: 220px;
+`;
+
+const UploadError = styled.div`
+  margin: 0 var(--s-2) var(--s-2);
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+  font-size: 12px;
+  line-height: 1.4;
 `;
 
 const ComposerField = styled.div`
@@ -252,6 +266,8 @@ const MessageComposer: React.FC = () => {
   const [gif, setGif] = useState<ChatGifAttachment | null>(null);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [limits, setLimits] = useState<ChatUploadLimits>(CHAT_UPLOAD_LIMITS_DEFAULT);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
   const [mentionStart, setMentionStart] = useState<number | null>(null);
@@ -282,13 +298,44 @@ const MessageComposer: React.FC = () => {
 
   useEffect(() => () => clearPending(), []);
 
+  useEffect(() => {
+    void getChatUploadLimits()
+      .then(setLimits)
+      .catch(() => { /* keep defaults */ });
+  }, []);
+
   const addFiles = (files: FileList | File[]): void => {
     const list = Array.from(files);
     if (list.length === 0) return;
+
+    const rejected: string[] = [];
+    const accepted: File[] = [];
+
+    for (const f of list) {
+      if (f.size > limits.maxFileBytes) {
+        rejected.push(`${f.name} (${formatBytes(f.size)})`);
+        continue;
+      }
+      accepted.push(f);
+    }
+
+    if (rejected.length > 0) {
+      setUploadError(
+        `${rejected.length === 1 ? rejected[0] : `${rejected.length} files`} exceed the ${formatUploadLimit(limits.maxFileBytes)} limit.`,
+      );
+    } else {
+      setUploadError(null);
+    }
+
+    if (accepted.length === 0) return;
+
     setPendingFiles((prev) => {
       const next = [...prev];
-      for (const f of list) {
-        if (next.length >= 10) break;
+      for (const f of accepted) {
+        if (next.length >= limits.maxFileCount) {
+          setUploadError(`Max ${limits.maxFileCount} files per message.`);
+          break;
+        }
         const isMedia = /^(image|video|audio)\//.test(f.type);
         next.push({
           id: crypto.randomUUID(),
@@ -377,6 +424,7 @@ const MessageComposer: React.FC = () => {
 
     void (async () => {
       try {
+        setUploadError(null);
         let attachments;
         if (filesToSend.length > 0) {
           setUploading(true);
@@ -387,6 +435,8 @@ const MessageComposer: React.FC = () => {
         setGif(null);
         clearPending();
         taRef.current?.focus();
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : 'Upload failed');
       } finally {
         setUploading(false);
       }
@@ -490,6 +540,7 @@ const MessageComposer: React.FC = () => {
             </button>
           </GifChip>
         )}
+        {uploadError && <UploadError>{uploadError}</UploadError>}
         {pendingFiles.length > 0 && (
           <AttachStrip>
             {pendingFiles.map((p) => (
@@ -536,7 +587,7 @@ const MessageComposer: React.FC = () => {
             $variant="ghost"
             $size="sm"
             onClick={() => fileRef.current?.click()}
-            title="Attach files"
+            title={`Attach files (max ${formatUploadLimit(limits.maxFileBytes)} each, ${limits.maxFileCount} per message)`}
             aria-label="Attach files"
             disabled={!activeChannel || uploading}
           >
@@ -587,7 +638,9 @@ const MessageComposer: React.FC = () => {
             )}
           </PopAnchor>
           <Spacer />
-          <Hint>@ to mention · Enter to send</Hint>
+          <Hint>
+            Attach: max {formatUploadLimit(limits.maxFileBytes)}/file · {limits.maxFileCount} files · kept {limits.retentionDays}d
+          </Hint>
           <Button
             type="submit"
             $variant="primary"

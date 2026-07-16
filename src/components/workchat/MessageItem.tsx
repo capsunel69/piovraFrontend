@@ -4,11 +4,11 @@ import { format, isSameDay } from 'date-fns';
 import { IconButton } from '../ui/primitives';
 import {
   IconPin, IconSmile, IconTrash, IconCheck, IconCheckDouble, IconMoreVertical,
-  IconDownload, IconFileText,
 } from '../ui/icons';
-import { detectLinks, attachmentSrc } from '../../services/chat';
+import { detectLinks } from '../../services/chat';
 import { useWorkChat } from '../../context/WorkChatContext';
 import LinkPreview from './LinkPreview';
+import AttachmentPreview from './AttachmentPreview';
 import ReactionPicker from './ReactionPicker';
 import Menu from './Menu';
 import type { ChatMessage } from '../../types';
@@ -19,12 +19,6 @@ interface Props {
   seenByOthers: boolean;
   highlight?: string;
   focused?: boolean;
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 const focusPulse = keyframes`
@@ -200,66 +194,8 @@ const Gif = styled.img`
 const Attachments = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin-top: 4px;
-`;
-
-const AttImage = styled.img`
-  display: block;
-  max-width: min(320px, 100%);
-  max-height: 300px;
-  border-radius: 8px;
-  cursor: pointer;
-  object-fit: cover;
-`;
-
-const AttVideo = styled.video`
-  display: block;
-  max-width: min(360px, 100%);
-  max-height: 320px;
-  border-radius: 8px;
-  background: #000;
-`;
-
-const AttAudio = styled.audio`
-  width: min(320px, 100%);
-`;
-
-const AttFile = styled.a`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border-2);
-  background: var(--bg-2);
-  color: var(--text-1);
-  text-decoration: none;
-  max-width: 320px;
-  transition: border-color 0.15s, background 0.15s;
-
-  &:hover { border-color: var(--accent); background: var(--accent-soft); }
-
-  .icon {
-    width: 34px;
-    height: 34px;
-    flex-shrink: 0;
-    border-radius: 7px;
-    display: grid;
-    place-items: center;
-    background: var(--bg-3);
-    color: var(--accent);
-  }
-  .meta { display: flex; flex-direction: column; min-width: 0; }
-  .name {
-    font-size: 13px;
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .size { font-size: 11px; color: var(--text-4); }
-  .dl { margin-left: auto; color: var(--text-3); flex-shrink: 0; }
 `;
 
 const MetaRow = styled.div<{ $mine: boolean }>`
@@ -575,36 +511,9 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highl
           )}
           {message.attachments && message.attachments.length > 0 && (
             <Attachments>
-              {message.attachments.map((att) => {
-                const src = attachmentSrc(att);
-                if (att.kind === 'image') {
-                  return (
-                    <AttImage
-                      key={att.id}
-                      src={src}
-                      alt={att.name}
-                      loading="lazy"
-                      onClick={() => window.open(src, '_blank', 'noopener')}
-                    />
-                  );
-                }
-                if (att.kind === 'video') {
-                  return <AttVideo key={att.id} src={src} controls preload="metadata" />;
-                }
-                if (att.kind === 'audio') {
-                  return <AttAudio key={att.id} src={src} controls preload="metadata" />;
-                }
-                return (
-                  <AttFile key={att.id} href={src} target="_blank" rel="noopener" download={att.name}>
-                    <span className="icon"><IconFileText size={18} /></span>
-                    <span className="meta">
-                      <span className="name">{att.name}</span>
-                      <span className="size">{formatFileSize(att.size)}</span>
-                    </span>
-                    <span className="dl"><IconDownload size={16} /></span>
-                  </AttFile>
-                );
-              })}
+              {message.attachments.map((att) => (
+                <AttachmentPreview key={att.id} att={att} />
+              ))}
             </Attachments>
           )}
 

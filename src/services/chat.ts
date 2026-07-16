@@ -26,6 +26,20 @@ export function attachmentSrc(att: Pick<ChatAttachment, 'url'>): string {
   return att.url.startsWith('http') ? att.url : `${PIOVRA_BASE_URL}${att.url}`;
 }
 
+/** Best-effort media kind — falls back to filename when the server sent `file`. */
+export function resolveAttachmentKind(att: ChatAttachment): ChatAttachment['kind'] {
+  if (att.expired) return att.kind;
+  if (att.kind !== 'file') return att.kind;
+  const name = att.name.toLowerCase();
+  if (/\.(jpe?g|png|gif|webp|avif|bmp|svg|heic|heif)$/.test(name)) return 'image';
+  if (/\.(mp4|webm|mov|mkv|avi|m4v)$/.test(name)) return 'video';
+  if (/\.(mp3|wav|ogg|m4a|aac|flac|opus)$/.test(name)) return 'audio';
+  if (att.mimeType.startsWith('image/')) return 'image';
+  if (att.mimeType.startsWith('video/')) return 'video';
+  if (att.mimeType.startsWith('audio/')) return 'audio';
+  return 'file';
+}
+
 async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     credentials: 'include',
@@ -87,6 +101,29 @@ export function deleteChannel(id: string): Promise<void> {
   return http<void>(`/channels/${id}`, { method: 'DELETE' });
 }
 
+export interface ChatUploadLimits {
+  maxFileBytes: number;
+  maxFileCount: number;
+  retentionDays: number;
+}
+
+export const CHAT_UPLOAD_LIMITS_DEFAULT: ChatUploadLimits = {
+  maxFileBytes: 100 * 1024 * 1024,
+  maxFileCount: 10,
+  retentionDays: 14,
+};
+
+export function getChatUploadLimits(): Promise<ChatUploadLimits> {
+  return http<ChatUploadLimits>('/limits');
+}
+
+/** Human-readable size for limit labels, e.g. "100 MB". */
+export function formatUploadLimit(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  if (mb >= 1024) return `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)} GB`;
+  return `${Math.round(mb)} MB`;
+}
+
 /* ── Messages ──────────────────────────────────────────────────────────── */
 
 export function listMessages(
@@ -141,8 +178,12 @@ export async function uploadAttachments(
         const body = xhr.response as { attachments: ChatAttachment[] };
         resolve(body.attachments ?? []);
       } else {
-        const err = (xhr.response as { error?: string })?.error;
-        reject(new ChatApiError(xhr.status, err ?? `upload failed (${xhr.status})`));
+        const errBody = xhr.response as { error?: string } | null;
+        const msg =
+          xhr.status === 413
+            ? errBody?.error ?? `File too large (max ${formatUploadLimit(CHAT_UPLOAD_LIMITS_DEFAULT.maxFileBytes)} per file).`
+            : errBody?.error ?? `upload failed (${xhr.status})`;
+        reject(new ChatApiError(xhr.status, msg));
       }
     };
     xhr.onerror = () => reject(new ChatApiError(0, 'network error during upload'));
