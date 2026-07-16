@@ -13,16 +13,44 @@ const Shell = styled(Card)`
   display: flex;
   flex-direction: column;
   height: calc(100vh - 220px);
+  max-height: calc(100vh - 220px);
   min-height: 480px;
+  overflow: hidden;
+`;
+
+const MessagesRegion = styled.div`
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 `;
 
 const Scroller = styled.div`
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--s-4) var(--s-5);
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
+`;
+
+const ScrollFadeTop = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(
+    180deg,
+    var(--bg-1) 0%,
+    color-mix(in srgb, var(--bg-1) 70%, transparent) 45%,
+    transparent 100%
+  );
 `;
 
 const Turn = styled.div`
@@ -69,6 +97,7 @@ const Composer = styled.form`
   gap: var(--s-3);
   align-items: flex-end;
   background: var(--bg-1);
+  flex-shrink: 0;
 `;
 
 const TextInput = styled.textarea`
@@ -273,6 +302,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
         </CardSubtle>
       </CardHeader>
 
+      <MessagesRegion>
+      <ScrollFadeTop aria-hidden />
       <Scroller ref={scrollRef}>
         <ConnectGmailBanner compact />
         {turns.length === 0 ? (
@@ -322,6 +353,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
           })
         )}
       </Scroller>
+      </MessagesRegion>
 
       <Composer onSubmit={handleSubmit}>
         <input

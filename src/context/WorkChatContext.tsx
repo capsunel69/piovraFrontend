@@ -24,6 +24,11 @@ interface WorkChatContextValue {
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
   pinMessage: (messageId: string) => Promise<void>;
   unpinMessage: (messageId: string) => Promise<void>;
+  /** Scroll the message list to a message and briefly highlight it. */
+  jumpToMessage: (messageId: string) => void;
+  /** Currently focused message id (for highlight); cleared after jump settles. */
+  focusMessageId: string | null;
+  clearFocusMessage: () => void;
 
   createChannel: (input: { name: string; topic?: string }) => Promise<ChatChannel>;
   deleteChannel: (id: string) => Promise<void>;
@@ -115,6 +120,7 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [focusMessageId, setFocusMessageId] = useState<string | null>(null);
   const [chatUsers, setChatUsers] = useState<MentionableUser[]>([]);
   const [isChatPageOpen, setIsChatPageOpen] = useState(false);
 
@@ -640,8 +646,20 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     [channels, activeChannelId],
   );
 
-  /* Reset search when channel changes. */
-  useEffect(() => { setSearchQuery(''); }, [activeChannelId]);
+  /* Reset search / focus when channel changes. */
+  useEffect(() => {
+    setSearchQuery('');
+    setFocusMessageId(null);
+  }, [activeChannelId]);
+
+  const jumpToMessage = useCallback((messageId: string): void => {
+    setSearchQuery('');
+    setFocusMessageId(messageId);
+  }, []);
+
+  const clearFocusMessage = useCallback((): void => {
+    setFocusMessageId(null);
+  }, []);
 
   const enableNotifications = useCallback(async (): Promise<notify.NotificationsPermission> => {
     if (!notify.isSupported()) return 'unsupported';
@@ -690,6 +708,7 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     me, isAdmin,
     channels, activeChannelId, activeChannel, setActiveChannel,
     messages, send, deleteMessage, toggleReaction, pinMessage, unpinMessage,
+    jumpToMessage, focusMessageId, clearFocusMessage,
     createChannel, deleteChannel, updateChannelTopic,
     unreadByChannel, totalUnread, reads, markActiveChannelRead,
     loadError, loading,
@@ -701,6 +720,7 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     me, isAdmin,
     channels, activeChannelId, activeChannel, setActiveChannel,
     messages, send, deleteMessage, toggleReaction, pinMessage, unpinMessage,
+    jumpToMessage, focusMessageId, clearFocusMessage,
     createChannel, deleteChannel, updateChannelTopic,
     unreadByChannel, totalUnread, reads, markActiveChannelRead,
     loadError, loading,

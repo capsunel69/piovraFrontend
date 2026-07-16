@@ -53,6 +53,29 @@ const Item = styled.div`
   background: var(--bg-2);
   border: 1px solid var(--border-1);
   position: relative;
+  transition: border-color 0.15s, background 0.15s;
+
+  &:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+`;
+
+const JumpArea = styled.button`
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 `;
 
 const Meta = styled.div`
@@ -86,6 +109,13 @@ const Body = styled.div`
   overflow: hidden;
 `;
 
+const JumpHint = styled.div`
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 500;
+`;
+
 const Unpin = styled.button`
   margin-top: var(--s-2);
   font-size: 11px;
@@ -111,7 +141,7 @@ const GifThumb = styled.img`
 `;
 
 const PinnedPanel: React.FC<Props> = ({ onClose }) => {
-  const { activeChannel, messages, unpinMessage, isAdmin } = useWorkChat();
+  const { activeChannel, messages, unpinMessage, isAdmin, jumpToMessage } = useWorkChat();
 
   const pinned = useMemo(() => {
     if (!activeChannel) return [];
@@ -143,14 +173,19 @@ const PinnedPanel: React.FC<Props> = ({ onClose }) => {
         ) : (
           pinned.map((m) => (
             <Item key={m.id}>
-              <Meta>
-                <Author>{m.authorName}</Author>
-                <TimeS>{format(new Date(m.createdAt), 'MMM d · HH:mm')}</TimeS>
-              </Meta>
-              {m.text && <Body>{m.text}</Body>}
-              {m.gif && <GifThumb src={m.gif.previewUrl} alt={m.gif.alt} />}
+              <JumpArea type="button" onClick={() => jumpToMessage(m.id)} title="Jump to message">
+                <Meta>
+                  <Author>{m.authorName}</Author>
+                  <TimeS>{format(new Date(m.createdAt), 'MMM d · HH:mm')}</TimeS>
+                </Meta>
+                {m.text && <Body>{m.text}</Body>}
+                {m.gif && <GifThumb src={m.gif.previewUrl} alt={m.gif.alt} />}
+                <JumpHint>Jump to message</JumpHint>
+              </JumpArea>
               {isAdmin && (
-                <Unpin type="button" onClick={() => unpinMessage(m.id)}>Unpin</Unpin>
+                <Unpin type="button" onClick={() => void unpinMessage(m.id)}>
+                  Unpin
+                </Unpin>
               )}
             </Item>
           ))

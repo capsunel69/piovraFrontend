@@ -114,7 +114,10 @@ const SearchSummary = styled.div`
 const GROUPING_WINDOW_MS = 5 * 60 * 1000;
 
 const MessageList: React.FC = () => {
-  const { messages, activeChannel, me, reads, searchQuery } = useWorkChat();
+  const {
+    messages, activeChannel, me, reads, searchQuery,
+    focusMessageId, clearFocusMessage,
+  } = useWorkChat();
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastLenRef = useRef(0);
 
@@ -133,6 +136,19 @@ const MessageList: React.FC = () => {
     }
     lastLenRef.current = messages.length;
   }, [messages]);
+
+  useEffect(() => {
+    if (!focusMessageId) return;
+    const root = scrollRef.current;
+    if (!root) return;
+    const target = root.querySelector<HTMLElement>(
+      `[data-message-id="${CSS.escape(focusMessageId)}"]`,
+    );
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = window.setTimeout(() => clearFocusMessage(), 2200);
+    return () => window.clearTimeout(t);
+  }, [focusMessageId, messages, clearFocusMessage]);
 
   const seenCutoff = useMemo(() => {
     if (!me) return null;
@@ -212,6 +228,7 @@ const MessageList: React.FC = () => {
               showAuthor={showAuthor}
               seenByOthers={seenByOthers}
               highlight={trimmed}
+              focused={focusMessageId === m.id}
             />
           </React.Fragment>
         );

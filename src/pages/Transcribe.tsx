@@ -29,11 +29,13 @@ import LoadingState from '../components/shared/LoadingState';
 import {
   TranscribeAPI,
   type SpeakerSegment,
+  type TranscribeCompleteResult,
   type TranscribeProgress,
   type TranscriptDetail,
   type TranscriptListItem,
   type TranscriptSegment,
 } from '../services/transcribe';
+import { downloadViaLocalHelper, isLocalDownloaderRunning } from '../services/localDownloader';
 import { formatDateTimeRo } from '../utils/dateFormat';
 
 const LANGUAGES = [
@@ -494,7 +496,13 @@ export default function Transcribe() {
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState<TranscriptListItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [localHelperUp, setLocalHelperUp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (activeTab !== 'url') return;
+    void isLocalDownloaderRunning().then(setLocalHelperUp);
+  }, [activeTab]);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -568,10 +576,28 @@ export default function Transcribe() {
     setProgress({ percent: 2, message: 'Starting...', stage: 'starting' });
 
     try {
-      const data =
-        activeTab === 'upload' && file
-          ? await TranscribeAPI.transcribeFile(file, opts, setProgress)
-          : await TranscribeAPI.transcribeUrl(url, opts, setProgress);
+      let data: TranscribeCompleteResult;
+      if (activeTab === 'upload' && file) {
+        data = await TranscribeAPI.transcribeFile(file, opts, setProgress);
+      } else if (await isLocalDownloaderRunning()) {
+        // Download on this machine (user's IP + cookies bypass YouTube's
+        // bot wall), then upload the MP3 to the server for transcription.
+        setLocalHelperUp(true);
+        setProgress({ percent: 3, message: 'Downloading on your machine...', stage: 'downloading' });
+        const { file: dlFile } = await downloadViaLocalHelper(url, (pct) =>
+          setProgress({
+            percent: Math.round(3 + pct * 0.22),
+            message: `Downloading on your machine... ${pct.toFixed(0)}%`,
+            stage: 'downloading',
+          }),
+        );
+        data = await TranscribeAPI.transcribeFile(dlFile, opts, (p) =>
+          setProgress({ ...p, percent: Math.round(25 + p.percent * 0.75) }),
+        );
+      } else {
+        setLocalHelperUp(false);
+        data = await TranscribeAPI.transcribeUrl(url, opts, setProgress);
+      }
 
       handleResult(data);
       setProgress({ percent: 100, message: 'Done!', stage: 'complete' });
@@ -736,7 +762,12 @@ export default function Transcribe() {
                     }
                     disabled={isProcessing}
                   />
-                  <DropHint>Supports YouTube, TikTok, Facebook, Vimeo, and 1000+ sites via yt-dlp.</DropHint>
+                  <DropHint>
+                    Supports YouTube, TikTok, Facebook, Vimeo, and 1000+ sites via yt-dlp.
+                    {localHelperUp
+                      ? ' Local downloader detected — download will run on your machine.'
+                      : ''}
+                  </DropHint>
                 </Section>
               )}
 

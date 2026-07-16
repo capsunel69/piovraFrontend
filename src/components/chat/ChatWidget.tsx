@@ -134,6 +134,7 @@ const Panel = styled.aside`
   bottom: 22px;
   width: min(460px, calc(100vw - 32px));
   height: min(640px, calc(100vh - 120px));
+  max-height: min(640px, calc(100vh - 120px));
   background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
   border: 1px solid var(--border-2);
   border-radius: var(--r-lg);
@@ -312,9 +313,19 @@ const LiveDot = styled.span<{ $live: boolean }>`
     `}
 `;
 
+const MessagesRegion = styled.div`
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+`;
+
 const Scroller = styled.div`
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px 16px 12px;
   display: flex;
   flex-direction: column;
@@ -324,6 +335,22 @@ const Scroller = styled.div`
   &::-webkit-scrollbar { width: 8px; }
   &::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
   &::-webkit-scrollbar-track { background: transparent; }
+`;
+
+const ScrollFadeTop = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(
+    180deg,
+    var(--bg-1) 0%,
+    color-mix(in srgb, var(--bg-1) 70%, transparent) 45%,
+    transparent 100%
+  );
 `;
 
 const Turn = styled.div`
@@ -1201,6 +1228,8 @@ const ChatWidget: React.FC = () => {
             </HeaderActions>
           </Header>
 
+          <MessagesRegion>
+          <ScrollFadeTop aria-hidden />
           <Scroller ref={scrollRef}>
             <ConnectGmailBanner compact />
             {!voiceNoticeDismissed && voiceCaps && !voiceFullyAvailable && (
@@ -1346,6 +1375,7 @@ const ChatWidget: React.FC = () => {
               })
             )}
           </Scroller>
+          </MessagesRegion>
 
           <ComposerBar onSubmit={handleSubmit}>
             <input

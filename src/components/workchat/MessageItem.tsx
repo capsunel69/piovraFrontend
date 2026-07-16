@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import styled, { css } from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 import { format, isSameDay } from 'date-fns';
 import { IconButton } from '../ui/primitives';
 import {
@@ -17,27 +17,52 @@ interface Props {
   showAuthor: boolean;
   seenByOthers: boolean;
   highlight?: string;
+  focused?: boolean;
 }
+
+const focusPulse = keyframes`
+  0%   { box-shadow: 0 0 0 0 rgba(76, 194, 255, 0.55); background: rgba(76, 194, 255, 0.18); }
+  55%  { box-shadow: 0 0 0 6px rgba(76, 194, 255, 0); background: rgba(76, 194, 255, 0.1); }
+  100% { box-shadow: 0 0 0 0 rgba(76, 194, 255, 0); background: transparent; }
+`;
 
 const AVATAR = 30;
 const AVATAR_GAP = 8;
 
-const Row = styled.div<{ $mine: boolean; $grouped: boolean }>`
+const Row = styled.div<{ $mine: boolean; $grouped: boolean; $focused?: boolean }>`
   display: flex;
   flex-direction: ${(p) => (p.$mine ? 'row-reverse' : 'row')};
   align-items: flex-end;
   gap: ${AVATAR_GAP}px;
   width: 100%;
   padding: ${(p) => (p.$grouped ? '1px var(--s-4)' : '6px var(--s-4) 1px')};
+  border-radius: 10px;
+  scroll-margin-block: 72px;
 
   &:hover .msg-menu {
     opacity: 1;
     pointer-events: auto;
   }
 
+  ${(p) =>
+    p.$focused &&
+    css`
+      animation: ${focusPulse} 1.8s ease-out;
+    `}
+
   @media (max-width: 520px) {
     padding-left: var(--s-3);
     padding-right: var(--s-3);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    ${(p) =>
+      p.$focused &&
+      css`
+        outline: 2px solid var(--accent);
+        outline-offset: -2px;
+      `}
   }
 `;
 
@@ -353,7 +378,7 @@ function linkifyAndHighlight(
   return out;
 }
 
-const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highlight }) => {
+const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highlight, focused }) => {
   const { me, isAdmin, toggleReaction, pinMessage, unpinMessage, deleteMessage, mentionHandles } = useWorkChat();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const bubbleRef = useRef<HTMLDivElement>(null);
@@ -403,7 +428,12 @@ const MessageItem: React.FC<Props> = ({ message, showAuthor, seenByOthers, highl
   ];
 
   return (
-    <Row $mine={Boolean(isMine)} $grouped={grouped}>
+    <Row
+      data-message-id={message.id}
+      $mine={Boolean(isMine)}
+      $grouped={grouped}
+      $focused={focused}
+    >
       {!isMine && (
         <AvatarSlot>
           {showAuthor && (
