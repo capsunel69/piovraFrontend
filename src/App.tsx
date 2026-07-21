@@ -3,6 +3,7 @@ import { AppProvider } from './context/AppContext';
 import { AuthProvider } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
 import { WorkChatProvider } from './context/WorkChatContext';
+import { TranscribeJobProvider } from './context/TranscribeJobContext';
 import Layout from './components/layout/Layout';
 import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Tasks';
@@ -32,6 +33,7 @@ function App() {
         <AppProvider>
           <ChatProvider>
             <WorkChatProvider>
+              <TranscribeJobProvider>
               <Router>
                 <ProtectedRoute>
                   <Layout>
@@ -69,6 +71,7 @@ function App() {
                   </Layout>
                 </ProtectedRoute>
               </Router>
+              </TranscribeJobProvider>
             </WorkChatProvider>
           </ChatProvider>
         </AppProvider>

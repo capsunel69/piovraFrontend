@@ -29,13 +29,13 @@ import LoadingState from '../components/shared/LoadingState';
 import {
   TranscribeAPI,
   type SpeakerSegment,
-  type TranscribeCompleteResult,
   type TranscribeProgress,
   type TranscriptDetail,
   type TranscriptListItem,
   type TranscriptSegment,
 } from '../services/transcribe';
-import { downloadViaLocalHelper, isLocalDownloaderRunning } from '../services/localDownloader';
+import { isLocalDownloaderRunning } from '../services/localDownloader';
+import { useTranscribeJob } from '../context/TranscribeJobContext';
 import { formatDateTimeRo } from '../utils/dateFormat';
 
 const LANGUAGES = [
@@ -479,12 +479,11 @@ function PodcastTranscript({ segments }: { segments: SpeakerSegment[] }) {
 }
 
 export default function Transcribe() {
+  const job = useTranscribeJob();
   const [activeTab, setActiveTab] = useState<'upload' | 'url'>('upload');
   const [mode, setMode] = useState<'text' | 'subtitles'>('text');
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState<TranscribeProgress | null>(null);
   const [transcript, setTranscript] = useState('');
   const [segments, setSegments] = useState<TranscriptSegment[] | null>(null);
   const [srt, setSrt] = useState<string | null>(null);
@@ -498,6 +497,17 @@ export default function Transcribe() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [localHelperUp, setLocalHelperUp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isProcessing = job.status === 'running';
+  const progress: TranscribeProgress | null = isProcessing ? job.progress : null;
+
+  // Tell the job context whether this page is visible so background
+  // completion toasts only fire when the user is elsewhere.
+  useEffect(() => {
+    job.setPageActive(true);
+    return () => job.setPageActive(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (activeTab !== 'url') return;
@@ -526,7 +536,7 @@ export default function Transcribe() {
     setSrt(null);
     setSpeakerSegments(null);
     setError(null);
-    setProgress(null);
+    job.clear();
   };
 
   const handleResult = (data: {
@@ -540,6 +550,26 @@ export default function Transcribe() {
     setSrt(data.srt || null);
     setSpeakerSegments(data.speakerSegments || null);
   };
+
+  // Pick up job results — covers both finishing while on this page and
+  // returning to the page after the job completed in the background.
+  const handledResultRef = useRef<unknown>(null);
+  useEffect(() => {
+    if (job.status === 'done' && job.result && handledResultRef.current !== job.result) {
+      handledResultRef.current = job.result;
+      if (job.jobOptions) {
+        setMode(job.jobOptions.mode);
+        setIsPodcast(job.jobOptions.contentType === 'podcast');
+      }
+      handleResult(job.result);
+      setError(null);
+      void loadHistory();
+    }
+    if (job.status === 'error' && job.error) {
+      setError(job.error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.status, job.result, job.error]);
 
   const loadFromHistory = async (id: string) => {
     try {
@@ -564,49 +594,19 @@ export default function Transcribe() {
     }
   };
 
-  const runTranscribe = async () => {
+  const runTranscribe = () => {
     const opts = {
       language,
       mode,
       contentType: (isPodcast ? 'podcast' : 'default') as 'default' | 'podcast',
     };
 
-    setIsProcessing(true);
     resetResults();
-    setProgress({ percent: 2, message: 'Starting...', stage: 'starting' });
 
-    try {
-      let data: TranscribeCompleteResult;
-      if (activeTab === 'upload' && file) {
-        data = await TranscribeAPI.transcribeFile(file, opts, setProgress);
-      } else if (await isLocalDownloaderRunning()) {
-        // Download on this machine (user's IP + cookies bypass YouTube's
-        // bot wall), then upload the MP3 to the server for transcription.
-        setLocalHelperUp(true);
-        setProgress({ percent: 3, message: 'Downloading on your machine...', stage: 'downloading' });
-        const { file: dlFile } = await downloadViaLocalHelper(url, (pct) =>
-          setProgress({
-            percent: Math.round(3 + pct * 0.22),
-            message: `Downloading on your machine... ${pct.toFixed(0)}%`,
-            stage: 'downloading',
-          }),
-        );
-        data = await TranscribeAPI.transcribeFile(dlFile, opts, (p) =>
-          setProgress({ ...p, percent: Math.round(25 + p.percent * 0.75) }),
-        );
-      } else {
-        setLocalHelperUp(false);
-        data = await TranscribeAPI.transcribeUrl(url, opts, setProgress);
-      }
-
-      handleResult(data);
-      setProgress({ percent: 100, message: 'Done!', stage: 'complete' });
-      void loadHistory();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Transcription failed');
-    } finally {
-      setIsProcessing(false);
-      setProgress(null);
+    if (activeTab === 'upload' && file) {
+      job.start({ kind: 'file', file }, opts);
+    } else if (url.trim()) {
+      job.start({ kind: 'url', url: url.trim() }, opts);
     }
   };
 
@@ -757,9 +757,9 @@ export default function Transcribe() {
                       setUrl(e.target.value);
                       resetResults();
                     }}
-                    onKeyDown={(e) =>
-                      e.key === 'Enter' && canTranscribe && !isProcessing && void runTranscribe()
-                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && canTranscribe && !isProcessing) runTranscribe();
+                    }}
                     disabled={isProcessing}
                   />
                   <DropHint>
@@ -833,7 +833,7 @@ export default function Transcribe() {
                 $variant="primary"
                 $size="md"
                 $block
-                onClick={() => void runTranscribe()}
+                onClick={runTranscribe}
                 disabled={isProcessing || !canTranscribe}
               >
                 {isProcessing ? (
@@ -855,7 +855,7 @@ export default function Transcribe() {
               </Button>
 
               {isProcessing && <ProgressPanel progress={progress} />}
-              {error && <ErrorMessage message={error} onRetry={canTranscribe ? () => void runTranscribe() : undefined} />}
+              {error && <ErrorMessage message={error} onRetry={canTranscribe ? runTranscribe : undefined} />}
             </Stack>
           </CardBody>
         </Card>

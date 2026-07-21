@@ -145,16 +145,27 @@ const MessageList: React.FC = () => {
   } = useWorkChat();
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastLenRef = useRef(0);
+  const initialScrollDoneRef = useRef(false);
+
+  // Jump (no animation) to the bottom when opening the page / switching
+  // channels — including when messages arrive async after mount.
+  useLayoutEffect(() => {
+    initialScrollDoneRef.current = false;
+  }, [activeChannel?.id]);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [activeChannel?.id]);
+    if (!el || initialScrollDoneRef.current) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'instant' });
+    if (messages.length > 0) {
+      initialScrollDoneRef.current = true;
+      lastLenRef.current = messages.length;
+    }
+  }, [activeChannel?.id, messages]);
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el || !initialScrollDoneRef.current) return;
     if (messages.length > lastLenRef.current) {
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
       if (distanceFromBottom < 200) el.scrollTop = el.scrollHeight;

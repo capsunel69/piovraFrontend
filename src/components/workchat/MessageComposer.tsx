@@ -21,6 +21,9 @@ interface PendingFile {
   preview: string | null;
 }
 
+/** Server-side zod limit on message text (see piovra chat routes). */
+const MAX_TEXT_LENGTH = 8000;
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -50,6 +53,9 @@ const Box = styled.form`
 `;
 
 const Textarea = styled.textarea`
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
   background: transparent;
   border: 0;
   outline: 0;
@@ -200,6 +206,13 @@ const Hint = styled.div`
   text-align: right;
   line-height: 1.35;
   max-width: 220px;
+`;
+
+const CharCounter = styled.span<{ $over: boolean }>`
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: ${(p) => (p.$over ? 'var(--danger)' : 'var(--text-4)')};
+  margin-right: var(--s-2);
 `;
 
 const UploadError = styled.div`
@@ -417,6 +430,12 @@ const MessageComposer: React.FC = () => {
     e?.preventDefault();
     if (!activeChannel || uploading) return;
     if (!text.trim() && !gif && pendingFiles.length === 0) return;
+    if (text.length > MAX_TEXT_LENGTH) {
+      setUploadError(
+        `Message too long — ${text.length.toLocaleString()} characters (max ${MAX_TEXT_LENGTH.toLocaleString()}). Shorten it or split it into multiple messages.`,
+      );
+      return;
+    }
 
     const outText = text;
     const outGif = gif;
@@ -436,7 +455,7 @@ const MessageComposer: React.FC = () => {
         clearPending();
         taRef.current?.focus();
       } catch (err) {
-        setUploadError(err instanceof Error ? err.message : 'Upload failed');
+        setUploadError(err instanceof Error ? err.message : 'Failed to send message');
       } finally {
         setUploading(false);
       }
@@ -638,6 +657,11 @@ const MessageComposer: React.FC = () => {
             )}
           </PopAnchor>
           <Spacer />
+          {text.length > MAX_TEXT_LENGTH - 500 && (
+            <CharCounter $over={text.length > MAX_TEXT_LENGTH}>
+              {text.length.toLocaleString()} / {MAX_TEXT_LENGTH.toLocaleString()}
+            </CharCounter>
+          )}
           <Hint>
             Attach: max {formatUploadLimit(limits.maxFileBytes)}/file · {limits.maxFileCount} files · kept {limits.retentionDays}d
           </Hint>

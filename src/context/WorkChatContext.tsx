@@ -530,19 +530,15 @@ export const WorkChatProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const trimmed = text.trim();
     const hasAttachments = (attachments?.length ?? 0) > 0;
     if (!trimmed && !gif && !hasAttachments) return;
-    try {
-      const created = await chatApi.sendMessage({
-        channelId: activeChannelId,
-        text: trimmed,
-        gif,
-        attachments,
-      });
-      setMessages((prev) => dedupeMessagesAppend(prev, [created]));
-      // Server already marked sender as read; mirror locally to avoid flash.
-      await markChannelReadAt(activeChannelId, created.createdAt);
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Failed to send message');
-    }
+    const created = await chatApi.sendMessage({
+      channelId: activeChannelId,
+      text: trimmed,
+      gif,
+      attachments,
+    });
+    setMessages((prev) => dedupeMessagesAppend(prev, [created]));
+    // Server already marked sender as read; mirror locally to avoid flash.
+    await markChannelReadAt(activeChannelId, created.createdAt);
   }, [me, activeChannelId, markChannelReadAt]);
 
   const deleteMessage = useCallback(async (messageId: string): Promise<void> => {
