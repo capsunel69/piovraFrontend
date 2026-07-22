@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, isValid } from 'date-fns';
 import { useAppContext } from '../context/AppContext';
 import LinkifyText from '../components/shared/LinkifyText';
+import ReminderEditForm from '../components/ReminderEditForm';
 import {
   PageContainer, PageHeader, PageTitle, PageSubtitle,
   Card, CardHeader, CardTitle, CardSubtle, CardBody,
@@ -13,6 +14,7 @@ import {
 import {
   IconBell, IconPlus, IconTrash, IconRepeat, IconClock, IconEdit,
 } from '../components/ui/icons';
+import type { Reminder } from '../types';
 
 const ReminderRow = styled.div<{ $today?: boolean; $converted?: boolean }>`
   padding: var(--s-4) var(--s-5);
@@ -100,8 +102,28 @@ const weekNumbers = [
   { value: 4, label: 'Fourth' }, { value: -1, label: 'Last' },
 ];
 
+function parseReminderDate(value: unknown): Date | null {
+  if (!value) return null;
+  const d = new Date(value as string | Date);
+  return isValid(d) ? d : null;
+}
+
+function applyTime(target: Date, time: string) {
+  if (!time) return;
+  const [h, m] = time.split(':').map(Number);
+  if (Number.isFinite(h) && Number.isFinite(m)) target.setHours(h, m, 0, 0);
+}
+
 const Reminders: React.FC = () => {
-  const { reminders, addReminder, deleteReminder, toggleReminderCompletion, convertReminderToTask, currentDate } = useAppContext();
+  const {
+    reminders,
+    addReminder,
+    updateReminder,
+    deleteReminder,
+    toggleReminderCompletion,
+    convertReminderToTask,
+    currentDate,
+  } = useAppContext();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -115,6 +137,7 @@ const Reminders: React.FC = () => {
   const [monthlyWeekDay, setMonthlyWeekDay] = useState<number>(1);
   const [showDate, setShowDate] = useState(true);
   const [showDescriptionField, setShowDescriptionField] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     setShowDate(recurring === '');
@@ -127,9 +150,10 @@ const Reminders: React.FC = () => {
     setShowDescriptionField(false);
   };
 
-  const isReminderDueToday = (r: any) => {
+  const isReminderDueToday = (r: Reminder) => {
     if (!r.recurring) {
-      const rd = new Date(r.date);
+      const rd = parseReminderDate(r.date);
+      if (!rd) return false;
       const today = new Date(currentDate);
       return rd.getFullYear() === today.getFullYear() && rd.getMonth() === today.getMonth() && rd.getDate() === today.getDate();
     }
@@ -156,8 +180,6 @@ const Reminders: React.FC = () => {
     return false;
   };
 
-  const dateStr = () => (date && time) ? `${date}T${time}` : '';
-
   const previewText = () => {
     if (recurring === 'daily') return 'Repeats every day';
     if (recurring === 'weekly') return `Every ${daysOfWeek.find(d => d.value === weeklyDay)?.label}`;
@@ -172,20 +194,32 @@ const Reminders: React.FC = () => {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const data: any = { title, description, completed: false, recurring: recurring || undefined };
+    if (!title.trim()) return;
+    if (recurring === '' && !date) return;
 
-    if (recurring === '' && dateStr()) {
-      data.date = new Date(dateStr());
+    const data: Omit<Reminder, 'id'> = {
+      title: title.trim(),
+      description: description || '',
+      completed: false,
+      date: new Date(),
+      recurring: recurring || undefined,
+    };
+
+    if (recurring === '') {
+      // Date alone is enough; missing time defaults to 09:00 local.
+      const next = new Date(`${date}T${time || '09:00'}`);
+      if (!isValid(next)) return;
+      data.date = next;
     } else if (recurring === 'daily') {
       const now = new Date();
-      if (time) { const [h, m] = time.split(':').map(Number); now.setHours(h, m, 0, 0); }
+      applyTime(now, time);
       data.date = now;
     } else if (recurring === 'weekly') {
       data.recurringConfig = { type: 'weekly', dayOfWeek: weeklyDay, time: time || undefined };
       const now = new Date();
       const add = (weeklyDay - now.getDay() + 7) % 7;
       const next = new Date(now); next.setDate(now.getDate() + add);
-      if (time) { const [h, m] = time.split(':').map(Number); next.setHours(h, m, 0, 0); }
+      applyTime(next, time);
       data.date = next;
     } else if (recurring === 'monthly') {
       if (monthlyType === 'dayOfMonth') {
@@ -193,7 +227,7 @@ const Reminders: React.FC = () => {
         const now = new Date();
         const next = new Date(now.getFullYear(), now.getMonth(), monthlyDay);
         if (next < now) next.setMonth(next.getMonth() + 1);
-        if (time) { const [h, m] = time.split(':').map(Number); next.setHours(h, m, 0, 0); }
+        applyTime(next, time);
         data.date = next;
       } else {
         data.recurringConfig = { type: 'monthly', subtype: 'relativeDay', weekNum: monthlyWeekNum, dayOfWeek: monthlyWeekDay, time: time || undefined };
@@ -213,7 +247,7 @@ const Reminders: React.FC = () => {
         let m = now.getMonth(), y = now.getFullYear();
         let next = nth(y, m, monthlyWeekDay, monthlyWeekNum);
         if (next < now) { m = (m + 1) % 12; if (m === 0) y++; next = nth(y, m, monthlyWeekDay, monthlyWeekNum); }
-        if (time) { const [h, mn] = time.split(':').map(Number); next.setHours(h, mn, 0, 0); }
+        applyTime(next, time);
         data.date = next;
       }
     }
@@ -222,21 +256,23 @@ const Reminders: React.FC = () => {
     reset();
   };
 
-  const formatRecurring = (r: any) => {
+  const formatRecurring = (r: Reminder) => {
     if (!r.recurring) return '';
     if (r.recurring === 'daily') return 'Repeats daily';
     if (r.recurring === 'weekly' && r.recurringConfig) {
-      const day = daysOfWeek.find(d => d.value === r.recurringConfig.dayOfWeek)?.label;
+      const day = daysOfWeek.find(d => d.value === r.recurringConfig!.dayOfWeek)?.label;
       return `Every ${day}`;
     }
     if (r.recurring === 'monthly' && r.recurringConfig) {
       if (r.recurringConfig.subtype === 'dayOfMonth') return `Day ${r.recurringConfig.dayOfMonth} monthly`;
-      const wn = weekNumbers.find(w => w.value === r.recurringConfig.weekNum)?.label;
-      const wd = daysOfWeek.find(d => d.value === r.recurringConfig.dayOfWeek)?.label;
+      const wn = weekNumbers.find(w => w.value === r.recurringConfig!.weekNum)?.label;
+      const wd = daysOfWeek.find(d => d.value === r.recurringConfig!.dayOfWeek)?.label;
       return `${wn} ${wd} monthly`;
     }
     return r.recurring;
   };
+
+  const canSubmit = Boolean(title.trim()) && (recurring !== '' || Boolean(date));
 
   return (
     <PageContainer>
@@ -310,7 +346,7 @@ const Reminders: React.FC = () => {
             <>
               <Select
                 value={monthlyType}
-                onChange={e => setMonthlyType(e.target.value as any)}
+                onChange={e => setMonthlyType(e.target.value as 'dayOfMonth' | 'relativeDay')}
                 style={{ width: 'auto', height: 28, padding: '0 28px 0 10px', fontSize: 12, borderRadius: 999 }}
               >
                 <option value="dayOfMonth">Day of month</option>
@@ -358,7 +394,7 @@ const Reminders: React.FC = () => {
           {(title || description) && (
             <Chip type="button" onClick={reset}>Clear</Chip>
           )}
-          <Button $variant="primary" $size="sm" type="submit" disabled={!title.trim()}>
+          <Button $variant="primary" $size="sm" type="submit" disabled={!canSubmit}>
             <IconPlus /> Add reminder
           </Button>
         </ComposerToolbar>
@@ -370,19 +406,36 @@ const Reminders: React.FC = () => {
           {reminders.length === 0 ? (
             <EmptyState><IconBell /><div>No reminders yet.</div></EmptyState>
           ) : reminders.map(reminder => {
+            if (editingId === reminder.id) {
+              return (
+                <ReminderEditForm
+                  key={reminder.id}
+                  reminder={reminder}
+                  onSave={(id, updates) => {
+                    updateReminder(id, updates);
+                    setEditingId(null);
+                  }}
+                  onCancel={() => setEditingId(null)}
+                />
+              );
+            }
+
             const due = isReminderDueToday(reminder);
             const completedToday = reminder.recurring
               ? (reminder.completedInstances || []).some(d => {
                   const t = new Date(currentDate); t.setHours(0,0,0,0);
-                  return isSameDay(new Date(d), t);
+                  const instance = parseReminderDate(d);
+                  return instance ? isSameDay(instance, t) : false;
                 })
               : reminder.completed;
             const taskCreatedToday = reminder.recurring
               ? (reminder.convertedToTaskDates || []).some(d => {
                   const t = new Date(currentDate); t.setHours(0,0,0,0);
-                  return isSameDay(new Date(d), t);
+                  const converted = parseReminderDate(d);
+                  return converted ? isSameDay(converted, t) : false;
                 })
               : reminder.convertedToTask && due;
+            const reminderDate = parseReminderDate(reminder.date);
 
             return (
               <ReminderRow key={reminder.id} $today={due && !completedToday && !taskCreatedToday} $converted={taskCreatedToday}>
@@ -396,7 +449,9 @@ const Reminders: React.FC = () => {
                   </Title>
                   {reminder.description && <Description><LinkifyText text={reminder.description} /></Description>}
                   <MetaRow>
-                    {!reminder.recurring && <span><IconClock /> {format(new Date(reminder.date), 'MMM d, yyyy · HH:mm')}</span>}
+                    {!reminder.recurring && reminderDate && (
+                      <span><IconClock /> {format(reminderDate, 'MMM d, yyyy · HH:mm')}</span>
+                    )}
                     {reminder.recurring && <span><IconRepeat /> {formatRecurring(reminder)}</span>}
                   </MetaRow>
                 </Body>
@@ -406,6 +461,9 @@ const Reminders: React.FC = () => {
                       <IconPlus /> Task
                     </Button>
                   )}
+                  <IconButton $size="sm" onClick={() => setEditingId(reminder.id)} title="Edit">
+                    <IconEdit />
+                  </IconButton>
                   <IconButton $size="sm" $variant="danger" onClick={() => deleteReminder(reminder.id)} title="Delete">
                     <IconTrash />
                   </IconButton>

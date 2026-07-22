@@ -12,7 +12,7 @@ import {
   Textarea,
   Button,
 } from './ui/primitives';
-import { IconCheck, IconX } from './ui/icons';
+import { IconCheck, IconX, IconEdit } from './ui/icons';
 
 interface ReminderEditFormProps {
   reminder: Reminder;
@@ -21,34 +21,48 @@ interface ReminderEditFormProps {
 }
 
 const Wrap = styled.div`
-  background: var(--bg-2);
-  border: 1px solid var(--border-1);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
+  padding: var(--s-4) var(--s-5);
+  background: var(--bg-3);
+  border-left: 2px solid var(--accent);
+  border-top: 1px solid var(--border-1);
+
+  &:first-child { border-top: none; }
 `;
 
 const Heading = styled.div`
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-3);
-  margin-bottom: var(--space-3);
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--s-3);
+
+  svg { width: 14px; height: 14px; color: var(--accent); }
 `;
 
 const RecurringBox = styled.div<{ $hidden?: boolean }>`
   display: ${({ $hidden }) => ($hidden ? 'none' : 'block')};
   background: var(--bg-1);
   border: 1px dashed var(--border-1);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
+  border-radius: var(--r-md);
+  padding: var(--s-3);
 `;
+
+function toLocalDatetimeValue(value: Date | string | undefined): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 const ReminderEditForm: React.FC<ReminderEditFormProps> = ({ reminder, onSave, onCancel }) => {
   const [title, setTitle] = useState(reminder.title);
-  const [description, setDescription] = useState(reminder.description);
-  const [date, setDate] = useState(
-    reminder.date ? new Date(reminder.date).toISOString().slice(0, 16) : ''
-  );
+  const [description, setDescription] = useState(reminder.description ?? '');
+  const [date, setDate] = useState(toLocalDatetimeValue(reminder.date));
   const [recurring, setRecurring] = useState(reminder.recurring || '');
   const [recurringSubtype, setRecurringSubtype] = useState<'dayOfMonth' | 'relativeDay'>(
     reminder.recurringConfig?.subtype || 'dayOfMonth'
@@ -65,10 +79,8 @@ const ReminderEditForm: React.FC<ReminderEditFormProps> = ({ reminder, onSave, o
 
   useEffect(() => {
     setTitle(reminder.title);
-    setDescription(reminder.description);
-    setDate(
-      reminder.date ? new Date(reminder.date).toISOString().slice(0, 16) : ''
-    );
+    setDescription(reminder.description ?? '');
+    setDate(toLocalDatetimeValue(reminder.date));
     setRecurring(reminder.recurring || '');
     setRecurringSubtype(reminder.recurringConfig?.subtype || 'dayOfMonth');
     setDayOfWeek(reminder.recurringConfig?.dayOfWeek?.toString() || '1');
@@ -78,42 +90,45 @@ const ReminderEditForm: React.FC<ReminderEditFormProps> = ({ reminder, onSave, o
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!title.trim()) return;
 
-    const updatedReminder: Partial<Reminder> = {
-      title,
+    const updatedReminder: Partial<Reminder> & {
+      recurring?: string;
+      recurringConfig?: Reminder['recurringConfig'] | null;
+    } = {
+      title: title.trim(),
       description,
       date: date ? new Date(date) : undefined,
-      recurring: recurring as 'daily' | 'weekly' | 'monthly' | undefined,
     };
 
-    if (recurring && recurring !== '') {
-      let recurringConfig: any = {};
-
+    if (!recurring) {
+      updatedReminder.recurring = '';
+      updatedReminder.recurringConfig = null;
+    } else {
+      updatedReminder.recurring = recurring;
       if (recurring === 'weekly') {
-        recurringConfig = {
+        updatedReminder.recurringConfig = {
           type: 'weekly',
           dayOfWeek: parseInt(dayOfWeek, 10),
         };
       } else if (recurring === 'monthly') {
         if (recurringSubtype === 'dayOfMonth') {
-          recurringConfig = {
+          updatedReminder.recurringConfig = {
             type: 'monthly',
             subtype: 'dayOfMonth',
             dayOfMonth: parseInt(dayOfMonth, 10),
           };
         } else {
-          recurringConfig = {
+          updatedReminder.recurringConfig = {
             type: 'monthly',
             subtype: 'relativeDay',
             dayOfWeek: parseInt(dayOfWeek, 10),
             weekNum: parseInt(weekNum, 10),
           };
         }
-      } else if (recurring === 'daily') {
-        recurringConfig = { type: 'daily' };
+      } else {
+        updatedReminder.recurringConfig = null;
       }
-
-      updatedReminder.recurringConfig = recurringConfig;
     }
 
     onSave(reminder.id, updatedReminder);
@@ -121,7 +136,7 @@ const ReminderEditForm: React.FC<ReminderEditFormProps> = ({ reminder, onSave, o
 
   return (
     <Wrap>
-      <Heading>Edit reminder</Heading>
+      <Heading><IconEdit /> Edit reminder</Heading>
       <form onSubmit={handleSubmit}>
         <Stack $gap={3}>
           <Field>
@@ -263,7 +278,7 @@ const ReminderEditForm: React.FC<ReminderEditFormProps> = ({ reminder, onSave, o
             <Button type="button" $variant="ghost" onClick={onCancel}>
               <IconX size={14} /> Cancel
             </Button>
-            <Button type="submit" $variant="primary">
+            <Button type="submit" $variant="primary" disabled={!title.trim()}>
               <IconCheck size={14} /> Save changes
             </Button>
           </Row>

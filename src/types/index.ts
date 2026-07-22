@@ -63,6 +63,7 @@ export interface Reminder {
     dayOfWeek?: number;
     dayOfMonth?: number;
     weekNum?: number;
+    time?: string;
   };
   convertedToTask?: boolean; // Whether this reminder has been converted to a task (for non-recurring)
   convertedToTaskDates?: string[]; // Dates when recurring reminder was converted to task
