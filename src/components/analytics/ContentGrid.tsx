@@ -102,10 +102,25 @@ function formatCompact(value: number): string {
 interface ContentGridProps {
   items: AnSocialPostItem[];
   platform?: AnPlatform;
+  /** Profile handle — used to synthesize TikTok watch URLs when `item.url` is missing. */
+  handle?: string;
   emptyLabel?: string;
 }
 
-export const ContentGrid: React.FC<ContentGridProps> = ({ items, platform, emptyLabel }) => {
+function resolveItemUrl(
+  item: AnSocialPostItem,
+  platform?: AnPlatform,
+  handle?: string,
+): string | undefined {
+  if (item.url) return item.url;
+  if (platform === 'tiktok' && handle && item.id) {
+    const username = handle.replace(/^@/, '');
+    return `https://www.tiktok.com/@${username}/video/${item.id}`;
+  }
+  return undefined;
+}
+
+export const ContentGrid: React.FC<ContentGridProps> = ({ items, platform, handle, emptyLabel }) => {
   // TikTok/IG/FB CDNs reject hotlinked images; route those through the backend proxy.
   const resolveThumb = (url?: string) =>
     platform && platform !== 'youtube' ? mediaProxyUrl(url) : url;
@@ -124,13 +139,14 @@ export const ContentGrid: React.FC<ContentGridProps> = ({ items, platform, empty
     <Grid>
       {items.map((item) => {
         const thumb = resolveThumb(item.thumbnailUrl);
+        const href = resolveItemUrl(item, platform, handle);
         return (
         <Card
           key={item.id}
-          href={item.url ?? '#'}
+          href={href ?? '#'}
           target="_blank"
           rel="noopener noreferrer"
-          onClick={(e) => { if (!item.url) e.preventDefault(); }}
+          onClick={(e) => { if (!href) e.preventDefault(); }}
           $color={meta?.color}
         >
           <Thumb $color={meta?.color} $soft={meta?.soft}>

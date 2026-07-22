@@ -976,7 +976,11 @@ const Analytics: React.FC = () => {
               />
             ))}
           </Grid>
-          <ContentGrid items={activePlatformContent?.items ?? []} platform={activePlatform} />
+          <ContentGrid
+            items={activePlatformContent?.items ?? []}
+            platform={activePlatform}
+            handle={activePlatformContent?.profile?.handle}
+          />
         </Stack>
       )}
 
