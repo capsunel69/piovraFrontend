@@ -92,10 +92,7 @@ const ReminderEditForm: React.FC<ReminderEditFormProps> = ({ reminder, onSave, o
     e.preventDefault();
     if (!title.trim()) return;
 
-    const updatedReminder: Partial<Reminder> & {
-      recurring?: string;
-      recurringConfig?: Reminder['recurringConfig'] | null;
-    } = {
+    const updatedReminder: Partial<Reminder> = {
       title: title.trim(),
       description,
       date: date ? new Date(date) : undefined,
@@ -105,7 +102,7 @@ const ReminderEditForm: React.FC<ReminderEditFormProps> = ({ reminder, onSave, o
       updatedReminder.recurring = '';
       updatedReminder.recurringConfig = null;
     } else {
-      updatedReminder.recurring = recurring;
+      updatedReminder.recurring = recurring as Reminder['recurring'];
       if (recurring === 'weekly') {
         updatedReminder.recurringConfig = {
           type: 'weekly',

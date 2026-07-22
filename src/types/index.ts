@@ -56,7 +56,7 @@ export interface Reminder {
   description: string;
   date: Date;
   completed: boolean;
-  recurring?: 'daily' | 'weekly' | 'monthly';
+  recurring?: 'daily' | 'weekly' | 'monthly' | '';
   recurringConfig?: {
     type: string;
     subtype?: 'dayOfMonth' | 'relativeDay';
@@ -64,7 +64,7 @@ export interface Reminder {
     dayOfMonth?: number;
     weekNum?: number;
     time?: string;
-  };
+  } | null;
   convertedToTask?: boolean; // Whether this reminder has been converted to a task (for non-recurring)
   convertedToTaskDates?: string[]; // Dates when recurring reminder was converted to task
   completedInstances?: Date[]; // Dates when recurring reminder was completed
