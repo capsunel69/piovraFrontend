@@ -461,6 +461,20 @@ const ImageFigure = styled.figure`
   max-width: min(100%, 420px);
 `;
 
+const ImageBroken = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  padding: 16px;
+  border-radius: var(--r-md);
+  border: 1px dashed var(--border-1);
+  background: var(--bg-2);
+  color: var(--text-3);
+  font-size: 12.5px;
+  text-align: center;
+`;
+
 const ImageActions = styled.div`
   display: flex;
   gap: var(--s-1);
@@ -468,10 +482,13 @@ const ImageActions = styled.div`
 `;
 
 function GeneratedImageBlock({ src, alt }: { src?: string; alt?: string }) {
+  const [failed, setFailed] = useState(false);
   const url = gataAssetUrl(src ?? '');
   const fileStem = (src?.split('/').pop() ?? 'gata-visual').replace(/\.(png|jpe?g)$/i, '');
+  const usable = Boolean(src?.trim()) && !failed;
 
   const handleDownload = () => {
+    if (!usable) return;
     void (async () => {
       try {
         const res = await fetch(url);
@@ -491,9 +508,24 @@ function GeneratedImageBlock({ src, alt }: { src?: string; alt?: string }) {
     })();
   };
 
+  if (!usable) {
+    return (
+      <ImageFigure>
+        <ImageBroken>
+          Visual unavailable{src ? ' — file missing on server' : ''}
+        </ImageBroken>
+      </ImageFigure>
+    );
+  }
+
   return (
     <ImageFigure>
-      <GeneratedImage src={url} alt={alt ?? 'GATA visual'} loading="lazy" />
+      <GeneratedImage
+        src={url}
+        alt={alt ?? 'GATA visual'}
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
       <ImageActions>
         <Button type="button" $variant="ghost" $size="sm" onClick={handleDownload}>
           <IconDownload size={14} />
@@ -946,36 +978,59 @@ function threadActivityLabel(t: ThreadState, run?: GataRun): string {
 }
 
 /**
- * Server messages are the source of truth; a live run contributes the trailing
- * user/assistant pair that is not persisted yet. The server stores the user
- * message as soon as generation starts, so drop that duplicate first.
+ * Server messages are the source of truth; a live run contributes only the
+ * trailing turn that is not finalized yet. Never duplicate a reply the server
+ * already stored.
  */
 function composeMessages(server: ChatMessage[], run?: GataRun): ChatMessage[] {
   if (!run) return server;
 
-  const merged = [...server];
-  const last = merged[merged.length - 1];
-  if (last?.role === 'user' && last.content === run.userMessage) merged.pop();
+  const assistantContent =
+    run.status === 'error'
+      ? run.text || run.error || 'Generation failed'
+      : run.status === 'aborted'
+        ? run.text || '(stopped)'
+        : run.text;
+  const assistantStatus: ChatMessage['status'] =
+    run.status === 'streaming' ? 'streaming' : run.status === 'error' ? 'error' : 'done';
 
-  merged.push({
-    id: `${run.assistantId}-user`,
-    role: 'user',
-    content: run.userMessage,
-    fileNames: run.fileNames,
-    status: 'done',
-  });
-  merged.push({
-    id: run.assistantId,
-    role: 'assistant',
-    content:
-      run.status === 'error'
-        ? run.text || run.error || 'Generation failed'
-        : run.status === 'aborted'
-          ? run.text || '(stopped)'
-          : run.text,
-    status: run.status === 'streaming' ? 'streaming' : run.status === 'error' ? 'error' : 'done',
-  });
-  return merged;
+  // Find this run's user turn on the server (saved at request start).
+  for (let i = server.length - 1; i >= 0; i--) {
+    const m = server[i]!;
+    if (m.role !== 'user' || m.content !== run.userMessage) continue;
+
+    const next = server[i + 1];
+    // Assistant already persisted for this turn — render server truth only.
+    if (next?.role === 'assistant') return server;
+
+    return [
+      ...server.slice(0, i + 1),
+      {
+        id: run.assistantId,
+        role: 'assistant',
+        content: assistantContent,
+        status: assistantStatus,
+      },
+    ];
+  }
+
+  // User message not loaded yet — show the optimistic pair.
+  return [
+    ...server,
+    {
+      id: `${run.assistantId}-user`,
+      role: 'user',
+      content: run.userMessage,
+      fileNames: run.fileNames,
+      status: 'done',
+    },
+    {
+      id: run.assistantId,
+      role: 'assistant',
+      content: assistantContent,
+      status: assistantStatus,
+    },
+  ];
 }
 
 function threadSortKey(t: ThreadState, run?: GataRun): number {

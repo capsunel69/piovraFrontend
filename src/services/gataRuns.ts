@@ -46,6 +46,7 @@ const RECOVERY_TIMEOUT_MS = 6 * 60 * 1000;
 
 const runs = new Map<string, GataRun>();
 const aborts = new Map<string, AbortController>();
+const intentionalAborts = new Set<string>();
 const listeners = new Set<() => void>();
 
 let snapshot: Record<string, GataRun> = {};
@@ -146,6 +147,7 @@ export function clearRun(threadId: string): void {
 }
 
 export function abortRun(threadId: string): void {
+  intentionalAborts.add(threadId);
   aborts.get(threadId)?.abort();
 }
 
@@ -221,13 +223,20 @@ export function startRun(input: StartRunInput): void {
         },
         abort.signal,
       );
-      // Stream closed without a terminal event (e.g. proxy timeout): fall back
-      // to polling the thread so the reply still lands.
+      // Stream closed without a terminal event (proxy timeout, tab close, etc.):
+      // keep the run alive and poll the thread for the persisted reply.
       const run = runs.get(threadId);
       if (run?.status === 'streaming') patch(threadId, { live: false });
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') {
-        patch(threadId, { status: 'aborted' });
+        if (intentionalAborts.has(threadId)) {
+          intentionalAborts.delete(threadId);
+          patch(threadId, { status: 'aborted' });
+        } else {
+          // Browser cancelled the fetch (refresh / crash) — server may still
+          // finish and save; recover via polling.
+          patch(threadId, { live: false });
+        }
       } else {
         patch(threadId, {
           status: 'error',
@@ -235,6 +244,7 @@ export function startRun(input: StartRunInput): void {
         });
       }
     } finally {
+      intentionalAborts.delete(threadId);
       aborts.delete(threadId);
     }
   })();
@@ -262,11 +272,19 @@ function syncPoller(): void {
         if (run.status !== 'streaming' || run.live) continue;
         try {
           const detail = await getThread(run.threadId);
-          // The backend stores the user message before generating, so the reply
-          // has landed exactly when the thread's last message is the assistant's.
-          const last = detail.messages[detail.messages.length - 1];
-          const content = last?.role === 'assistant' ? last.content.trim() : '';
-          if (!content) {
+          // Match this run's user turn, then take the assistant that follows it.
+          // Never latch onto an older reply in the same thread.
+          let assistantText = '';
+          for (let i = detail.messages.length - 1; i >= 0; i--) {
+            const m = detail.messages[i]!;
+            if (m.role !== 'user' || m.content !== run.userMessage) continue;
+            const next = detail.messages[i + 1];
+            if (next?.role === 'assistant' && next.content.trim()) {
+              assistantText = next.content.trim();
+            }
+            break;
+          }
+          if (!assistantText) {
             if (Date.now() - run.startedAt > RECOVERY_TIMEOUT_MS) {
               patch(run.threadId, {
                 status: 'error',
@@ -277,9 +295,9 @@ function syncPoller(): void {
           }
           patch(run.threadId, {
             status: 'done',
-            text: content,
+            text: assistantText,
             title: detail.title || run.title,
-            hasImage: content.includes('![GATA visual]'),
+            hasImage: assistantText.includes('![GATA visual]'),
           });
         } catch {
           /* transient; retry on next tick */
