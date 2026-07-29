@@ -13,7 +13,7 @@ import { AppLogoMark } from './AppLogoMark';
 import {
   IconDashboard, IconTasks, IconCalendar, IconBell, IconNote, IconContacts,
   IconLogout, IconChevronLeft, IconClock, IconBot, IconChat, IconCommentSentinel,
-  IconAnalytics, IconTranscribe, IconMenu, IconLock, IconBook,
+  IconAnalytics, IconTranscribe, IconGataBoss, IconMenu, IconLock, IconBook,
 } from '../ui/icons';
 import { IconButton } from '../ui/primitives';
 
@@ -28,6 +28,7 @@ const NAV_PRIMARY: MobileNavItem[] = [
   { to: '/contacts',  label: 'Contacts',  icon: IconContacts },
   { to: '/chat',      label: 'Chat',      icon: IconChat },
   { to: '/agents',    label: 'Agents',    icon: IconBot },
+  { to: '/gata-boss', label: 'GATA Bo$$', icon: IconGataBoss },
   { to: '/comment-sentinel', label: 'Comment Sentinel', icon: IconCommentSentinel },
   { to: '/analytics', label: 'Analytics', icon: IconAnalytics },
   { to: '/transcribe', label: 'Transcribe', icon: IconTranscribe },
@@ -460,6 +461,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       }
       if (item.to === '/transcribe') {
         return me?.role === 'admin' || !(me?.disabledFeatures ?? []).includes('transcribe');
+      }
+      if (item.to === '/gata-boss') {
+        return me?.role === 'admin' || !(me?.disabledFeatures ?? []).includes('gata_boss');
       }
       return true;
     });

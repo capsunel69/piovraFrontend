@@ -18,6 +18,7 @@ import Documentation from './pages/Documentation';
 import CommentSentinel from './pages/CommentSentinel';
 import Analytics from './pages/Analytics';
 import Transcribe from './pages/Transcribe';
+import GataBoss from './pages/GataBoss';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import Timer from './components/timer/Timer';
@@ -59,6 +60,11 @@ function App() {
                       <Route path="/transcribe" element={
                         <FeatureRoute feature="transcribe">
                           <Transcribe />
+                        </FeatureRoute>
+                      } />
+                      <Route path="/gata-boss" element={
+                        <FeatureRoute feature="gata_boss">
+                          <GataBoss />
                         </FeatureRoute>
                       } />
                       <Route path="/privacy" element={<Privacy />} />

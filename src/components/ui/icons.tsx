@@ -319,6 +319,12 @@ export const IconTranscribe = make(
   </>
 );
 
+export const IconGataBoss = make(
+  <>
+    <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z" />
+  </>
+);
+
 export const IconChat = make(
   <>
     <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z" />
