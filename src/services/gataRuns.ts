@@ -203,6 +203,13 @@ export function startRun(input: StartRunInput): void {
           onImageStarted: () => {
             patch(threadId, { phase: 'image' });
           },
+          onImageReady: (info) => {
+            patch(threadId, {
+              phase: 'image',
+              hasImage: true,
+              text: `Here’s your GATA visual:\n\n![GATA visual](${info.url})`,
+            });
+          },
           onToken: (delta) => {
             const run = runs.get(threadId);
             if (!run) return;
@@ -228,15 +235,13 @@ export function startRun(input: StartRunInput): void {
       const run = runs.get(threadId);
       if (run?.status === 'streaming') patch(threadId, { live: false });
     } catch (err) {
-      if ((err as Error)?.name === 'AbortError') {
-        if (intentionalAborts.has(threadId)) {
-          intentionalAborts.delete(threadId);
-          patch(threadId, { status: 'aborted' });
-        } else {
-          // Browser cancelled the fetch (refresh / crash) — server may still
-          // finish and save; recover via polling.
-          patch(threadId, { live: false });
-        }
+      if ((err as Error)?.name === 'AbortError' && intentionalAborts.has(threadId)) {
+        intentionalAborts.delete(threadId);
+        patch(threadId, { status: 'aborted' });
+      } else if (runs.get(threadId)?.status === 'streaming') {
+        // Refresh, SPA navigation blips, proxy drops, background-tab kills —
+        // never treat these as a hard failure while the server may still finish.
+        patch(threadId, { live: false });
       } else {
         patch(threadId, {
           status: 'error',
