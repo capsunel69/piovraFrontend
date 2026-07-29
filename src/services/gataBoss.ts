@@ -75,7 +75,7 @@ async function parseError(res: Response): Promise<string> {
 
 function networkErrorMessage(err: unknown): string {
   if (err instanceof TypeError && /failed to fetch|networkerror|load failed/i.test(err.message)) {
-    return 'Cannot reach Piovra API — check your connection and that the backend SSL certificate is valid.';
+    return 'Upload blocked by the server (likely nginx body-size limit on backend.piovra-op.com). Add a /v1/gata-boss location with client_max_body_size 128m, then reload nginx.';
   }
   if (err instanceof Error) return err.message;
   return 'Request failed';
