@@ -205,6 +205,8 @@ export async function deleteThread(id: string): Promise<void> {
 
 export interface GbChatHandlers {
   onStarted?: (info: { model: string; threadId?: string; title?: string }) => void;
+  onImageStarted?: (threadId?: string) => void;
+  onImageReady?: (info: { url: string; threadId?: string }) => void;
   onToken?: (text: string, threadId?: string) => void;
   onCompleted?: (info: {
     text: string;
@@ -213,8 +215,15 @@ export interface GbChatHandlers {
     model: string;
     threadId?: string;
     title?: string;
+    images?: string[];
   }) => void;
   onFailed?: (error: string, threadId?: string) => void;
+}
+
+export function gataAssetUrl(path: string): string {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${PIOVRA_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
 export async function streamChat(
@@ -265,6 +274,15 @@ export async function streamChat(
       case 'token':
         handlers.onToken?.(String(obj.text ?? ''), threadId);
         break;
+      case 'image.started':
+        handlers.onImageStarted?.(threadId);
+        break;
+      case 'image.ready':
+        handlers.onImageReady?.({
+          url: String(obj.url ?? ''),
+          threadId,
+        });
+        break;
       case 'chat.completed':
         handlers.onCompleted?.({
           text: String(obj.text ?? ''),
@@ -273,6 +291,9 @@ export async function streamChat(
           model: String(obj.model ?? ''),
           threadId,
           title: typeof obj.title === 'string' ? obj.title : undefined,
+          images: Array.isArray(obj.images)
+            ? obj.images.filter((x): x is string => typeof x === 'string')
+            : undefined,
         });
         break;
       case 'chat.failed':

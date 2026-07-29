@@ -48,6 +48,7 @@ import {
   getThread,
   deleteThread,
   streamChat,
+  gataAssetUrl,
   GATA_CHAT_MODELS,
   GATA_DEFAULT_MODEL,
   GATA_UPLOAD_ACCEPT,
@@ -428,6 +429,21 @@ const Suggestion = styled.button`
     color: var(--text-1);
   }
 `;
+
+const GeneratedImage = styled.img`
+  display: block;
+  max-width: min(100%, 520px);
+  margin: 10px 0 4px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-1);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+`;
+
+const markdownComponents = {
+  img: ({ src, alt }: { src?: string; alt?: string }) => (
+    <GeneratedImage src={gataAssetUrl(src ?? '')} alt={alt ?? 'GATA visual'} loading="lazy" />
+  ),
+};
 
 const Turn = styled.div<{ $role: 'user' | 'assistant' }>`
   display: flex;
@@ -1354,7 +1370,9 @@ export default function GataBoss() {
                     {m.role === 'assistant' ? (
                       <>
                         {m.content ? (
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                            {m.content}
+                          </ReactMarkdown>
                         ) : m.status === 'streaming' ? (
                           <span style={{ color: 'var(--text-3)' }}>Thinking…</span>
                         ) : null}
