@@ -65,6 +65,7 @@ import {
   type GbDocumentDetail,
   type GbChatAttachment,
   type GbThreadListItem,
+  type GataInflightMeta,
 } from '../services/gataBoss';
 import { useRegisterOverlay } from '../hooks/useOverlayStack';
 
@@ -585,6 +586,84 @@ const Cursor = styled.span`
   animation: ${blink} 1s step-end infinite;
 `;
 
+const activityPulse = keyframes`
+  0%, 100% { opacity: 0.45; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1); }
+`;
+
+const ActivityStrip = styled.div`
+  flex-shrink: 0;
+  margin: 0 var(--s-4) var(--s-2);
+  padding: 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(76, 194, 255, 0.28);
+  background:
+    linear-gradient(135deg, rgba(76, 194, 255, 0.1), rgba(164, 120, 255, 0.06)),
+    var(--bg-2);
+
+  .pulse {
+    margin-top: 3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+    animation: ${activityPulse} 1.4s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  .body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-1);
+  }
+
+  .detail {
+    font-size: 11.5px;
+    color: var(--text-3);
+    line-height: 1.45;
+  }
+
+  .prompt {
+    font-size: 11.5px;
+    color: var(--text-2);
+    line-height: 1.45;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+`;
+
+const ThinkingBlock = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-2);
+
+  strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-1);
+  }
+
+  span {
+    font-size: 12px;
+    color: var(--text-3);
+    line-height: 1.45;
+  }
+`;
+
 const ComposerWrap = styled.div`
   flex-shrink: 0;
   padding: var(--s-3) var(--s-4);
@@ -818,6 +897,103 @@ function sortThreads(a: ThreadState, b: ThreadState) {
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
 
+type ThreadDetail = Awaited<ReturnType<typeof getThread>>;
+
+function mapDetailMessages(detail: ThreadDetail): ChatMessage[] {
+  return detail.messages.map((m) => ({
+    id: m.id,
+    role: m.role === 'assistant' ? 'assistant' : 'user',
+    content: m.content,
+    fileNames: m.fileNames,
+    status: 'done' as const,
+  }));
+}
+
+function streamingStatusCopy(phase?: ThreadPhase): { title: string; detail: string } {
+  if (phase === 'image') {
+    return {
+      title: 'Generating image…',
+      detail: 'Creating your GATA visual — usually takes under a minute.',
+    };
+  }
+  return {
+    title: 'Thinking…',
+    detail: 'Searching the knowledge base and drafting a reply.',
+  };
+}
+
+function mergeInflightIntoThread(
+  detail: ThreadDetail,
+  inflight: GataInflightMeta,
+  existing?: ThreadState,
+): { state: ThreadState; completed: boolean } {
+  let messages = mapDetailMessages(detail);
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+
+  if (lastAssistant?.content?.trim()) {
+    return {
+      completed: true,
+      state: {
+        id: detail.id,
+        title: detail.title,
+        model: detail.model,
+        updatedAt: detail.updatedAt,
+        status: 'idle',
+        phase: undefined,
+        messages,
+        loaded: true,
+      },
+    };
+  }
+
+  if (existing?.status === 'streaming' && existing.messages.length >= messages.length) {
+    messages = existing.messages;
+  } else if (lastAssistant && !lastAssistant.content.trim()) {
+    messages = messages.map((m) =>
+      m.id === lastAssistant.id
+        ? {
+            ...m,
+            status: 'streaming' as const,
+            content:
+              inflight.phase === 'image' ? 'Generating your GATA visual…\n\n' : m.content,
+          }
+        : m,
+    );
+  } else {
+    const assistantId = inflight.assistantId ?? `a-recover-${inflight.startedAt}`;
+    const recovered = existing?.messages.find(
+      (m) => m.role === 'assistant' && (m.id === assistantId || m.status === 'streaming'),
+    );
+    if (recovered) {
+      messages = existing!.messages;
+    } else {
+      messages = [
+        ...messages,
+        {
+          id: assistantId,
+          role: 'assistant' as const,
+          content: inflight.phase === 'image' ? 'Generating your GATA visual…\n\n' : '',
+          status: 'streaming' as const,
+        },
+      ];
+    }
+  }
+
+  return {
+    completed: false,
+    state: {
+      id: detail.id,
+      title: detail.title,
+      model: detail.model,
+      updatedAt: detail.updatedAt,
+      status: 'streaming',
+      phase: inflight.phase,
+      messages,
+      loaded: true,
+    },
+  };
+}
+
 export default function GataBoss() {
   const { me } = useAuth();
   const isAdmin = me?.role === 'admin';
@@ -861,8 +1037,40 @@ export default function GataBoss() {
   );
   const active = activeId ? threads[activeId] : null;
   const activeStreaming = active?.status === 'streaming';
-  const activePhaseLabel =
-    active?.phase === 'image' ? 'Generating image…' : 'Thinking…';
+  const activeStatusCopy = streamingStatusCopy(active?.phase);
+  const activeUserPrompt = useMemo(() => {
+    if (!active?.messages.length) return null;
+    const lastUser = [...active.messages].reverse().find((m) => m.role === 'user');
+    const text = lastUser?.content?.replace(/\s+/g, ' ').trim();
+    return text ? text.slice(0, 140) : null;
+  }, [active?.messages]);
+
+  const applyThreadDetail = useCallback((detail: ThreadDetail, existing?: ThreadState) => {
+    const inflight = readInflightMap()[detail.id];
+    setThreads((prev) => {
+      const ex = existing ?? prev[detail.id];
+      if (inflight) {
+        const { state, completed } = mergeInflightIntoThread(detail, inflight, ex);
+        if (completed) clearInflight(detail.id);
+        return { ...prev, [detail.id]: state };
+      }
+      const keepLive =
+        ex?.status === 'streaming' && isGataStreamLive(detail.id);
+      return {
+        ...prev,
+        [detail.id]: {
+          id: detail.id,
+          title: detail.title,
+          model: detail.model,
+          updatedAt: detail.updatedAt,
+          status: keepLive ? 'streaming' : 'idle',
+          phase: keepLive ? ex?.phase : undefined,
+          messages: keepLive ? ex!.messages : mapDetailMessages(detail),
+          loaded: true,
+        },
+      };
+    });
+  }, []);
 
   useEffect(() => {
     activeIdRef.current = activeId;
@@ -946,27 +1154,6 @@ export default function GataBoss() {
     void loadThreads();
     void refreshDocs();
   }, [loadThreads, refreshDocs]);
-
-  const applyThreadDetail = useCallback((detail: Awaited<ReturnType<typeof getThread>>) => {
-    setThreads((prev) => ({
-      ...prev,
-      [detail.id]: {
-        id: detail.id,
-        title: detail.title,
-        model: detail.model,
-        updatedAt: detail.updatedAt,
-        status: 'idle',
-        loaded: true,
-        messages: detail.messages.map((m) => ({
-          id: m.id,
-          role: m.role === 'assistant' ? 'assistant' : 'user',
-          content: m.content,
-          fileNames: m.fileNames,
-          status: 'done' as const,
-        })),
-      },
-    }));
-  }, []);
 
   const buildStreamHandlers = useCallback(
     (threadId: string, assistantId: string) => ({
@@ -1100,22 +1287,20 @@ export default function GataBoss() {
       return next;
     });
 
-    toast.info(
-      ids.length === 1
-        ? 'Still working on a background reply…'
-        : `Still working on ${ids.length} background replies…`,
-    );
-
     for (const id of ids) {
       const meta = inflight[id]!;
       if (isGataStreamLive(id) && meta.assistantId) {
         subscribeGataStream(id, buildStreamHandlers(id, meta.assistantId));
       }
+      void getThread(id)
+        .then((detail) => applyThreadDetail(detail))
+        .catch(() => undefined);
     }
 
-    if (activeId) {
-      void getThread(activeId)
-        .then(applyThreadDetail)
+    const activeOnMount = activeIdRef.current;
+    if (activeOnMount && !inflight[activeOnMount]) {
+      void getThread(activeOnMount)
+        .then((detail) => applyThreadDetail(detail))
         .catch(() => undefined);
     }
 
@@ -1164,7 +1349,7 @@ export default function GataBoss() {
       if (current?.loaded && !inflight) return;
       if (current?.status === 'streaming' && isGataStreamLive(id)) return;
       try {
-        applyThreadDetail(await getThread(id));
+        applyThreadDetail(await getThread(id), current);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Failed to open chat');
       }
@@ -1301,6 +1486,7 @@ export default function GataBoss() {
           title: t.title === 'New chat' ? provisionalTitle : t.title,
           updatedAt: new Date().toISOString(),
           status: 'streaming',
+          phase: 'chat',
           loaded: true,
           messages: [...t.messages, userMsg, assistantMsg],
         },
@@ -1548,7 +1734,7 @@ export default function GataBoss() {
               </span>
             </SessionTitle>
             <TopActions>
-              {activeStreaming && <Badge $variant="accent">{activePhaseLabel}</Badge>}
+              {activeStreaming && <Badge $variant="accent">{activeStatusCopy.title}</Badge>}
               {!activeStreaming && <Badge $variant="neutral">{modelLabel}</Badge>}
               <IconButton
                 type="button"
@@ -1598,9 +1784,10 @@ export default function GataBoss() {
                             {m.content}
                           </ReactMarkdown>
                         ) : m.status === 'streaming' ? (
-                          <span style={{ color: 'var(--text-3)' }}>
-                            {active?.phase === 'image' ? 'Generating image…' : 'Thinking…'}
-                          </span>
+                          <ThinkingBlock>
+                            <strong>{streamingStatusCopy(active?.phase).title}</strong>
+                            <span>{streamingStatusCopy(active?.phase).detail}</span>
+                          </ThinkingBlock>
                         ) : null}
                         {m.status === 'streaming' && <Cursor />}
                       </>
@@ -1612,6 +1799,21 @@ export default function GataBoss() {
               ))
             )}
           </Messages>
+
+          {activeStreaming && (
+            <ActivityStrip>
+              <span className="pulse" aria-hidden />
+              <div className="body">
+                <span className="title">{activeStatusCopy.title}</span>
+                <span className="detail">{activeStatusCopy.detail}</span>
+                {activeUserPrompt && (
+                  <span className="prompt" title={activeUserPrompt}>
+                    Re: {activeUserPrompt}
+                  </span>
+                )}
+              </div>
+            </ActivityStrip>
+          )}
 
           <ComposerWrap>
             <ComposerShell
@@ -1688,7 +1890,7 @@ export default function GataBoss() {
               </ComposerRow>
             </ComposerShell>
             <ComposerHint>
-              Switch chats anytime — replies keep running; check the sidebar or wait for a toast
+              Switch chats anytime — replies keep running in the background
             </ComposerHint>
             <HiddenFile
               ref={chatFileRef}
