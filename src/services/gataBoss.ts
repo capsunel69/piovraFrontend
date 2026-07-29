@@ -1,6 +1,9 @@
 const PIOVRA_BASE_URL = (import.meta.env.VITE_PIOVRA_BASE_URL as string | undefined) ?? '';
 const API_URL = `${PIOVRA_BASE_URL}/v1/gata-boss`;
 
+export const GATA_UPLOAD_ACCEPT =
+  '.pdf,.docx,.txt,.md,.markdown,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/json';
+
 export interface GbDocumentListItem {
   id: string;
   title: string;
@@ -20,6 +23,18 @@ export interface GbDocumentDetail extends Omit<GbDocumentListItem, 'contentLengt
 export interface GbChatHistoryItem {
   role: 'user' | 'assistant';
   content: string;
+}
+
+export interface GbChatAttachment {
+  name: string;
+  content: string;
+}
+
+export interface GbExtractedFile {
+  name: string;
+  content: string;
+  kind: string;
+  charCount: number;
 }
 
 export interface GbChatModel {
@@ -78,6 +93,37 @@ export async function createDocument(input: {
   return res.json();
 }
 
+export async function uploadDocuments(files: File[], title?: string): Promise<{
+  documents: Array<{ id: string; title: string; summary: string }>;
+  errors: Array<{ name: string; error: string }>;
+}> {
+  const form = new FormData();
+  for (const f of files) form.append('files', f);
+  if (title?.trim()) form.append('title', title.trim());
+  const res = await fetch(`${API_URL}/documents/upload`, {
+    method: 'POST',
+    credentials: 'include',
+    body: form,
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function extractFiles(files: File[]): Promise<{
+  files: GbExtractedFile[];
+  errors: Array<{ name: string; error: string }>;
+}> {
+  const form = new FormData();
+  for (const f of files) form.append('files', f);
+  const res = await fetch(`${API_URL}/extract`, {
+    method: 'POST',
+    credentials: 'include',
+    body: form,
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
 export async function deleteDocument(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/documents/${id}`, {
     method: 'DELETE',
@@ -99,7 +145,12 @@ export interface GbChatHandlers {
 }
 
 export async function streamChat(
-  input: { message: string; history: GbChatHistoryItem[]; model?: string },
+  input: {
+    message: string;
+    history: GbChatHistoryItem[];
+    model?: string;
+    attachments?: GbChatAttachment[];
+  },
   handlers: GbChatHandlers,
   signal?: AbortSignal,
 ): Promise<void> {

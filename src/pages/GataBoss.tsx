@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import styled, { keyframes } from 'styled-components';
+import styled, { keyframes, css } from 'styled-components';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { formatDistanceToNow } from 'date-fns';
@@ -23,19 +23,25 @@ import {
   IconRefresh,
   IconTrash,
   IconX,
-  IconSpark,
+  IconPaperclip,
+  IconUpload,
+  IconFileText,
 } from '../components/ui/icons';
 import {
   listDocuments,
   getDocument,
   createDocument,
+  uploadDocuments,
+  extractFiles,
   deleteDocument,
   streamChat,
   GATA_CHAT_MODELS,
   GATA_DEFAULT_MODEL,
+  GATA_UPLOAD_ACCEPT,
   type GbDocumentListItem,
   type GbDocumentDetail,
   type GbChatHistoryItem,
+  type GbChatAttachment,
 } from '../services/gataBoss';
 import { useRegisterOverlay } from '../hooks/useOverlayStack';
 
@@ -43,217 +49,277 @@ interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  fileNames?: string[];
   status?: 'streaming' | 'done' | 'error';
 }
+
+interface PendingFile {
+  id: string;
+  name: string;
+  content: string;
+  charCount: number;
+  extracting?: boolean;
+}
+
+const SUGGESTIONS = [
+  'Draft a short social post in GATA’s voice',
+  'Talking points for a local press interview',
+  'Slogan + poster concept from the knowledge base',
+  'Summarize GATA’s identity from stored context',
+];
 
 const Page = styled.div`
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 72px);
-  min-height: 480px;
-  max-width: 860px;
+  height: calc(100dvh - 64px);
+  min-height: 520px;
+  width: min(820px, 100%);
   margin: 0 auto;
-  width: 100%;
+  position: relative;
 `;
 
-const TopBar = styled.div`
+const TopBar = styled.header`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s-3);
-  padding: var(--s-3) var(--s-2) var(--s-2);
+  gap: 12px;
+  padding: 14px 8px 10px;
   flex-shrink: 0;
 `;
 
 const Brand = styled.div`
   display: flex;
-  align-items: center;
-  gap: var(--s-3);
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 `;
 
-const BrandMark = styled.div`
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 35%, transparent), var(--bg-3));
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border-1));
-  color: var(--accent);
-  flex-shrink: 0;
-`;
-
-const BrandText = styled.div`
-  min-width: 0;
-`;
-
-const BrandTitle = styled.div`
-  font-size: 16px;
-  font-weight: 650;
-  color: var(--text-1);
+const BrandTitle = styled.h1`
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
   letter-spacing: -0.02em;
+  color: var(--text-1);
 `;
 
-const BrandSub = styled.div`
-  font-size: 11.5px;
+const BrandSub = styled.p`
+  margin: 0;
+  font-size: 12px;
   color: var(--text-3);
+`;
+
+const TopActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 `;
 
 const ModelSelect = styled.select`
   appearance: none;
   background: var(--bg-2);
   border: 1px solid var(--border-1);
-  border-radius: 999px;
+  border-radius: 8px;
   color: var(--text-2);
   font-size: 12px;
   font-weight: 500;
-  padding: 6px 28px 6px 12px;
+  padding: 7px 28px 7px 10px;
   cursor: pointer;
-  max-width: 200px;
-  background-image: linear-gradient(45deg, transparent 50%, var(--text-3) 50%),
+  max-width: 168px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-3) 50%),
     linear-gradient(135deg, var(--text-3) 50%, transparent 50%);
-  background-position: calc(100% - 14px) calc(50% - 2px), calc(100% - 9px) calc(50% - 2px);
+  background-position: calc(100% - 12px) calc(50% - 2px), calc(100% - 7px) calc(50% - 2px);
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
-  &:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border-1)); color: var(--text-1); }
-  &:disabled { opacity: 0.55; cursor: not-allowed; }
-`;
-
-const TopActions = styled.div`
-  display: flex;
-  gap: var(--s-2);
-  flex-shrink: 0;
+  &:hover { color: var(--text-1); border-color: var(--border-2); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
 const Messages = styled.div`
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--s-2) var(--s-2) var(--s-4);
+  padding: 8px 8px 24px;
   display: flex;
   flex-direction: column;
-  gap: var(--s-5);
+  gap: 22px;
 `;
 
 const Empty = styled.div`
   margin: auto;
+  width: min(520px, 100%);
   text-align: center;
-  max-width: 420px;
-  padding: var(--s-8) var(--s-4);
+  padding: 32px 12px 48px;
 `;
 
-const EmptyTitle = styled.h1`
-  font-size: 28px;
-  font-weight: 650;
-  letter-spacing: -0.03em;
+const EmptyTitle = styled.h2`
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
   color: var(--text-1);
-  margin: 0 0 var(--s-2);
 `;
 
 const EmptySub = styled.p`
-  margin: 0;
+  margin: 0 auto 28px;
+  max-width: 380px;
   color: var(--text-3);
-  font-size: 14.5px;
+  font-size: 14px;
   line-height: 1.55;
 `;
 
 const Suggestions = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--s-2);
-  margin-top: var(--s-5);
-  @media (max-width: 560px) {
-    grid-template-columns: 1fr;
-  }
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 `;
 
 const Suggestion = styled.button`
   text-align: left;
-  background: var(--bg-2);
+  background: transparent;
   border: 1px solid var(--border-1);
-  border-radius: var(--r-md);
-  padding: 12px 14px;
+  border-radius: 999px;
+  padding: 8px 14px;
   color: var(--text-2);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 12.5px;
+  line-height: 1.35;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
   &:hover {
     border-color: color-mix(in srgb, var(--accent) 45%, var(--border-1));
-    background: color-mix(in srgb, var(--accent) 8%, var(--bg-2));
     color: var(--text-1);
+    background: var(--accent-soft);
   }
 `;
 
-const Row = styled.div<{ $role: 'user' | 'assistant' }>`
+const Turn = styled.div<{ $role: 'user' | 'assistant' }>`
   display: flex;
-  justify-content: ${(p) => (p.$role === 'user' ? 'flex-end' : 'flex-start')};
+  flex-direction: column;
+  align-items: ${(p) => (p.$role === 'user' ? 'flex-end' : 'flex-start')};
+  gap: 6px;
 `;
 
 const Bubble = styled.div<{ $role: 'user' | 'assistant' }>`
-  max-width: min(720px, 92%);
-  padding: ${(p) => (p.$role === 'user' ? '11px 14px' : '2px 2px')};
-  border-radius: ${(p) => (p.$role === 'user' ? '18px 18px 6px 18px' : '0')};
-  background: ${(p) => (p.$role === 'user' ? 'var(--accent-soft)' : 'transparent')};
+  max-width: ${(p) => (p.$role === 'user' ? '78%' : '100%')};
+  padding: ${(p) => (p.$role === 'user' ? '10px 14px' : '0')};
+  border-radius: ${(p) => (p.$role === 'user' ? '16px 16px 4px 16px' : '0')};
+  background: ${(p) => (p.$role === 'user' ? 'var(--bg-3)' : 'transparent')};
+  border: ${(p) => (p.$role === 'user' ? '1px solid var(--border-1)' : 'none')};
   color: var(--text-1);
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: 14.5px;
+  line-height: 1.65;
   word-break: break-word;
 
-  & p { margin: 0 0 0.75em; }
+  & p { margin: 0 0 0.7em; }
   & p:last-child { margin-bottom: 0; }
-  & ul, & ol { margin: 0.4em 0 0.8em; padding-left: 1.3em; }
+  & ul, & ol { margin: 0.35em 0 0.7em; padding-left: 1.25em; }
   & code {
     font-family: var(--font-mono);
-    font-size: 0.9em;
+    font-size: 0.88em;
     background: var(--bg-3);
     padding: 1px 5px;
     border-radius: 4px;
   }
   & pre {
-    background: var(--bg-3);
+    background: var(--bg-2);
     border: 1px solid var(--border-1);
-    border-radius: var(--r-md);
+    border-radius: 10px;
     padding: 12px;
     overflow-x: auto;
-    margin: 0.6em 0;
+    margin: 0.55em 0;
   }
   & pre code { background: none; padding: 0; }
 `;
 
+const FileChips = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`;
+
+const FileChip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-2);
+  background: var(--bg-2);
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+  padding: 4px 8px;
+  max-width: 220px;
+  svg { color: var(--accent); flex-shrink: 0; }
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+`;
+
 const blink = keyframes`
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.2; }
+  50% { opacity: 0.15; }
 `;
 
 const Cursor = styled.span`
   display: inline-block;
-  width: 7px;
-  height: 1.05em;
+  width: 6px;
+  height: 1em;
   margin-left: 2px;
   vertical-align: text-bottom;
   background: var(--accent);
   animation: ${blink} 1s step-end infinite;
 `;
 
-const ComposerWrap = styled.div`
+const ComposerDock = styled.div`
   flex-shrink: 0;
-  padding: 0 var(--s-2) var(--s-4);
+  padding: 0 8px 18px;
 `;
 
-const Composer = styled.form`
-  display: flex;
-  gap: var(--s-2);
-  align-items: flex-end;
+const ComposerShell = styled.form`
   background: var(--bg-2);
   border: 1px solid var(--border-2);
-  border-radius: 22px;
-  padding: 10px 12px 10px 16px;
-  box-shadow: var(--shadow-md);
+  border-radius: 18px;
+  padding: 10px 10px 10px 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   &:focus-within {
-    border-color: color-mix(in srgb, var(--accent) 50%, var(--border-2));
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border-2));
   }
+`;
+
+const PendingRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`;
+
+const PendingChip = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  border-radius: 999px;
+  padding: 4px 6px 4px 10px;
+  max-width: 260px;
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+`;
+
+const ComposerRow = styled.div`
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
 `;
 
 const ComposerInput = styled.textarea`
@@ -264,20 +330,31 @@ const ComposerInput = styled.textarea`
   background: transparent;
   color: var(--text-1);
   font: inherit;
-  font-size: 15px;
+  font-size: 14.5px;
   line-height: 1.45;
-  max-height: 180px;
+  max-height: 160px;
   min-height: 24px;
-  padding: 6px 0;
+  padding: 8px 4px;
   &::placeholder { color: var(--text-3); }
 `;
 
+const Hint = styled.div`
+  margin-top: 8px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-3);
+`;
+
+const HiddenFile = styled.input`
+  display: none;
+`;
+
 const KbModal = styled.div`
-  background: var(--bg-2);
+  background: var(--bg-1);
   border: 1px solid var(--border-2);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   width: min(720px, 100%);
-  max-height: min(84vh, 820px);
+  max-height: min(86vh, 860px);
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-lg);
@@ -285,20 +362,21 @@ const KbModal = styled.div`
 `;
 
 const KbHeader = styled.div`
-  padding: var(--s-4) var(--s-5);
+  padding: 16px 18px;
   border-bottom: 1px solid var(--border-1);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s-3);
+  gap: 12px;
 `;
 
 const KbTitle = styled.div`
-  font-weight: 650;
+  font-weight: 600;
   color: var(--text-1);
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: 8px;
+  font-size: 14px;
   svg { color: var(--accent); }
 `;
 
@@ -306,33 +384,59 @@ const KbBody = styled.div`
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--s-4) var(--s-5);
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: 12px;
+`;
+
+const DropZone = styled.label<{ $active?: boolean; $busy?: boolean }>`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px 16px;
+  border-radius: 12px;
+  border: 1px dashed ${(p) => (p.$active ? 'var(--accent)' : 'var(--border-2)')};
+  background: ${(p) => (p.$active ? 'var(--accent-soft)' : 'var(--bg-2)')};
+  color: var(--text-3);
+  text-align: center;
+  cursor: ${(p) => (p.$busy ? 'wait' : 'pointer')};
+  transition: border-color 0.15s, background 0.15s;
+  ${(p) =>
+    !p.$busy &&
+    css`
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent) 50%, var(--border-2));
+        color: var(--text-2);
+      }
+    `}
+  strong { color: var(--text-1); font-weight: 560; }
+  small { font-size: 11.5px; }
 `;
 
 const DocCard = styled.button`
   text-align: left;
-  background: var(--bg-1);
+  background: var(--bg-2);
   border: 1px solid var(--border-1);
-  border-radius: var(--r-md);
+  border-radius: 12px;
   padding: 12px 14px;
   cursor: pointer;
   color: inherit;
   transition: border-color 0.15s;
-  &:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border-1)); }
+  &:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--border-1)); }
 `;
 
 const DocTitle = styled.div`
   font-weight: 600;
   color: var(--text-1);
-  font-size: 14px;
+  font-size: 13.5px;
   margin-bottom: 4px;
 `;
 
 const DocSummary = styled.div`
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text-2);
   line-height: 1.45;
   display: -webkit-box;
@@ -351,7 +455,7 @@ const DocMeta = styled.div`
 const DetailPanel = styled.div`
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: 10px;
 `;
 
 const DetailBack = styled.button`
@@ -368,33 +472,45 @@ const DetailContent = styled.pre`
   white-space: pre-wrap;
   word-break: break-word;
   font-family: inherit;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.55;
   color: var(--text-2);
-  background: var(--bg-1);
+  background: var(--bg-2);
   border: 1px solid var(--border-1);
-  border-radius: var(--r-md);
-  padding: 14px;
+  border-radius: 10px;
+  padding: 12px;
   margin: 0;
-  max-height: 40vh;
+  max-height: 38vh;
   overflow-y: auto;
 `;
 
 const AddForm = styled.div`
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
-  padding-top: var(--s-2);
+  gap: 10px;
+  padding-top: 8px;
   border-top: 1px solid var(--border-1);
-  margin-top: var(--s-2);
 `;
 
-const SUGGESTIONS = [
-  'Draft a short social media post about GATA’s core message',
-  'Write talking points for a local press interview',
-  'Suggest a slogan and poster concept in GATA’s voice',
-  'Summarize GATA’s identity from the knowledge base',
-];
+const Tabs = styled.div`
+  display: flex;
+  gap: 4px;
+  background: var(--bg-2);
+  border-radius: 10px;
+  padding: 3px;
+  width: fit-content;
+`;
+
+const Tab = styled.button<{ $active?: boolean }>`
+  border: none;
+  background: ${(p) => (p.$active ? 'var(--bg-4)' : 'transparent')};
+  color: ${(p) => (p.$active ? 'var(--text-1)' : 'var(--text-3)')};
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+`;
 
 export default function GataBoss() {
   const { me } = useAuth();
@@ -404,6 +520,8 @@ export default function GataBoss() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [streaming, setStreaming] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [extracting, setExtracting] = useState(false);
   const [model, setModel] = useState(() => {
     try {
       return localStorage.getItem('gata_boss_model') || GATA_DEFAULT_MODEL;
@@ -414,6 +532,8 @@ export default function GataBoss() {
   const abortRef = useRef<AbortController | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const chatFileRef = useRef<HTMLInputElement>(null);
+  const kbFileRef = useRef<HTMLInputElement>(null);
 
   const [kbOpen, setKbOpen] = useState(false);
   useRegisterOverlay(kbOpen);
@@ -421,9 +541,11 @@ export default function GataBoss() {
   const [docsLoading, setDocsLoading] = useState(false);
   const [selected, setSelected] = useState<GbDocumentDetail | null>(null);
   const [adding, setAdding] = useState(false);
+  const [addMode, setAddMode] = useState<'upload' | 'paste'>('upload');
   const [addTitle, setAddTitle] = useState('');
   const [addContent, setAddContent] = useState('');
   const [addBusy, setAddBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   const modelLabel =
     GATA_CHAT_MODELS.find((m) => m.id === model)?.label ??
@@ -461,13 +583,13 @@ export default function GataBoss() {
     const el = scrollerRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages]);
+  }, [messages, pendingFiles]);
 
   const resizeInput = () => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   };
 
   const stop = () => {
@@ -476,9 +598,39 @@ export default function GataBoss() {
     setStreaming(false);
   };
 
+  const attachChatFiles = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList).slice(0, 5);
+    if (files.length === 0) return;
+    setExtracting(true);
+    try {
+      const result = await extractFiles(files);
+      for (const err of result.errors) {
+        toast.error(`${err.name}: ${err.error}`);
+      }
+      setPendingFiles((prev) => [
+        ...prev,
+        ...result.files.map((f) => ({
+          id: `${f.name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name: f.name,
+          content: f.content,
+          charCount: f.charCount,
+        })),
+      ].slice(0, 5));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to read files');
+    } finally {
+      setExtracting(false);
+      if (chatFileRef.current) chatFileRef.current.value = '';
+    }
+  };
+
   const send = async (text: string) => {
     const message = text.trim();
-    if (!message || streaming) return;
+    const attachments: GbChatAttachment[] = pendingFiles.map((f) => ({
+      name: f.name,
+      content: f.content,
+    }));
+    if ((!message && attachments.length === 0) || streaming || extracting) return;
 
     const history: GbChatHistoryItem[] = messages
       .filter((m) => m.status !== 'error' && m.content)
@@ -487,7 +639,8 @@ export default function GataBoss() {
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
       role: 'user',
-      content: message,
+      content: message || (attachments.length ? `Attached ${attachments.length} file(s)` : ''),
+      fileNames: attachments.map((a) => a.name),
       status: 'done',
     };
     const assistantId = `a-${Date.now()}`;
@@ -500,11 +653,10 @@ export default function GataBoss() {
 
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setDraft('');
+    setPendingFiles([]);
     setStreaming(true);
     requestAnimationFrame(() => {
-      if (inputRef.current) {
-        inputRef.current.style.height = 'auto';
-      }
+      if (inputRef.current) inputRef.current.style.height = 'auto';
     });
 
     const ac = new AbortController();
@@ -512,7 +664,7 @@ export default function GataBoss() {
 
     try {
       await streamChat(
-        { message, history, model },
+        { message, history, model, attachments },
         {
           onToken: (delta) => {
             setMessages((prev) =>
@@ -575,7 +727,7 @@ export default function GataBoss() {
     }
   };
 
-  const handleAdd = async () => {
+  const handlePasteAdd = async () => {
     if (!addContent.trim() || addBusy) return;
     setAddBusy(true);
     try {
@@ -586,12 +738,37 @@ export default function GataBoss() {
       setAddTitle('');
       setAddContent('');
       setAdding(false);
-      toast.success('Added to knowledge base (summarized)');
+      toast.success('Added to knowledge base');
       await refreshDocs();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to add document');
     } finally {
       setAddBusy(false);
+    }
+  };
+
+  const handleKbUpload = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList);
+    if (files.length === 0 || addBusy) return;
+    setAddBusy(true);
+    try {
+      const result = await uploadDocuments(files, addTitle.trim() || undefined);
+      for (const err of result.errors) toast.error(`${err.name}: ${err.error}`);
+      if (result.documents.length) {
+        toast.success(
+          result.documents.length === 1
+            ? `Added “${result.documents[0]!.title}”`
+            : `Added ${result.documents.length} documents`,
+        );
+        setAdding(false);
+        setAddTitle('');
+        await refreshDocs();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setAddBusy(false);
+      if (kbFileRef.current) kbFileRef.current.value = '';
     }
   };
 
@@ -611,13 +788,8 @@ export default function GataBoss() {
     <Page>
       <TopBar>
         <Brand>
-          <BrandMark>
-            <IconSpark size={18} />
-          </BrandMark>
-          <BrandText>
-            <BrandTitle>GATA Bo$$</BrandTitle>
-            <BrandSub>Party communications · {modelLabel}</BrandSub>
-          </BrandText>
+          <BrandTitle>GATA Bo$$</BrandTitle>
+          <BrandSub>Communications assistant · {modelLabel}</BrandSub>
         </Brand>
         <TopActions>
           <ModelSelect
@@ -625,7 +797,6 @@ export default function GataBoss() {
             value={model}
             disabled={streaming}
             onChange={(e) => pickModel(e.target.value)}
-            title="Chat model"
           >
             <optgroup label="ChatGPT / OpenAI">
               {GATA_CHAT_MODELS.filter((m) => m.provider === 'openai').map((m) => (
@@ -638,9 +809,9 @@ export default function GataBoss() {
               ))}
             </optgroup>
           </ModelSelect>
-          <Button type="button" $variant="ghost" onClick={() => setKbOpen(true)}>
-            <IconBook size={15} /> Knowledge base
-            {docs.length > 0 ? ` (${docs.length})` : ''}
+          <Button type="button" $variant="ghost" $size="sm" onClick={() => setKbOpen(true)}>
+            <IconBook size={14} />
+            Knowledge{docs.length ? ` · ${docs.length}` : ''}
           </Button>
           {messages.length > 0 && (
             <IconButton
@@ -650,6 +821,7 @@ export default function GataBoss() {
               onClick={() => {
                 stop();
                 setMessages([]);
+                setPendingFiles([]);
               }}
             >
               <IconRefresh size={16} />
@@ -661,9 +833,9 @@ export default function GataBoss() {
       <Messages ref={scrollerRef}>
         {messages.length === 0 ? (
           <Empty>
-            <EmptyTitle>GATA Bo$$</EmptyTitle>
+            <EmptyTitle>What should we draft?</EmptyTitle>
             <EmptySub>
-              Ask for drafts, talking points, slogans, or visual concepts grounded in the shared GATA knowledge base.
+              Write from GATA’s shared knowledge base — posts, talking points, slogans, or visual concepts.
             </EmptySub>
             <Suggestions>
               {SUGGESTIONS.map((s) => (
@@ -675,7 +847,17 @@ export default function GataBoss() {
           </Empty>
         ) : (
           messages.map((m) => (
-            <Row key={m.id} $role={m.role}>
+            <Turn key={m.id} $role={m.role}>
+              {m.fileNames && m.fileNames.length > 0 && (
+                <FileChips>
+                  {m.fileNames.map((name) => (
+                    <FileChip key={name}>
+                      <IconFileText size={12} />
+                      <span>{name}</span>
+                    </FileChip>
+                  ))}
+                </FileChips>
+              )}
               <Bubble $role={m.role}>
                 {m.role === 'assistant' ? (
                   <>
@@ -690,58 +872,108 @@ export default function GataBoss() {
                   m.content
                 )}
               </Bubble>
-            </Row>
+            </Turn>
           ))
         )}
       </Messages>
 
-      <ComposerWrap>
-        <Composer
+      <ComposerDock>
+        <ComposerShell
           onSubmit={(e) => {
             e.preventDefault();
             void send(draft);
           }}
         >
-          <ComposerInput
-            ref={inputRef}
-            rows={1}
-            placeholder="Message GATA Bo$$…"
-            value={draft}
-            disabled={streaming}
-            onChange={(e) => {
-              setDraft(e.target.value);
-              resizeInput();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                void send(draft);
-              }
-            }}
-          />
-          {streaming ? (
-            <IconButton type="button" aria-label="Stop" onClick={stop}>
-              <IconStop size={16} />
-            </IconButton>
-          ) : (
-            <IconButton type="submit" aria-label="Send" disabled={!draft.trim()}>
-              <IconSend size={16} />
-            </IconButton>
+          {pendingFiles.length > 0 && (
+            <PendingRow>
+              {pendingFiles.map((f) => (
+                <PendingChip key={f.id}>
+                  <IconFileText size={13} />
+                  <span>{f.name}</span>
+                  <IconButton
+                    type="button"
+                    $size="sm"
+                    aria-label={`Remove ${f.name}`}
+                    onClick={() => setPendingFiles((prev) => prev.filter((x) => x.id !== f.id))}
+                  >
+                    <IconX size={12} />
+                  </IconButton>
+                </PendingChip>
+              ))}
+            </PendingRow>
           )}
-        </Composer>
-      </ComposerWrap>
+          <ComposerRow>
+            <IconButton
+              type="button"
+              aria-label="Attach document"
+              title="Attach PDF, DOCX, or text"
+              disabled={streaming || extracting || pendingFiles.length >= 5}
+              onClick={() => chatFileRef.current?.click()}
+            >
+              {extracting ? <Spinner $size={14} /> : <IconPaperclip size={16} />}
+            </IconButton>
+            <ComposerInput
+              ref={inputRef}
+              rows={1}
+              placeholder="Message GATA Bo$$…"
+              value={draft}
+              disabled={streaming}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                resizeInput();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void send(draft);
+                }
+              }}
+              onPaste={(e) => {
+                const files = Array.from(e.clipboardData.files || []);
+                if (files.length) {
+                  e.preventDefault();
+                  void attachChatFiles(files);
+                }
+              }}
+            />
+            {streaming ? (
+              <IconButton type="button" aria-label="Stop" onClick={stop}>
+                <IconStop size={16} />
+              </IconButton>
+            ) : (
+              <IconButton
+                type="submit"
+                aria-label="Send"
+                disabled={(!draft.trim() && pendingFiles.length === 0) || extracting}
+              >
+                <IconSend size={16} />
+              </IconButton>
+            )}
+          </ComposerRow>
+        </ComposerShell>
+        <Hint>PDF · DOCX · TXT · MD — up to 5 files per message</Hint>
+        <HiddenFile
+          ref={chatFileRef}
+          type="file"
+          accept={GATA_UPLOAD_ACCEPT}
+          multiple
+          onChange={(e) => {
+            if (e.target.files) void attachChatFiles(e.target.files);
+          }}
+        />
+      </ComposerDock>
 
       {kbOpen && (
         <ModalOverlay onClick={(e) => e.target === e.currentTarget && setKbOpen(false)}>
           <KbModal>
             <KbHeader>
               <KbTitle>
-                <IconBook size={18} /> Knowledge base
+                <IconBook size={16} /> Knowledge base
               </KbTitle>
               <div style={{ display: 'flex', gap: 8 }}>
                 {isAdmin && !adding && !selected && (
-                  <Button type="button" $size="sm" onClick={() => setAdding(true)}>
-                    <IconPlus size={14} /> Add context
+                  <Button type="button" $size="sm" onClick={() => { setAdding(true); setAddMode('upload'); }}>
+                    <IconPlus size={14} /> Add
                   </Button>
                 )}
                 <IconButton type="button" aria-label="Close" onClick={() => setKbOpen(false)}>
@@ -753,15 +985,15 @@ export default function GataBoss() {
               {selected ? (
                 <DetailPanel>
                   <DetailBack type="button" onClick={() => setSelected(null)}>
-                    ← Back to list
+                    ← Back
                   </DetailBack>
                   <DocTitle>{selected.title}</DocTitle>
                   <DocMeta>
-                    Summary · {selected.createdByName || selected.createdByEmail || 'unknown'} ·{' '}
+                    {selected.createdByName || selected.createdByEmail || 'unknown'} ·{' '}
                     {formatDistanceToNow(new Date(selected.createdAt), { addSuffix: true })}
                   </DocMeta>
                   <Label>Summary</Label>
-                  <DocSummary style={{ WebkitLineClamp: 'unset' as unknown as number, display: 'block' }}>
+                  <DocSummary style={{ display: 'block', WebkitLineClamp: 'unset' as unknown as number }}>
                     {selected.summary}
                   </DocSummary>
                   <Label>Full content</Label>
@@ -772,60 +1004,113 @@ export default function GataBoss() {
                     </Button>
                   )}
                 </DetailPanel>
-              ) : docsLoading ? (
-                <div style={{ display: 'grid', placeItems: 'center', padding: 40 }}>
-                  <Spinner />
-                </div>
-              ) : docs.length === 0 && !adding ? (
-                <EmptySub style={{ textAlign: 'center', padding: 24 }}>
-                  No documents yet.
-                  {isAdmin ? ' Add party identity, positions, bios, and tone guides.' : ' Ask an admin to add context.'}
-                </EmptySub>
               ) : (
-                docs.map((d) => (
-                  <DocCard key={d.id} type="button" onClick={() => void openDoc(d.id)}>
-                    <DocTitle>{d.title}</DocTitle>
-                    <DocSummary>{d.summary}</DocSummary>
-                    <DocMeta>
-                      {d.createdByName || d.createdByEmail || 'unknown'} ·{' '}
-                      {formatDistanceToNow(new Date(d.createdAt), { addSuffix: true })} ·{' '}
-                      {d.contentLength.toLocaleString()} chars
-                    </DocMeta>
-                  </DocCard>
-                ))
-              )}
+                <>
+                  {isAdmin && adding && (
+                    <AddForm>
+                      <Tabs>
+                        <Tab type="button" $active={addMode === 'upload'} onClick={() => setAddMode('upload')}>
+                          Upload files
+                        </Tab>
+                        <Tab type="button" $active={addMode === 'paste'} onClick={() => setAddMode('paste')}>
+                          Paste text
+                        </Tab>
+                      </Tabs>
+                      <Field>
+                        <Label>Title (optional)</Label>
+                        <Input
+                          value={addTitle}
+                          onChange={(e) => setAddTitle(e.target.value)}
+                          placeholder="Defaults from filename / content"
+                          disabled={addBusy}
+                        />
+                      </Field>
+                      {addMode === 'upload' ? (
+                        <>
+                          <DropZone
+                            $active={dragOver}
+                            $busy={addBusy}
+                            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                            onDragLeave={() => setDragOver(false)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setDragOver(false);
+                              if (e.dataTransfer.files.length) void handleKbUpload(e.dataTransfer.files);
+                            }}
+                          >
+                            <IconUpload size={22} />
+                            <strong>{addBusy ? 'Extracting & summarizing…' : 'Drop PDF / DOCX here'}</strong>
+                            <small>or click to browse · also TXT, MD, CSV, JSON</small>
+                            <HiddenFile
+                              ref={kbFileRef}
+                              type="file"
+                              accept={GATA_UPLOAD_ACCEPT}
+                              multiple
+                              disabled={addBusy}
+                              onChange={(e) => {
+                                if (e.target.files) void handleKbUpload(e.target.files);
+                              }}
+                            />
+                          </DropZone>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <Button type="button" $variant="ghost" disabled={addBusy} onClick={() => setAdding(false)}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Field>
+                            <Label>Content</Label>
+                            <Textarea
+                              rows={7}
+                              value={addContent}
+                              onChange={(e) => setAddContent(e.target.value)}
+                              placeholder="Paste identity notes, positions, bios, style guides…"
+                              disabled={addBusy}
+                            />
+                          </Field>
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <Button type="button" $variant="ghost" disabled={addBusy} onClick={() => setAdding(false)}>
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              disabled={addBusy || !addContent.trim()}
+                              onClick={() => void handlePasteAdd()}
+                            >
+                              {addBusy ? <Spinner $size={14} /> : null}
+                              {addBusy ? 'Summarizing…' : 'Add & summarize'}
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </AddForm>
+                  )}
 
-              {isAdmin && adding && (
-                <AddForm>
-                  <Field>
-                    <Label>Title (optional)</Label>
-                    <Input
-                      value={addTitle}
-                      onChange={(e) => setAddTitle(e.target.value)}
-                      placeholder="Auto-generated if empty"
-                      disabled={addBusy}
-                    />
-                  </Field>
-                  <Field>
-                    <Label>Content</Label>
-                    <Textarea
-                      rows={8}
-                      value={addContent}
-                      onChange={(e) => setAddContent(e.target.value)}
-                      placeholder="Paste documents, identity notes, positions, bios, style guides…"
-                      disabled={addBusy}
-                    />
-                  </Field>
-                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                    <Button type="button" $variant="ghost" disabled={addBusy} onClick={() => setAdding(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="button" disabled={addBusy || !addContent.trim()} onClick={() => void handleAdd()}>
-                      {addBusy ? <Spinner $size={14} /> : null}
-                      {addBusy ? 'Summarizing…' : 'Add & summarize'}
-                    </Button>
-                  </div>
-                </AddForm>
+                  {docsLoading ? (
+                    <div style={{ display: 'grid', placeItems: 'center', padding: 40 }}>
+                      <Spinner />
+                    </div>
+                  ) : docs.length === 0 ? (
+                    <EmptySub style={{ margin: 0, padding: '20px 0' }}>
+                      No documents yet.
+                      {isAdmin ? ' Upload party materials to ground every reply.' : ' Ask an admin to add context.'}
+                    </EmptySub>
+                  ) : (
+                    docs.map((d) => (
+                      <DocCard key={d.id} type="button" onClick={() => void openDoc(d.id)}>
+                        <DocTitle>{d.title}</DocTitle>
+                        <DocSummary>{d.summary}</DocSummary>
+                        <DocMeta>
+                          {d.createdByName || d.createdByEmail || 'unknown'} ·{' '}
+                          {formatDistanceToNow(new Date(d.createdAt), { addSuffix: true })} ·{' '}
+                          {d.contentLength.toLocaleString()} chars
+                        </DocMeta>
+                      </DocCard>
+                    ))
+                  )}
+                </>
               )}
             </KbBody>
           </KbModal>
