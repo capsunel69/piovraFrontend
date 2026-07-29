@@ -132,24 +132,82 @@ export async function deleteDocument(id: string): Promise<void> {
   if (!res.ok && res.status !== 204) throw new Error(await parseError(res));
 }
 
+export interface GbThreadListItem {
+  id: string;
+  title: string;
+  model: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GbThreadMessage {
+  id: string;
+  threadId: string;
+  role: 'user' | 'assistant' | string;
+  content: string;
+  fileNames: string[];
+  createdAt: string;
+}
+
+export interface GbThreadDetail extends GbThreadListItem {
+  messages: GbThreadMessage[];
+}
+
+export async function listThreads(): Promise<GbThreadListItem[]> {
+  const res = await fetch(`${API_URL}/threads`, { credentials: 'include' });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function createThread(input?: {
+  title?: string;
+  model?: string;
+}): Promise<GbThreadListItem> {
+  const res = await fetch(`${API_URL}/threads`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input ?? {}),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function getThread(id: string): Promise<GbThreadDetail> {
+  const res = await fetch(`${API_URL}/threads/${id}`, { credentials: 'include' });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function deleteThread(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/threads/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok && res.status !== 204) throw new Error(await parseError(res));
+}
+
 export interface GbChatHandlers {
-  onStarted?: (info: { model: string }) => void;
-  onToken?: (text: string) => void;
+  onStarted?: (info: { model: string; threadId?: string; title?: string }) => void;
+  onToken?: (text: string, threadId?: string) => void;
   onCompleted?: (info: {
     text: string;
     tokensIn: number | null;
     tokensOut: number | null;
     model: string;
+    threadId?: string;
+    title?: string;
   }) => void;
-  onFailed?: (error: string) => void;
+  onFailed?: (error: string, threadId?: string) => void;
 }
 
 export async function streamChat(
   input: {
     message: string;
-    history: GbChatHistoryItem[];
+    history?: GbChatHistoryItem[];
     model?: string;
     attachments?: GbChatAttachment[];
+    threadId?: string;
   },
   handlers: GbChatHandlers,
   signal?: AbortSignal,
@@ -180,12 +238,17 @@ export async function streamChat(
       /* keep raw */
     }
     const obj = (parsed && typeof parsed === 'object' ? parsed : {}) as Record<string, unknown>;
+    const threadId = typeof obj.threadId === 'string' ? obj.threadId : undefined;
     switch (name) {
       case 'chat.started':
-        handlers.onStarted?.({ model: String(obj.model ?? '') });
+        handlers.onStarted?.({
+          model: String(obj.model ?? ''),
+          threadId,
+          title: typeof obj.title === 'string' ? obj.title : undefined,
+        });
         break;
       case 'token':
-        handlers.onToken?.(String(obj.text ?? ''));
+        handlers.onToken?.(String(obj.text ?? ''), threadId);
         break;
       case 'chat.completed':
         handlers.onCompleted?.({
@@ -193,10 +256,12 @@ export async function streamChat(
           tokensIn: typeof obj.tokensIn === 'number' ? obj.tokensIn : null,
           tokensOut: typeof obj.tokensOut === 'number' ? obj.tokensOut : null,
           model: String(obj.model ?? ''),
+          threadId,
+          title: typeof obj.title === 'string' ? obj.title : undefined,
         });
         break;
       case 'chat.failed':
-        handlers.onFailed?.(String(obj.error ?? 'Chat failed'));
+        handlers.onFailed?.(String(obj.error ?? 'Chat failed'), threadId);
         break;
       default:
         break;
