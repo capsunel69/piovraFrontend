@@ -35,6 +35,7 @@ import {
   IconGataBoss,
   IconSpark,
   IconMenu,
+  IconDownload,
 } from '../components/ui/icons';
 import {
   listDocuments,
@@ -432,17 +433,72 @@ const Suggestion = styled.button`
 
 const GeneratedImage = styled.img`
   display: block;
-  max-width: min(100%, 520px);
-  margin: 10px 0 4px;
+  width: 100%;
+  max-width: min(100%, 420px);
+  margin: 0;
   border-radius: var(--r-md);
   border: 1px solid var(--border-1);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
 `;
 
+const ImageFigure = styled.figure`
+  margin: 10px 0 4px;
+  max-width: min(100%, 420px);
+`;
+
+const ImageActions = styled.div`
+  display: flex;
+  gap: var(--s-1);
+  margin-top: var(--s-2);
+`;
+
+function GeneratedImageBlock({ src, alt }: { src?: string; alt?: string }) {
+  const url = gataAssetUrl(src ?? '');
+  const fileStem = (src?.split('/').pop() ?? 'gata-visual').replace(/\.(png|jpe?g)$/i, '');
+
+  const handleDownload = () => {
+    void (async () => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('fetch failed');
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = `${fileStem}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objectUrl);
+      } catch {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    })();
+  };
+
+  return (
+    <ImageFigure>
+      <GeneratedImage src={url} alt={alt ?? 'GATA visual'} loading="lazy" />
+      <ImageActions>
+        <Button type="button" $variant="ghost" $size="sm" onClick={handleDownload}>
+          <IconDownload size={14} />
+          Download
+        </Button>
+        <Button
+          type="button"
+          $variant="ghost"
+          $size="sm"
+          onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+        >
+          Open full size
+        </Button>
+      </ImageActions>
+    </ImageFigure>
+  );
+}
+
 const markdownComponents = {
-  img: ({ src, alt }: { src?: string; alt?: string }) => (
-    <GeneratedImage src={gataAssetUrl(src ?? '')} alt={alt ?? 'GATA visual'} loading="lazy" />
-  ),
+  img: GeneratedImageBlock,
 };
 
 const Turn = styled.div<{ $role: 'user' | 'assistant' }>`
