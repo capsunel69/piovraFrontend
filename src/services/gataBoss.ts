@@ -325,3 +325,144 @@ export async function streamChat(
     }
   }
 }
+
+export type GataInflightPhase = 'chat' | 'image';
+
+export interface GataInflightMeta {
+  startedAt: number;
+  phase: GataInflightPhase;
+  title: string;
+  assistantId?: string;
+}
+
+const INFLIGHT_KEY = 'gata_boss_inflight';
+const ACTIVE_THREAD_KEY = 'gata_boss_active_thread';
+
+export function readActiveThreadId(): string | null {
+  try {
+    return sessionStorage.getItem(ACTIVE_THREAD_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function writeActiveThreadId(id: string | null): void {
+  try {
+    if (id) sessionStorage.setItem(ACTIVE_THREAD_KEY, id);
+    else sessionStorage.removeItem(ACTIVE_THREAD_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readInflightMap(): Record<string, GataInflightMeta> {
+  try {
+    const raw = sessionStorage.getItem(INFLIGHT_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, GataInflightMeta>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeInflightMap(map: Record<string, GataInflightMeta>): void {
+  try {
+    if (Object.keys(map).length === 0) sessionStorage.removeItem(INFLIGHT_KEY);
+    else sessionStorage.setItem(INFLIGHT_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function markInflight(threadId: string, meta: GataInflightMeta): void {
+  const map = readInflightMap();
+  map[threadId] = meta;
+  writeInflightMap(map);
+}
+
+export function updateInflightPhase(threadId: string, phase: GataInflightPhase): void {
+  const map = readInflightMap();
+  if (!map[threadId]) return;
+  map[threadId] = { ...map[threadId]!, phase };
+  writeInflightMap(map);
+}
+
+export function clearInflight(threadId: string): void {
+  const map = readInflightMap();
+  if (!map[threadId]) return;
+  delete map[threadId];
+  writeInflightMap(map);
+}
+
+interface LiveStream {
+  handlers: Set<GbChatHandlers>;
+  abort: AbortController;
+}
+
+const liveStreams = new Map<string, LiveStream>();
+
+function broadcast(threadId: string, fn: (handlers: GbChatHandlers) => void): void {
+  const live = liveStreams.get(threadId);
+  if (!live) return;
+  for (const h of live.handlers) fn(h);
+}
+
+export function isGataStreamLive(threadId: string): boolean {
+  return liveStreams.has(threadId);
+}
+
+export function subscribeGataStream(threadId: string, handlers: GbChatHandlers): () => void {
+  const live = liveStreams.get(threadId);
+  if (!live) return () => undefined;
+  live.handlers.add(handlers);
+  return () => {
+    live.handlers.delete(handlers);
+  };
+}
+
+export function abortGataStream(threadId: string): void {
+  liveStreams.get(threadId)?.abort.abort();
+}
+
+export async function startGataStream(
+  input: {
+    message: string;
+    history?: GbChatHistoryItem[];
+    model?: string;
+    attachments?: GbChatAttachment[];
+    threadId?: string;
+  },
+  handlers: GbChatHandlers,
+  meta: GataInflightMeta,
+): Promise<void> {
+  const threadId = input.threadId;
+  if (!threadId) throw new Error('threadId required');
+
+  const existing = liveStreams.get(threadId);
+  if (existing) {
+    existing.handlers.add(handlers);
+    return;
+  }
+
+  const abort = new AbortController();
+  const handlerSet = new Set<GbChatHandlers>([handlers]);
+  liveStreams.set(threadId, { handlers: handlerSet, abort });
+  markInflight(threadId, meta);
+
+  const multiplex: GbChatHandlers = {
+    onStarted: (info) => broadcast(threadId, (h) => h.onStarted?.(info)),
+    onImageStarted: (tid) => broadcast(threadId, (h) => h.onImageStarted?.(tid)),
+    onImageReady: (info) => broadcast(threadId, (h) => h.onImageReady?.(info)),
+    onToken: (text, tid) => broadcast(threadId, (h) => h.onToken?.(text, tid)),
+    onCompleted: (info) => broadcast(threadId, (h) => h.onCompleted?.(info)),
+    onFailed: (error, tid) => broadcast(threadId, (h) => h.onFailed?.(error, tid)),
+  };
+
+  try {
+    await streamChat(input, multiplex, abort.signal);
+  } finally {
+    liveStreams.delete(threadId);
+    clearInflight(threadId);
+  }
+}

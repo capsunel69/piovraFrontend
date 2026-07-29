@@ -48,7 +48,15 @@ import {
   createThread,
   getThread,
   deleteThread,
-  streamChat,
+  startGataStream,
+  subscribeGataStream,
+  isGataStreamLive,
+  abortGataStream,
+  readInflightMap,
+  readActiveThreadId,
+  writeActiveThreadId,
+  updateInflightPhase,
+  clearInflight,
   gataAssetUrl,
   GATA_CHAT_MODELS,
   GATA_DEFAULT_MODEL,
@@ -61,6 +69,7 @@ import {
 import { useRegisterOverlay } from '../hooks/useOverlayStack';
 
 type ThreadStatus = 'idle' | 'streaming' | 'error';
+type ThreadPhase = 'chat' | 'image';
 
 interface ChatMessage {
   id: string;
@@ -83,6 +92,7 @@ interface ThreadState {
   model: string | null;
   updatedAt: string;
   status: ThreadStatus;
+  phase?: ThreadPhase;
   messages: ChatMessage[];
   loaded: boolean;
 }
@@ -797,6 +807,13 @@ const Tab = styled.button<{ $active?: boolean }>`
   cursor: pointer;
 `;
 
+function threadActivityLabel(t: ThreadState): string {
+  if (t.status !== 'streaming') {
+    return t.status === 'error' ? 'Error' : formatDistanceToNow(new Date(t.updatedAt), { addSuffix: true });
+  }
+  return t.phase === 'image' ? 'Generating image…' : 'Thinking…';
+}
+
 function sortThreads(a: ThreadState, b: ThreadState) {
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
@@ -807,7 +824,8 @@ export default function GataBoss() {
   const toast = useToast();
 
   const [threads, setThreads] = useState<Record<string, ThreadState>>({});
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(() => readActiveThreadId());
+  const activeIdRef = useRef<string | null>(activeId);
   const [draft, setDraft] = useState('');
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [extracting, setExtracting] = useState(false);
@@ -819,7 +837,6 @@ export default function GataBoss() {
     }
   });
 
-  const abortMap = useRef<Map<string, AbortController>>(new Map());
   const scrollerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatFileRef = useRef<HTMLInputElement>(null);
@@ -844,6 +861,13 @@ export default function GataBoss() {
   );
   const active = activeId ? threads[activeId] : null;
   const activeStreaming = active?.status === 'streaming';
+  const activePhaseLabel =
+    active?.phase === 'image' ? 'Generating image…' : 'Thinking…';
+
+  useEffect(() => {
+    activeIdRef.current = activeId;
+    writeActiveThreadId(activeId);
+  }, [activeId]);
 
   const modelLabel =
     GATA_CHAT_MODELS.find((m) => m.id === model)?.label ??
@@ -891,15 +915,18 @@ export default function GataBoss() {
     try {
       const rows = await listThreads();
       setThreads((prev) => {
+        const inflight = readInflightMap();
         const next: Record<string, ThreadState> = {};
         for (const row of rows) {
           const existing = prev[row.id];
+          const pending = inflight[row.id];
           next[row.id] = {
             id: row.id,
             title: existing?.status === 'streaming' ? existing.title : row.title,
             model: row.model,
             updatedAt: row.updatedAt,
-            status: existing?.status ?? 'idle',
+            status: existing?.status ?? (pending ? 'streaming' : 'idle'),
+            phase: existing?.phase ?? pending?.phase,
             messages: existing?.messages ?? [],
             loaded: existing?.loaded ?? false,
           };
@@ -920,6 +947,206 @@ export default function GataBoss() {
     void refreshDocs();
   }, [loadThreads, refreshDocs]);
 
+  const applyThreadDetail = useCallback((detail: Awaited<ReturnType<typeof getThread>>) => {
+    setThreads((prev) => ({
+      ...prev,
+      [detail.id]: {
+        id: detail.id,
+        title: detail.title,
+        model: detail.model,
+        updatedAt: detail.updatedAt,
+        status: 'idle',
+        loaded: true,
+        messages: detail.messages.map((m) => ({
+          id: m.id,
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content,
+          fileNames: m.fileNames,
+          status: 'done' as const,
+        })),
+      },
+    }));
+  }, []);
+
+  const buildStreamHandlers = useCallback(
+    (threadId: string, assistantId: string) => ({
+      onStarted: (info: { model: string; threadId?: string; title?: string }) => {
+        setThreads((prev) => {
+          const t = prev[threadId];
+          if (!t) return prev;
+          return {
+            ...prev,
+            [threadId]: {
+              ...t,
+              title: info.title && t.title === 'New chat' ? info.title : t.title,
+              model: info.model || t.model,
+            },
+          };
+        });
+      },
+      onImageStarted: () => {
+        updateInflightPhase(threadId, 'image');
+        setThreads((prev) => {
+          const t = prev[threadId];
+          if (!t) return prev;
+          return {
+            ...prev,
+            [threadId]: {
+              ...t,
+              phase: 'image',
+              messages: t.messages.map((m) =>
+                m.id === assistantId && !m.content
+                  ? { ...m, content: 'Generating your GATA visual…\n\n' }
+                  : m,
+              ),
+            },
+          };
+        });
+      },
+      onToken: (delta: string) => {
+        setThreads((prev) => {
+          const t = prev[threadId];
+          if (!t) return prev;
+          return {
+            ...prev,
+            [threadId]: {
+              ...t,
+              messages: t.messages.map((m) =>
+                m.id === assistantId ? { ...m, content: m.content + delta } : m,
+              ),
+            },
+          };
+        });
+      },
+      onCompleted: (info: {
+        text: string;
+        title?: string;
+        threadId?: string;
+        images?: string[];
+      }) => {
+        setThreads((prev) => {
+          const t = prev[threadId];
+          if (!t) return prev;
+          return {
+            ...prev,
+            [threadId]: {
+              ...t,
+              status: 'idle',
+              phase: undefined,
+              title: info.title && (t.title === 'New chat' || !t.title) ? info.title : t.title,
+              updatedAt: new Date().toISOString(),
+              messages: t.messages.map((m) =>
+                m.id === assistantId
+                  ? { ...m, content: info.text || m.content, status: 'done' as const }
+                  : m,
+              ),
+            },
+          };
+        });
+        if (activeIdRef.current !== threadId) {
+          toast.success(
+            info.images?.length ? 'GATA visual ready' : 'Reply ready',
+            info.title || 'Chat updated',
+          );
+        }
+        void loadThreads();
+      },
+      onFailed: (error: string) => {
+        setThreads((prev) => {
+          const t = prev[threadId];
+          if (!t) return prev;
+          return {
+            ...prev,
+            [threadId]: { ...t, status: 'error', phase: undefined,
+              messages: t.messages.map((m) =>
+                m.id === assistantId
+                  ? { ...m, content: m.content || error, status: 'error' as const }
+                  : m,
+              ),
+            },
+          };
+        });
+        if (activeIdRef.current === threadId) toast.error(error);
+        else toast.error('Background reply failed', error);
+      },
+    }),
+    [loadThreads, toast],
+  );
+
+  useEffect(() => {
+    const inflight = readInflightMap();
+    const ids = Object.keys(inflight);
+    if (ids.length === 0) return;
+
+    setThreads((prev) => {
+      const next = { ...prev };
+      for (const id of ids) {
+        const meta = inflight[id]!;
+        const existing = next[id];
+        next[id] = {
+          ...(existing ?? {
+            id,
+            title: meta.title,
+            model,
+            updatedAt: new Date(meta.startedAt).toISOString(),
+            messages: [],
+            loaded: false,
+          }),
+          status: 'streaming',
+          phase: meta.phase,
+          title: existing?.title ?? meta.title,
+        };
+      }
+      return next;
+    });
+
+    toast.info(
+      ids.length === 1
+        ? 'Still working on a background reply…'
+        : `Still working on ${ids.length} background replies…`,
+    );
+
+    for (const id of ids) {
+      const meta = inflight[id]!;
+      if (isGataStreamLive(id) && meta.assistantId) {
+        subscribeGataStream(id, buildStreamHandlers(id, meta.assistantId));
+      }
+    }
+
+    if (activeId) {
+      void getThread(activeId)
+        .then(applyThreadDetail)
+        .catch(() => undefined);
+    }
+
+    const poll = window.setInterval(async () => {
+      const pending = readInflightMap();
+      for (const [id, meta] of Object.entries(pending)) {
+        if (isGataStreamLive(id)) continue;
+        try {
+          const detail = await getThread(id);
+          const lastAssistant = [...detail.messages].reverse().find((m) => m.role === 'assistant');
+          if (!lastAssistant?.content?.trim()) continue;
+          clearInflight(id);
+          applyThreadDetail(detail);
+          if (activeIdRef.current !== id) {
+            toast.success(
+              lastAssistant.content.includes('![GATA visual]')
+                ? 'GATA visual ready'
+                : 'Reply ready',
+              detail.title || meta.title,
+            );
+          }
+        } catch {
+          /* ignore poll errors */
+        }
+      }
+    }, 3000);
+
+    return () => clearInterval(poll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount recovery only
+  }, []);
+
   useEffect(() => {
     if (kbOpen) void refreshDocs();
   }, [kbOpen, refreshDocs]);
@@ -933,36 +1160,16 @@ export default function GataBoss() {
   const ensureThreadLoaded = useCallback(
     async (id: string) => {
       const current = threads[id];
-      if (current?.loaded || current?.status === 'streaming') return;
+      const inflight = readInflightMap()[id];
+      if (current?.loaded && !inflight) return;
+      if (current?.status === 'streaming' && isGataStreamLive(id)) return;
       try {
-        const detail = await getThread(id);
-        setThreads((prev) => {
-          const existing = prev[id];
-          if (existing?.status === 'streaming') return prev;
-          return {
-            ...prev,
-            [id]: {
-              id: detail.id,
-              title: detail.title,
-              model: detail.model,
-              updatedAt: detail.updatedAt,
-              status: 'idle',
-              loaded: true,
-              messages: detail.messages.map((m) => ({
-                id: m.id,
-                role: m.role === 'assistant' ? 'assistant' : 'user',
-                content: m.content,
-                fileNames: m.fileNames,
-                status: 'done' as const,
-              })),
-            },
-          };
-        });
+        applyThreadDetail(await getThread(id));
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Failed to open chat');
       }
     },
-    [threads, toast],
+    [threads, applyThreadDetail, toast],
   );
 
   const selectThread = async (id: string) => {
@@ -986,8 +1193,8 @@ export default function GataBoss() {
   };
 
   const removeThread = async (id: string) => {
-    abortMap.current.get(id)?.abort();
-    abortMap.current.delete(id);
+    abortGataStream(id);
+    clearInflight(id);
     try {
       await deleteThread(id);
       setThreads((prev) => {
@@ -1010,7 +1217,7 @@ export default function GataBoss() {
 
   const stopActive = () => {
     if (!activeId) return;
-    abortMap.current.get(activeId)?.abort();
+    abortGataStream(activeId);
   };
 
   const attachChatFiles = async (fileList: FileList | File[]) => {
@@ -1056,7 +1263,7 @@ export default function GataBoss() {
     }
 
     // Don't allow double-send on same thread while streaming
-    if (abortMap.current.has(threadId)) return;
+    if (isGataStreamLive(threadId) || readInflightMap()[threadId]) return;
 
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
@@ -1106,92 +1313,57 @@ export default function GataBoss() {
       if (inputRef.current) inputRef.current.style.height = 'auto';
     });
 
-    const ac = new AbortController();
-    abortMap.current.set(threadId, ac);
-
-    const patchThread = (fn: (t: ThreadState) => ThreadState) => {
-      setThreads((prev) => {
-        const t = prev[threadId!];
-        if (!t) return prev;
-        return { ...prev, [threadId!]: fn(t) };
-      });
-    };
+    const acHandlers = buildStreamHandlers(threadId, assistantId);
 
     try {
-      await streamChat(
+      await startGataStream(
         { message, model, attachments, threadId },
+        acHandlers,
         {
-          onStarted: (info) => {
-            if (info.threadId && info.threadId !== threadId) {
-              // Server created/returned id — remapped if needed
-            }
-            patchThread((t) => ({
-              ...t,
-              title: info.title && t.title === 'New chat' ? info.title : t.title,
-              model: info.model || t.model,
-            }));
-          },
-          onToken: (delta) => {
-            patchThread((t) => ({
-              ...t,
-              messages: t.messages.map((m) =>
-                m.id === assistantId ? { ...m, content: m.content + delta } : m,
-              ),
-            }));
-          },
-          onCompleted: (info) => {
-            patchThread((t) => ({
-              ...t,
-              status: 'idle',
-              title: info.title && (t.title === 'New chat' || !t.title) ? info.title : t.title,
-              updatedAt: new Date().toISOString(),
-              messages: t.messages.map((m) =>
-                m.id === assistantId
-                  ? { ...m, content: info.text || m.content, status: 'done' }
-                  : m,
-              ),
-            }));
-            void loadThreads();
-          },
-          onFailed: (error) => {
-            patchThread((t) => ({
-              ...t,
-              status: 'error',
-              messages: t.messages.map((m) =>
-                m.id === assistantId
-                  ? { ...m, content: m.content || error, status: 'error' }
-                  : m,
-              ),
-            }));
-            toast.error(error);
-          },
+          startedAt: Date.now(),
+          phase: 'chat',
+          title: provisionalTitle,
+          assistantId,
         },
-        ac.signal,
       );
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') {
-        patchThread((t) => ({
-          ...t,
-          status: 'idle',
-          messages: t.messages.map((m) =>
-            m.id === assistantId
-              ? { ...m, status: m.content ? 'done' : 'error', content: m.content || '(stopped)' }
-              : m,
-          ),
-        }));
+        setThreads((prev) => {
+          const t = prev[threadId!];
+          if (!t) return prev;
+          return {
+            ...prev,
+            [threadId!]: {
+              ...t,
+              status: 'idle',
+              phase: undefined,
+              messages: t.messages.map((m) =>
+                m.id === assistantId
+                  ? { ...m, status: m.content ? 'done' : 'error', content: m.content || '(stopped)' }
+                  : m,
+              ),
+            },
+          };
+        });
       } else {
         const msg = err instanceof Error ? err.message : String(err);
-        patchThread((t) => ({
-          ...t,
-          status: 'error',
-          messages: t.messages.map((m) =>
-            m.id === assistantId ? { ...m, content: msg, status: 'error' } : m,
-          ),
-        }));
+        setThreads((prev) => {
+          const t = prev[threadId!];
+          if (!t) return prev;
+          return {
+            ...prev,
+            [threadId!]: {
+              ...t,
+              status: 'error',
+              phase: undefined,
+              messages: t.messages.map((m) =>
+                m.id === assistantId ? { ...m, content: msg, status: 'error' } : m,
+              ),
+            },
+          };
+        });
         toast.error(msg);
       }
-    } finally {
-      abortMap.current.delete(threadId);
     }
   };
 
@@ -1336,11 +1508,7 @@ export default function GataBoss() {
                               : 'idle'
                         }
                       />
-                      {t.status === 'streaming'
-                        ? 'Thinking…'
-                        : t.status === 'error'
-                          ? 'Error'
-                          : formatDistanceToNow(new Date(t.updatedAt), { addSuffix: true })}
+                      {threadActivityLabel(t)}
                       <span className="delete-btn">
                         <IconButton
                           type="button"
@@ -1380,7 +1548,7 @@ export default function GataBoss() {
               </span>
             </SessionTitle>
             <TopActions>
-              {activeStreaming && <Badge $variant="accent">Thinking…</Badge>}
+              {activeStreaming && <Badge $variant="accent">{activePhaseLabel}</Badge>}
               {!activeStreaming && <Badge $variant="neutral">{modelLabel}</Badge>}
               <IconButton
                 type="button"
@@ -1430,7 +1598,9 @@ export default function GataBoss() {
                             {m.content}
                           </ReactMarkdown>
                         ) : m.status === 'streaming' ? (
-                          <span style={{ color: 'var(--text-3)' }}>Thinking…</span>
+                          <span style={{ color: 'var(--text-3)' }}>
+                            {active?.phase === 'image' ? 'Generating image…' : 'Thinking…'}
+                          </span>
                         ) : null}
                         {m.status === 'streaming' && <Cursor />}
                       </>
@@ -1518,7 +1688,7 @@ export default function GataBoss() {
               </ComposerRow>
             </ComposerShell>
             <ComposerHint>
-              Switch chats anytime — background replies show as Thinking in the sidebar
+              Switch chats anytime — replies keep running; check the sidebar or wait for a toast
             </ComposerHint>
             <HiddenFile
               ref={chatFileRef}
