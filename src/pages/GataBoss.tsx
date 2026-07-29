@@ -14,6 +14,12 @@ import {
   ModalOverlay,
   Spinner,
   Textarea,
+  PageContainer,
+  PageHeader,
+  PageTitle,
+  PageSubtitle,
+  Row,
+  Badge,
 } from '../components/ui/primitives';
 import {
   IconBook,
@@ -26,6 +32,9 @@ import {
   IconUpload,
   IconFileText,
   IconChat,
+  IconGataBoss,
+  IconSpark,
+  IconMenu,
 } from '../components/ui/icons';
 import {
   listDocuments,
@@ -76,6 +85,8 @@ interface ThreadState {
   loaded: boolean;
 }
 
+const MOBILE_BP = 900;
+
 const SUGGESTIONS = [
   'Draft a short social post in GATA’s voice',
   'Talking points for a local press interview',
@@ -83,108 +94,174 @@ const SUGGESTIONS = [
   'Summarize GATA’s identity from stored context',
 ];
 
-const Page = styled.div`
-  display: flex;
-  justify-content: center;
-  padding: 8px 0 16px;
-  min-height: 0;
-`;
-
-const Shell = styled.div`
+const Shell = styled.div<{ $sidebarOpen: boolean }>`
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  width: min(980px, 100%);
-  height: min(720px, calc(100dvh - 110px));
-  min-height: 480px;
-  background: var(--bg-1);
-  border: 1px solid var(--border-2);
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: var(--s-4);
+  align-items: stretch;
+  height: calc(100vh - 220px);
+  max-height: calc(100vh - 220px);
+  min-height: 420px;
 
-  @media (max-width: 760px) {
-    grid-template-columns: 1fr;
-    height: calc(100dvh - 96px);
-    border-radius: 12px;
+  @media (max-width: ${MOBILE_BP}px) {
+    grid-template-columns: ${(p) => (p.$sidebarOpen ? '1fr' : '0px')} 1fr;
+    gap: ${(p) => (p.$sidebarOpen ? 'var(--s-3)' : '0')};
+    height: calc(100dvh - 170px);
+    max-height: calc(100dvh - 170px);
   }
 `;
 
-const Sidebar = styled.aside`
+const SideRail = styled.div<{ $open: boolean }>`
+  min-height: 0;
+  display: flex;
+  @media (max-width: ${MOBILE_BP}px) {
+    display: ${(p) => (p.$open ? 'flex' : 'none')};
+  }
+`;
+
+const ThreadSidebar = styled.aside`
   display: flex;
   flex-direction: column;
-  background: color-mix(in srgb, var(--bg-2) 88%, #000);
-  border-right: 1px solid var(--border-1);
-  min-width: 0;
-
-  @media (max-width: 760px) {
-    display: none;
-  }
+  min-height: 0;
+  width: 100%;
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
 `;
 
 const SideHead = styled.div`
+  padding: 12px var(--s-4);
+  border-bottom: 1px solid var(--border-1);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 12px 12px 10px;
-  border-bottom: 1px solid var(--border-1);
+  background:
+    linear-gradient(180deg, rgba(76, 194, 255, 0.04), rgba(76, 194, 255, 0) 70%),
+    var(--bg-2);
+  gap: var(--s-2);
 `;
 
-const SideTitle = styled.div`
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+const SideHeadTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-2);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-3);
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
 `;
 
 const ThreadList = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: var(--s-2);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 `;
 
-const ThreadItem = styled.button<{ $active?: boolean }>`
+const ThreadItem = styled.div<{ $active?: boolean }>`
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 4px;
-  width: 100%;
-  text-align: left;
-  border: 1px solid ${(p) => (p.$active ? 'color-mix(in srgb, var(--accent) 40%, var(--border-1))' : 'transparent')};
-  background: ${(p) => (p.$active ? 'var(--accent-soft)' : 'transparent')};
-  border-radius: 10px;
-  padding: 9px 10px;
+  padding: 8px 10px 8px 12px;
+  border-radius: var(--r-md);
   cursor: pointer;
-  color: inherit;
-  transition: background 0.12s, border-color 0.12s;
+  color: ${(p) => (p.$active ? 'var(--text-1)' : 'var(--text-2)')};
+  background: ${(p) =>
+    p.$active
+      ? 'linear-gradient(135deg, rgba(76, 194, 255, 0.14), rgba(164, 120, 255, 0.08))'
+      : 'transparent'};
+  border: 1px solid ${(p) => (p.$active ? 'rgba(76, 194, 255, 0.28)' : 'transparent')};
+  position: relative;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+
   &:hover {
-    background: ${(p) => (p.$active ? 'var(--accent-soft)' : 'var(--bg-3)')};
+    background: ${(p) =>
+      p.$active
+        ? 'linear-gradient(135deg, rgba(76, 194, 255, 0.18), rgba(164, 120, 255, 0.10))'
+        : 'var(--bg-3)'};
+    color: var(--text-1);
+  }
+
+  ${(p) =>
+    p.$active &&
+    css`
+      &::before {
+        content: '';
+        position: absolute;
+        left: -2px;
+        top: 8px;
+        bottom: 8px;
+        width: 3px;
+        border-radius: 2px;
+        background: var(--accent);
+        box-shadow: 0 0 12px var(--accent-glow);
+      }
+    `}
+
+  .row-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .row-top svg {
+    width: 14px;
+    height: 14px;
+    color: ${(p) => (p.$active ? 'var(--accent)' : 'var(--text-3)')};
+    flex-shrink: 0;
+  }
+
+  .name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: ${(p) => (p.$active ? 600 : 500)};
+  }
+
+  .meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-3);
+    padding-left: 22px;
+  }
+
+  .delete-btn {
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+
+  &:hover .delete-btn,
+  &:focus-within .delete-btn {
+    opacity: 1;
   }
 `;
 
-const ThreadName = styled.div`
-  font-size: 12.5px;
-  font-weight: 550;
-  color: var(--text-1);
-  line-height: 1.35;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  width: 100%;
-`;
-
-const ThreadMeta = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 10.5px;
+const ListEmpty = styled.div`
+  padding: var(--s-5);
+  text-align: center;
   color: var(--text-3);
-  width: 100%;
+  font-size: 12.5px;
+  line-height: 1.5;
 `;
 
 const pulse = keyframes`
@@ -209,47 +286,72 @@ const StatusDot = styled.span<{ $tone: 'streaming' | 'error' | 'idle' }>`
 const Main = styled.section`
   display: flex;
   flex-direction: column;
-  min-width: 0;
   min-height: 0;
+  min-width: 0;
   background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
 `;
 
-const TopBar = styled.header`
+const TopBar = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: var(--s-3);
+  padding: 12px var(--s-4);
+  background:
+    linear-gradient(180deg, rgba(76, 194, 255, 0.04), rgba(76, 194, 255, 0) 70%),
+    var(--bg-2);
   border-bottom: 1px solid var(--border-1);
-  flex-shrink: 0;
+  min-height: 56px;
+  flex-wrap: wrap;
 `;
 
-const Brand = styled.div`
-  min-width: 0;
-`;
-
-const BrandTitle = styled.h1`
-  margin: 0;
-  font-size: 14px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
+const SessionTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--text-1);
-`;
+  min-width: 0;
+  flex: 1;
 
-const BrandSub = styled.p`
-  margin: 2px 0 0;
-  font-size: 11.5px;
-  color: var(--text-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  .mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, rgba(76, 194, 255, 0.18), rgba(164, 120, 255, 0.16));
+    border: 1px solid rgba(76, 194, 255, 0.28);
+    color: var(--accent);
+    flex-shrink: 0;
+    box-shadow: 0 0 18px rgba(76, 194, 255, 0.12);
+  }
+
+  .mark svg { width: 14px; height: 14px; }
+
+  .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 `;
 
 const TopActions = styled.div`
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
+  gap: var(--s-1);
+  margin-left: auto;
+`;
+
+const MobileNavBtn = styled(Button)`
+  display: none;
+  @media (max-width: ${MOBILE_BP}px) {
+    display: inline-flex;
+  }
 `;
 
 const ModelSelect = styled.select`
@@ -276,17 +378,17 @@ const Messages = styled.div`
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 14px 16px 12px;
+  padding: var(--s-4);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--s-4);
 `;
 
-const Empty = styled.div`
+const EmptyMain = styled.div`
   margin: auto;
-  width: min(420px, 100%);
   text-align: center;
-  padding: 12px 4px 20px;
+  max-width: 420px;
+  padding: var(--s-5) var(--s-3);
 `;
 
 const EmptyTitle = styled.h2`
@@ -401,24 +503,22 @@ const Cursor = styled.span`
   animation: ${blink} 1s step-end infinite;
 `;
 
-const ComposerDock = styled.div`
+const ComposerWrap = styled.div`
   flex-shrink: 0;
-  padding: 8px 12px 12px;
+  padding: var(--s-3) var(--s-4);
   border-top: 1px solid var(--border-1);
-  background: color-mix(in srgb, var(--bg-1) 92%, var(--bg-2));
+  background: var(--bg-2);
 `;
 
 const ComposerShell = styled.form`
-  background: var(--bg-2);
-  border: 1px solid var(--border-2);
-  border-radius: 14px;
-  padding: 8px;
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-md);
+  padding: var(--s-2);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  &:focus-within {
-    border-color: color-mix(in srgb, var(--accent) 35%, var(--border-2));
-  }
+  gap: var(--s-2);
+  &:focus-within { border-color: rgba(76, 194, 255, 0.4); }
 `;
 
 const PendingRow = styled.div`
@@ -463,56 +563,14 @@ const ComposerInput = styled.textarea`
   &::placeholder { color: var(--text-3); }
 `;
 
-const Hint = styled.div`
-  margin-top: 6px;
+const ComposerHint = styled.div`
+  margin-top: var(--s-2);
   text-align: center;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--text-3);
 `;
 
-const HiddenFile = styled.input`
-  display: none;
-`;
-
-const MobileThreads = styled.div`
-  display: none;
-  @media (max-width: 760px) {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    padding: 0 0 2px;
-    max-width: 42vw;
-  }
-`;
-
-const MobileChip = styled.button<{ $active?: boolean; $busy?: boolean }>`
-  flex-shrink: 0;
-  border: 1px solid ${(p) => (p.$active ? 'color-mix(in srgb, var(--accent) 40%, var(--border-1))' : 'var(--border-1)')};
-  background: ${(p) => (p.$active ? 'var(--accent-soft)' : 'var(--bg-2)')};
-  color: var(--text-2);
-  border-radius: 999px;
-  padding: 5px 9px;
-  font-size: 11px;
-  cursor: pointer;
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  ${(p) =>
-    p.$busy &&
-    css`
-      &::before {
-        content: '';
-        display: inline-block;
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
-        background: var(--accent);
-        margin-right: 5px;
-        animation: ${pulse} 1.1s ease-in-out infinite;
-      }
-    `}
-`;
+const HiddenFile = styled.input`display: none;`;
 
 const KbModal = styled.div`
   background: var(--bg-1);
@@ -706,6 +764,7 @@ export default function GataBoss() {
   const [addContent, setAddContent] = useState('');
   const [addBusy, setAddBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [mobileSidebar, setMobileSidebar] = useState(true);
 
   const threadList = useMemo(
     () => Object.values(threads).sort(sortThreads),
@@ -838,6 +897,7 @@ export default function GataBoss() {
     setActiveId(id);
     setDraft('');
     setPendingFiles([]);
+    setMobileSidebar(false);
     await ensureThreadLoaded(id);
   };
 
@@ -1129,105 +1189,134 @@ export default function GataBoss() {
   };
 
   return (
-    <Page>
-      <Shell>
-        <Sidebar>
-          <SideHead>
-            <SideTitle>Chats</SideTitle>
-            <IconButton type="button" $size="sm" aria-label="New chat" title="New chat" onClick={() => void startNewChat()}>
-              <IconPlus size={14} />
-            </IconButton>
-          </SideHead>
-          <ThreadList>
-            {threadList.length === 0 ? (
-              <EmptySub style={{ margin: '12px 4px', textAlign: 'left' }}>No chats yet.</EmptySub>
-            ) : (
-              threadList.map((t) => (
-                <ThreadItem
-                  key={t.id}
-                  type="button"
-                  $active={t.id === activeId}
-                  onClick={() => void selectThread(t.id)}
-                >
-                  <ThreadName>{t.title || 'New chat'}</ThreadName>
-                  <ThreadMeta>
-                    <StatusDot
-                      $tone={
-                        t.status === 'streaming' ? 'streaming' : t.status === 'error' ? 'error' : 'idle'
-                      }
-                    />
-                    {t.status === 'streaming'
-                      ? 'Thinking…'
-                      : t.status === 'error'
-                        ? 'Error'
-                        : formatDistanceToNow(new Date(t.updatedAt), { addSuffix: true })}
-                    <span style={{ marginLeft: 'auto' }}>
-                      <IconButton
-                        type="button"
-                        $size="sm"
-                        aria-label="Delete chat"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void removeThread(t.id);
-                        }}
-                      >
-                        <IconTrash size={12} />
-                      </IconButton>
-                    </span>
-                  </ThreadMeta>
-                </ThreadItem>
-              ))
-            )}
-          </ThreadList>
-        </Sidebar>
+    <PageContainer>
+      <PageHeader>
+        <div>
+          <PageTitle>
+            <IconGataBoss size={22} />
+            GATA Bo$$
+          </PageTitle>
+          <PageSubtitle>
+            Party communications assistant · grounded in the shared knowledge base
+          </PageSubtitle>
+        </div>
+        <Row $gap={2}>
+          <ModelSelect
+            aria-label="Model"
+            value={model}
+            disabled={activeStreaming}
+            onChange={(e) => pickModel(e.target.value)}
+          >
+            <optgroup label="ChatGPT / OpenAI">
+              {GATA_CHAT_MODELS.filter((m) => m.provider === 'openai').map((m) => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Gemini / Google">
+              {GATA_CHAT_MODELS.filter((m) => m.provider === 'google').map((m) => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </optgroup>
+          </ModelSelect>
+          <Button type="button" $variant="ghost" $size="sm" onClick={() => setKbOpen(true)}>
+            <IconBook size={14} />
+            Knowledge{docs.length ? ` · ${docs.length}` : ''}
+          </Button>
+        </Row>
+      </PageHeader>
+
+      <Shell $sidebarOpen={mobileSidebar}>
+        <SideRail $open={mobileSidebar}>
+          <ThreadSidebar>
+            <SideHead>
+              <SideHeadTitle>Chats</SideHeadTitle>
+              <IconButton
+                type="button"
+                $size="sm"
+                aria-label="New chat"
+                title="New chat"
+                onClick={() => void startNewChat()}
+              >
+                <IconPlus size={14} />
+              </IconButton>
+            </SideHead>
+            <ThreadList>
+              {threadList.length === 0 ? (
+                <ListEmpty>No chats yet — start one below.</ListEmpty>
+              ) : (
+                threadList.map((t) => (
+                  <ThreadItem
+                    key={t.id}
+                    $active={t.id === activeId}
+                    onClick={() => void selectThread(t.id)}
+                  >
+                    <div className="row-top">
+                      <IconChat size={14} />
+                      <span className="name">{t.title || 'New chat'}</span>
+                    </div>
+                    <div className="meta">
+                      <StatusDot
+                        $tone={
+                          t.status === 'streaming'
+                            ? 'streaming'
+                            : t.status === 'error'
+                              ? 'error'
+                              : 'idle'
+                        }
+                      />
+                      {t.status === 'streaming'
+                        ? 'Thinking…'
+                        : t.status === 'error'
+                          ? 'Error'
+                          : formatDistanceToNow(new Date(t.updatedAt), { addSuffix: true })}
+                      <span className="delete-btn">
+                        <IconButton
+                          type="button"
+                          $size="sm"
+                          aria-label="Delete chat"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void removeThread(t.id);
+                          }}
+                        >
+                          <IconTrash size={12} />
+                        </IconButton>
+                      </span>
+                    </div>
+                  </ThreadItem>
+                ))
+              )}
+            </ThreadList>
+          </ThreadSidebar>
+        </SideRail>
 
         <Main>
           <TopBar>
-            <Brand>
-              <BrandTitle>GATA Bo$$</BrandTitle>
-              <BrandSub>
-                {active?.title && active.title !== 'New chat'
-                  ? active.title
-                  : `Communications · ${modelLabel}`}
-              </BrandSub>
-            </Brand>
+            <MobileNavBtn
+              type="button"
+              $variant="ghost"
+              $size="sm"
+              onClick={() => setMobileSidebar((v) => !v)}
+            >
+              <IconMenu size={16} />
+              Chats
+            </MobileNavBtn>
+            <SessionTitle>
+              <span className="mark"><IconSpark size={14} /></span>
+              <span className="name">
+                {active?.title && active.title !== 'New chat' ? active.title : 'New conversation'}
+              </span>
+            </SessionTitle>
             <TopActions>
-              <MobileThreads>
-                <MobileChip type="button" onClick={() => void startNewChat()}>+ New</MobileChip>
-                {threadList.slice(0, 6).map((t) => (
-                  <MobileChip
-                    key={t.id}
-                    type="button"
-                    $active={t.id === activeId}
-                    $busy={t.status === 'streaming'}
-                    onClick={() => void selectThread(t.id)}
-                  >
-                    {t.title || 'Chat'}
-                  </MobileChip>
-                ))}
-              </MobileThreads>
-              <ModelSelect
-                aria-label="Model"
-                value={model}
-                disabled={activeStreaming}
-                onChange={(e) => pickModel(e.target.value)}
+              {activeStreaming && <Badge $variant="accent">Thinking…</Badge>}
+              {!activeStreaming && <Badge $variant="neutral">{modelLabel}</Badge>}
+              <IconButton
+                type="button"
+                $size="sm"
+                aria-label="New chat"
+                title="New chat"
+                onClick={() => void startNewChat()}
               >
-                <optgroup label="ChatGPT / OpenAI">
-                  {GATA_CHAT_MODELS.filter((m) => m.provider === 'openai').map((m) => (
-                    <option key={m.id} value={m.id}>{m.label}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Gemini / Google">
-                  {GATA_CHAT_MODELS.filter((m) => m.provider === 'google').map((m) => (
-                    <option key={m.id} value={m.id}>{m.label}</option>
-                  ))}
-                </optgroup>
-              </ModelSelect>
-              <Button type="button" $variant="ghost" $size="sm" onClick={() => setKbOpen(true)}>
-                <IconBook size={13} />
-                KB{docs.length ? ` · ${docs.length}` : ''}
-              </Button>
-              <IconButton type="button" $size="sm" aria-label="New chat" title="New chat" onClick={() => void startNewChat()}>
                 <IconPlus size={14} />
               </IconButton>
             </TopActions>
@@ -1235,10 +1324,10 @@ export default function GataBoss() {
 
           <Messages ref={scrollerRef}>
             {!active || active.messages.length === 0 ? (
-              <Empty>
+              <EmptyMain>
                 <EmptyTitle>What should we draft?</EmptyTitle>
                 <EmptySub>
-                  Compact workspace for GATA drafts — grounded in the shared knowledge base.
+                  Posts, talking points, slogans, and visual concepts — all grounded in GATA context.
                 </EmptySub>
                 <Suggestions>
                   {SUGGESTIONS.map((s) => (
@@ -1247,7 +1336,7 @@ export default function GataBoss() {
                     </Suggestion>
                   ))}
                 </Suggestions>
-              </Empty>
+              </EmptyMain>
             ) : (
               active.messages.map((m) => (
                 <Turn key={m.id} $role={m.role}>
@@ -1280,7 +1369,7 @@ export default function GataBoss() {
             )}
           </Messages>
 
-          <ComposerDock>
+          <ComposerWrap>
             <ComposerShell
               onSubmit={(e) => {
                 e.preventDefault();
@@ -1354,10 +1443,9 @@ export default function GataBoss() {
                 )}
               </ComposerRow>
             </ComposerShell>
-            <Hint>
-              <IconChat size={10} style={{ verticalAlign: -1, marginRight: 4 }} />
-              Switch chats anytime — running replies keep thinking in the sidebar
-            </Hint>
+            <ComposerHint>
+              Switch chats anytime — background replies show as Thinking in the sidebar
+            </ComposerHint>
             <HiddenFile
               ref={chatFileRef}
               type="file"
@@ -1367,7 +1455,7 @@ export default function GataBoss() {
                 if (e.target.files) void attachChatFiles(e.target.files);
               }}
             />
-          </ComposerDock>
+          </ComposerWrap>
         </Main>
       </Shell>
 
@@ -1511,6 +1599,6 @@ export default function GataBoss() {
           </KbModal>
         </ModalOverlay>
       )}
-    </Page>
+    </PageContainer>
   );
 }
