@@ -75,7 +75,7 @@ async function parseError(res: Response): Promise<string> {
 
 function networkErrorMessage(err: unknown): string {
   if (err instanceof TypeError && /failed to fetch|networkerror|load failed/i.test(err.message)) {
-    return 'Cannot reach Piovra — check your connection. Large PDF uploads need nginx configured for /v1/gata-boss (128m body limit).';
+    return 'Cannot reach Piovra API — check your connection and that the backend SSL certificate is valid.';
   }
   if (err instanceof Error) return err.message;
   return 'Request failed';
