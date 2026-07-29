@@ -60,21 +60,43 @@ export const GATA_CHAT_MODELS: GbChatModel[] = [
 
 async function parseError(res: Response): Promise<string> {
   try {
-    const body = (await res.json()) as { error?: string };
+    const body = (await res.json()) as { error?: string; errors?: Array<{ name: string; error: string }> };
+    if (body.error === 'extraction_failed' && body.errors?.length) {
+      return body.errors.map((e) => `${e.name}: ${e.error}`).join('; ');
+    }
     return body.error || `HTTP ${res.status}`;
   } catch {
+    if (res.status === 413) {
+      return 'File too large for the server upload limit (max 128 MB per file)';
+    }
     return `HTTP ${res.status}`;
   }
 }
 
+function networkErrorMessage(err: unknown): string {
+  if (err instanceof TypeError && /failed to fetch|networkerror|load failed/i.test(err.message)) {
+    return 'Cannot reach Piovra — check your connection. Large PDF uploads need nginx configured for /v1/gata-boss (128m body limit).';
+  }
+  if (err instanceof Error) return err.message;
+  return 'Request failed';
+}
+
+async function gataFetch(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, { credentials: 'include', ...init });
+  } catch (err) {
+    throw new Error(networkErrorMessage(err));
+  }
+}
+
 export async function listDocuments(): Promise<GbDocumentListItem[]> {
-  const res = await fetch(`${API_URL}/documents`, { credentials: 'include' });
+  const res = await gataFetch(`${API_URL}/documents`);
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
 
 export async function getDocument(id: string): Promise<GbDocumentDetail> {
-  const res = await fetch(`${API_URL}/documents/${id}`, { credentials: 'include' });
+  const res = await gataFetch(`${API_URL}/documents/${id}`);
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
@@ -83,9 +105,8 @@ export async function createDocument(input: {
   title?: string;
   content: string;
 }): Promise<GbDocumentDetail> {
-  const res = await fetch(`${API_URL}/documents`, {
+  const res = await gataFetch(`${API_URL}/documents`, {
     method: 'POST',
-    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
@@ -100,9 +121,8 @@ export async function uploadDocuments(files: File[], title?: string): Promise<{
   const form = new FormData();
   for (const f of files) form.append('files', f);
   if (title?.trim()) form.append('title', title.trim());
-  const res = await fetch(`${API_URL}/documents/upload`, {
+  const res = await gataFetch(`${API_URL}/documents/upload`, {
     method: 'POST',
-    credentials: 'include',
     body: form,
   });
   if (!res.ok) throw new Error(await parseError(res));
@@ -115,9 +135,8 @@ export async function extractFiles(files: File[]): Promise<{
 }> {
   const form = new FormData();
   for (const f of files) form.append('files', f);
-  const res = await fetch(`${API_URL}/extract`, {
+  const res = await gataFetch(`${API_URL}/extract`, {
     method: 'POST',
-    credentials: 'include',
     body: form,
   });
   if (!res.ok) throw new Error(await parseError(res));
@@ -125,9 +144,8 @@ export async function extractFiles(files: File[]): Promise<{
 }
 
 export async function deleteDocument(id: string): Promise<void> {
-  const res = await fetch(`${API_URL}/documents/${id}`, {
+  const res = await gataFetch(`${API_URL}/documents/${id}`, {
     method: 'DELETE',
-    credentials: 'include',
   });
   if (!res.ok && res.status !== 204) throw new Error(await parseError(res));
 }
@@ -154,7 +172,7 @@ export interface GbThreadDetail extends GbThreadListItem {
 }
 
 export async function listThreads(): Promise<GbThreadListItem[]> {
-  const res = await fetch(`${API_URL}/threads`, { credentials: 'include' });
+  const res = await gataFetch(`${API_URL}/threads`);
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
@@ -163,9 +181,8 @@ export async function createThread(input?: {
   title?: string;
   model?: string;
 }): Promise<GbThreadListItem> {
-  const res = await fetch(`${API_URL}/threads`, {
+  const res = await gataFetch(`${API_URL}/threads`, {
     method: 'POST',
-    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input ?? {}),
   });
@@ -174,15 +191,14 @@ export async function createThread(input?: {
 }
 
 export async function getThread(id: string): Promise<GbThreadDetail> {
-  const res = await fetch(`${API_URL}/threads/${id}`, { credentials: 'include' });
+  const res = await gataFetch(`${API_URL}/threads/${id}`);
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
 
 export async function deleteThread(id: string): Promise<void> {
-  const res = await fetch(`${API_URL}/threads/${id}`, {
+  const res = await gataFetch(`${API_URL}/threads/${id}`, {
     method: 'DELETE',
-    credentials: 'include',
   });
   if (!res.ok && res.status !== 204) throw new Error(await parseError(res));
 }
@@ -212,9 +228,8 @@ export async function streamChat(
   handlers: GbChatHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${API_URL}/chat`, {
+  const res = await gataFetch(`${API_URL}/chat`, {
     method: 'POST',
-    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
     signal,
