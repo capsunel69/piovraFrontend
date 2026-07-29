@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -48,15 +55,8 @@ import {
   createThread,
   getThread,
   deleteThread,
-  startGataStream,
-  subscribeGataStream,
-  isGataStreamLive,
-  abortGataStream,
-  readInflightMap,
   readActiveThreadId,
   writeActiveThreadId,
-  updateInflightPhase,
-  clearInflight,
   gataAssetUrl,
   GATA_CHAT_MODELS,
   GATA_DEFAULT_MODEL,
@@ -65,12 +65,18 @@ import {
   type GbDocumentDetail,
   type GbChatAttachment,
   type GbThreadListItem,
-  type GataInflightMeta,
 } from '../services/gataBoss';
+import {
+  startRun,
+  abortRun,
+  clearRun,
+  getRun,
+  getRunsSnapshot,
+  markRunAnnounced,
+  subscribeRuns,
+  type GataRun,
+} from '../services/gataRuns';
 import { useRegisterOverlay } from '../hooks/useOverlayStack';
-
-type ThreadStatus = 'idle' | 'streaming' | 'error';
-type ThreadPhase = 'chat' | 'image';
 
 interface ChatMessage {
   id: string;
@@ -92,8 +98,6 @@ interface ThreadState {
   title: string;
   model: string | null;
   updatedAt: string;
-  status: ThreadStatus;
-  phase?: ThreadPhase;
   messages: ChatMessage[];
   loaded: boolean;
 }
@@ -598,6 +602,11 @@ const ActivityStrip = styled.div`
   display: flex;
   align-items: flex-start;
   gap: 10px;
+
+  > button {
+    margin-left: auto;
+    flex-shrink: 0;
+  }
   border-radius: var(--r-md);
   border: 1px solid rgba(76, 194, 255, 0.28);
   background:
@@ -661,6 +670,22 @@ const ThinkingBlock = styled.div`
     font-size: 12px;
     color: var(--text-3);
     line-height: 1.45;
+  }
+
+  .dots {
+    display: inline-flex;
+    gap: 4px;
+    margin-bottom: 2px;
+
+    i {
+      width: 5px;
+      height: 5px;
+      border-radius: 999px;
+      background: var(--accent);
+      animation: ${activityPulse} 1.2s ease-in-out infinite;
+    }
+    i:nth-child(2) { animation-delay: 0.18s; }
+    i:nth-child(3) { animation-delay: 0.36s; }
   }
 `;
 
@@ -886,17 +911,6 @@ const Tab = styled.button<{ $active?: boolean }>`
   cursor: pointer;
 `;
 
-function threadActivityLabel(t: ThreadState): string {
-  if (t.status !== 'streaming') {
-    return t.status === 'error' ? 'Error' : formatDistanceToNow(new Date(t.updatedAt), { addSuffix: true });
-  }
-  return t.phase === 'image' ? 'Generating image…' : 'Thinking…';
-}
-
-function sortThreads(a: ThreadState, b: ThreadState) {
-  return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-}
-
 type ThreadDetail = Awaited<ReturnType<typeof getThread>>;
 
 function mapDetailMessages(detail: ThreadDetail): ChatMessage[] {
@@ -909,89 +923,64 @@ function mapDetailMessages(detail: ThreadDetail): ChatMessage[] {
   }));
 }
 
-function streamingStatusCopy(phase?: ThreadPhase): { title: string; detail: string } {
-  if (phase === 'image') {
+function runStatusCopy(run: GataRun): { title: string; detail: string } {
+  if (run.phase === 'image') {
     return {
       title: 'Generating image…',
-      detail: 'Creating your GATA visual — usually takes under a minute.',
+      detail: 'Painting your GATA visual. This usually takes under a minute.',
     };
+  }
+  if (run.text.trim()) {
+    return { title: 'Writing…', detail: 'Drafting the reply in GATA’s voice.' };
   }
   return {
     title: 'Thinking…',
-    detail: 'Searching the knowledge base and drafting a reply.',
+    detail: 'Reading the knowledge base and planning the reply.',
   };
 }
 
-function mergeInflightIntoThread(
-  detail: ThreadDetail,
-  inflight: GataInflightMeta,
-  existing?: ThreadState,
-): { state: ThreadState; completed: boolean } {
-  let messages = mapDetailMessages(detail);
-  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+function threadActivityLabel(t: ThreadState, run?: GataRun): string {
+  if (run?.status === 'streaming') return runStatusCopy(run).title;
+  if (run?.status === 'error') return 'Failed';
+  return formatDistanceToNow(new Date(t.updatedAt), { addSuffix: true });
+}
 
-  if (lastAssistant?.content?.trim()) {
-    return {
-      completed: true,
-      state: {
-        id: detail.id,
-        title: detail.title,
-        model: detail.model,
-        updatedAt: detail.updatedAt,
-        status: 'idle',
-        phase: undefined,
-        messages,
-        loaded: true,
-      },
-    };
-  }
+/**
+ * Server messages are the source of truth; a live run contributes the trailing
+ * user/assistant pair that is not persisted yet. The server stores the user
+ * message as soon as generation starts, so drop that duplicate first.
+ */
+function composeMessages(server: ChatMessage[], run?: GataRun): ChatMessage[] {
+  if (!run) return server;
 
-  if (existing?.status === 'streaming' && existing.messages.length >= messages.length) {
-    messages = existing.messages;
-  } else if (lastAssistant && !lastAssistant.content.trim()) {
-    messages = messages.map((m) =>
-      m.id === lastAssistant.id
-        ? {
-            ...m,
-            status: 'streaming' as const,
-            content:
-              inflight.phase === 'image' ? 'Generating your GATA visual…\n\n' : m.content,
-          }
-        : m,
-    );
-  } else {
-    const assistantId = inflight.assistantId ?? `a-recover-${inflight.startedAt}`;
-    const recovered = existing?.messages.find(
-      (m) => m.role === 'assistant' && (m.id === assistantId || m.status === 'streaming'),
-    );
-    if (recovered) {
-      messages = existing!.messages;
-    } else {
-      messages = [
-        ...messages,
-        {
-          id: assistantId,
-          role: 'assistant' as const,
-          content: inflight.phase === 'image' ? 'Generating your GATA visual…\n\n' : '',
-          status: 'streaming' as const,
-        },
-      ];
-    }
-  }
+  const merged = [...server];
+  const last = merged[merged.length - 1];
+  if (last?.role === 'user' && last.content === run.userMessage) merged.pop();
 
-  return {
-    completed: false,
-    state: {
-      id: detail.id,
-      title: detail.title,
-      model: detail.model,
-      updatedAt: detail.updatedAt,
-      status: 'streaming',
-      phase: inflight.phase,
-      messages,
-      loaded: true,
-    },
-  };
+  merged.push({
+    id: `${run.assistantId}-user`,
+    role: 'user',
+    content: run.userMessage,
+    fileNames: run.fileNames,
+    status: 'done',
+  });
+  merged.push({
+    id: run.assistantId,
+    role: 'assistant',
+    content:
+      run.status === 'error'
+        ? run.text || run.error || 'Generation failed'
+        : run.status === 'aborted'
+          ? run.text || '(stopped)'
+          : run.text,
+    status: run.status === 'streaming' ? 'streaming' : run.status === 'error' ? 'error' : 'done',
+  });
+  return merged;
+}
+
+function threadSortKey(t: ThreadState, run?: GataRun): number {
+  const updated = new Date(t.updatedAt).getTime();
+  return run ? Math.max(updated, run.startedAt) : updated;
 }
 
 export default function GataBoss() {
@@ -1014,6 +1003,7 @@ export default function GataBoss() {
   });
 
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const settlingRef = useRef<Set<string>>(new Set());
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatFileRef = useRef<HTMLInputElement>(null);
   const kbFileRef = useRef<HTMLInputElement>(null);
@@ -1031,45 +1021,40 @@ export default function GataBoss() {
   const [dragOver, setDragOver] = useState(false);
   const [mobileSidebar, setMobileSidebar] = useState(true);
 
+  const runs = useSyncExternalStore(subscribeRuns, getRunsSnapshot, getRunsSnapshot);
+
   const threadList = useMemo(
-    () => Object.values(threads).sort(sortThreads),
-    [threads],
+    () =>
+      Object.values(threads).sort(
+        (a, b) => threadSortKey(b, runs[b.id]) - threadSortKey(a, runs[a.id]),
+      ),
+    [threads, runs],
   );
   const active = activeId ? threads[activeId] : null;
-  const activeStreaming = active?.status === 'streaming';
-  const activeStatusCopy = streamingStatusCopy(active?.phase);
-  const activeUserPrompt = useMemo(() => {
-    if (!active?.messages.length) return null;
-    const lastUser = [...active.messages].reverse().find((m) => m.role === 'user');
-    const text = lastUser?.content?.replace(/\s+/g, ' ').trim();
-    return text ? text.slice(0, 140) : null;
-  }, [active?.messages]);
+  const activeRun = activeId ? runs[activeId] : undefined;
+  const activeStreaming = activeRun?.status === 'streaming';
+  const activeStatusCopy = activeRun ? runStatusCopy(activeRun) : null;
+  const activeMessages = useMemo(
+    () => composeMessages(active?.messages ?? [], activeRun),
+    [active?.messages, activeRun],
+  );
+  const runningCount = useMemo(
+    () => Object.values(runs).filter((r) => r.status === 'streaming').length,
+    [runs],
+  );
 
-  const applyThreadDetail = useCallback((detail: ThreadDetail, existing?: ThreadState) => {
-    const inflight = readInflightMap()[detail.id];
-    setThreads((prev) => {
-      const ex = existing ?? prev[detail.id];
-      if (inflight) {
-        const { state, completed } = mergeInflightIntoThread(detail, inflight, ex);
-        if (completed) clearInflight(detail.id);
-        return { ...prev, [detail.id]: state };
-      }
-      const keepLive =
-        ex?.status === 'streaming' && isGataStreamLive(detail.id);
-      return {
-        ...prev,
-        [detail.id]: {
-          id: detail.id,
-          title: detail.title,
-          model: detail.model,
-          updatedAt: detail.updatedAt,
-          status: keepLive ? 'streaming' : 'idle',
-          phase: keepLive ? ex?.phase : undefined,
-          messages: keepLive ? ex!.messages : mapDetailMessages(detail),
-          loaded: true,
-        },
-      };
-    });
+  const applyThreadDetail = useCallback((detail: ThreadDetail) => {
+    setThreads((prev) => ({
+      ...prev,
+      [detail.id]: {
+        id: detail.id,
+        title: detail.title,
+        model: detail.model,
+        updatedAt: detail.updatedAt,
+        messages: mapDetailMessages(detail),
+        loaded: true,
+      },
+    }));
   }, []);
 
   useEffect(() => {
@@ -1100,7 +1085,6 @@ export default function GataBoss() {
           title: patch?.title ?? existing?.title ?? item.title,
           model: patch?.model ?? existing?.model ?? item.model,
           updatedAt: patch?.updatedAt ?? item.updatedAt,
-          status: patch?.status ?? existing?.status ?? 'idle',
           messages: patch?.messages ?? existing?.messages ?? [],
           loaded: patch?.loaded ?? existing?.loaded ?? false,
         },
@@ -1123,25 +1107,21 @@ export default function GataBoss() {
     try {
       const rows = await listThreads();
       setThreads((prev) => {
-        const inflight = readInflightMap();
         const next: Record<string, ThreadState> = {};
         for (const row of rows) {
           const existing = prev[row.id];
-          const pending = inflight[row.id];
           next[row.id] = {
             id: row.id,
-            title: existing?.status === 'streaming' ? existing.title : row.title,
+            title: row.title,
             model: row.model,
             updatedAt: row.updatedAt,
-            status: existing?.status ?? (pending ? 'streaming' : 'idle'),
-            phase: existing?.phase ?? pending?.phase,
             messages: existing?.messages ?? [],
             loaded: existing?.loaded ?? false,
           };
         }
-        // Keep local streaming threads that may not be in list yet
+        // A thread created moments ago may not be in the list response yet.
         for (const [id, t] of Object.entries(prev)) {
-          if (!next[id] && t.status === 'streaming') next[id] = t;
+          if (!next[id] && getRun(id)) next[id] = t;
         }
         return next;
       });
@@ -1155,180 +1135,78 @@ export default function GataBoss() {
     void refreshDocs();
   }, [loadThreads, refreshDocs]);
 
-  const buildStreamHandlers = useCallback(
-    (threadId: string, assistantId: string) => ({
-      onStarted: (info: { model: string; threadId?: string; title?: string }) => {
-        setThreads((prev) => {
-          const t = prev[threadId];
-          if (!t) return prev;
-          return {
-            ...prev,
-            [threadId]: {
-              ...t,
-              title: info.title && t.title === 'New chat' ? info.title : t.title,
-              model: info.model || t.model,
-            },
-          };
-        });
-      },
-      onImageStarted: () => {
-        updateInflightPhase(threadId, 'image');
-        setThreads((prev) => {
-          const t = prev[threadId];
-          if (!t) return prev;
-          return {
-            ...prev,
-            [threadId]: {
-              ...t,
-              phase: 'image',
-              messages: t.messages.map((m) =>
-                m.id === assistantId && !m.content
-                  ? { ...m, content: 'Generating your GATA visual…\n\n' }
-                  : m,
-              ),
-            },
-          };
-        });
-      },
-      onToken: (delta: string) => {
-        setThreads((prev) => {
-          const t = prev[threadId];
-          if (!t) return prev;
-          return {
-            ...prev,
-            [threadId]: {
-              ...t,
-              messages: t.messages.map((m) =>
-                m.id === assistantId ? { ...m, content: m.content + delta } : m,
-              ),
-            },
-          };
-        });
-      },
-      onCompleted: (info: {
-        text: string;
-        title?: string;
-        threadId?: string;
-        images?: string[];
-      }) => {
-        setThreads((prev) => {
-          const t = prev[threadId];
-          if (!t) return prev;
-          return {
-            ...prev,
-            [threadId]: {
-              ...t,
-              status: 'idle',
-              phase: undefined,
-              title: info.title && (t.title === 'New chat' || !t.title) ? info.title : t.title,
-              updatedAt: new Date().toISOString(),
-              messages: t.messages.map((m) =>
-                m.id === assistantId
-                  ? { ...m, content: info.text || m.content, status: 'done' as const }
-                  : m,
-              ),
-            },
-          };
-        });
-        if (activeIdRef.current !== threadId) {
+  /**
+   * A run that finished (possibly while this page was unmounted) is settled
+   * here: pull server truth for the thread, announce it if the user is looking
+   * elsewhere, then drop the overlay.
+   */
+  useEffect(() => {
+    for (const run of Object.values(runs)) {
+      if (run.status === 'streaming') continue;
+
+      // Read through the store rather than the snapshot: under StrictMode this
+      // effect body runs twice with the same snapshot.
+      if (!getRun(run.threadId)?.announced) {
+        markRunAnnounced(run.threadId);
+        if (run.status === 'error') {
+          if (activeIdRef.current === run.threadId) toast.error(run.error ?? 'Generation failed');
+          else toast.error('Background reply failed', run.error ?? run.title);
+        } else if (run.status === 'done' && activeIdRef.current !== run.threadId) {
           toast.success(
-            info.images?.length ? 'GATA visual ready' : 'Reply ready',
-            info.title || 'Chat updated',
+            run.hasImage ? 'GATA visual ready' : 'Reply ready',
+            run.title || 'Chat updated',
           );
         }
-        void loadThreads();
-      },
-      onFailed: (error: string) => {
+      }
+
+      // Stopped or failed runs never reach the server, so park what they
+      // produced in the thread and release the composer.
+      if (run.status !== 'done') {
         setThreads((prev) => {
-          const t = prev[threadId];
+          const t = prev[run.threadId];
           if (!t) return prev;
           return {
             ...prev,
-            [threadId]: { ...t, status: 'error', phase: undefined,
-              messages: t.messages.map((m) =>
-                m.id === assistantId
-                  ? { ...m, content: m.content || error, status: 'error' as const }
-                  : m,
+            [run.threadId]: {
+              ...t,
+              messages: composeMessages(t.messages, run).map((m) =>
+                m.status === 'streaming' ? { ...m, status: 'done' } : m,
               ),
             },
           };
         });
-        if (activeIdRef.current === threadId) toast.error(error);
-        else toast.error('Background reply failed', error);
-      },
-    }),
-    [loadThreads, toast],
-  );
-
-  useEffect(() => {
-    const inflight = readInflightMap();
-    const ids = Object.keys(inflight);
-    if (ids.length === 0) return;
-
-    setThreads((prev) => {
-      const next = { ...prev };
-      for (const id of ids) {
-        const meta = inflight[id]!;
-        const existing = next[id];
-        next[id] = {
-          ...(existing ?? {
-            id,
-            title: meta.title,
-            model,
-            updatedAt: new Date(meta.startedAt).toISOString(),
-            messages: [],
-            loaded: false,
-          }),
-          status: 'streaming',
-          phase: meta.phase,
-          title: existing?.title ?? meta.title,
-        };
+        clearRun(run.threadId);
+        continue;
       }
-      return next;
-    });
 
-    for (const id of ids) {
-      const meta = inflight[id]!;
-      if (isGataStreamLive(id) && meta.assistantId) {
-        subscribeGataStream(id, buildStreamHandlers(id, meta.assistantId));
-      }
-      void getThread(id)
-        .then((detail) => applyThreadDetail(detail))
-        .catch(() => undefined);
-    }
+      if (settlingRef.current.has(run.threadId)) continue;
+      settlingRef.current.add(run.threadId);
 
-    const activeOnMount = activeIdRef.current;
-    if (activeOnMount && !inflight[activeOnMount]) {
-      void getThread(activeOnMount)
-        .then((detail) => applyThreadDetail(detail))
-        .catch(() => undefined);
-    }
-
-    const poll = window.setInterval(async () => {
-      const pending = readInflightMap();
-      for (const [id, meta] of Object.entries(pending)) {
-        if (isGataStreamLive(id)) continue;
+      void (async () => {
         try {
-          const detail = await getThread(id);
-          const lastAssistant = [...detail.messages].reverse().find((m) => m.role === 'assistant');
-          if (!lastAssistant?.content?.trim()) continue;
-          clearInflight(id);
+          const detail = await getThread(run.threadId);
           applyThreadDetail(detail);
-          if (activeIdRef.current !== id) {
-            toast.success(
-              lastAssistant.content.includes('![GATA visual]')
-                ? 'GATA visual ready'
-                : 'Reply ready',
-              detail.title || meta.title,
-            );
-          }
+          clearRun(run.threadId);
+          void loadThreads();
         } catch {
-          /* ignore poll errors */
+          /* keep the overlay so the reply stays visible */
+        } finally {
+          settlingRef.current.delete(run.threadId);
         }
-      }
-    }, 3000);
+      })();
+    }
+  }, [runs, applyThreadDetail, loadThreads, toast]);
 
-    return () => clearInterval(poll);
+  // Recover server state for threads whose run started in a previous mount.
+  useEffect(() => {
+    const ids = Object.keys(getRunsSnapshot());
+    const activeOnMount = activeIdRef.current;
+    if (activeOnMount && !ids.includes(activeOnMount)) ids.push(activeOnMount);
+    for (const id of ids) {
+      void getThread(id)
+        .then(applyThreadDetail)
+        .catch(() => undefined);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount recovery only
   }, []);
 
@@ -1340,16 +1218,13 @@ export default function GataBoss() {
     const el = scrollerRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [active?.messages, activeId]);
+  }, [activeMessages, activeId]);
 
   const ensureThreadLoaded = useCallback(
     async (id: string) => {
-      const current = threads[id];
-      const inflight = readInflightMap()[id];
-      if (current?.loaded && !inflight) return;
-      if (current?.status === 'streaming' && isGataStreamLive(id)) return;
+      if (threads[id]?.loaded) return;
       try {
-        applyThreadDetail(await getThread(id), current);
+        applyThreadDetail(await getThread(id));
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Failed to open chat');
       }
@@ -1368,7 +1243,7 @@ export default function GataBoss() {
   const startNewChat = async () => {
     try {
       const row = await createThread({ model });
-      upsertThreadMeta(row, { loaded: true, messages: [], status: 'idle' });
+      upsertThreadMeta(row, { loaded: true, messages: [] });
       setActiveId(row.id);
       setDraft('');
       setPendingFiles([]);
@@ -1378,8 +1253,8 @@ export default function GataBoss() {
   };
 
   const removeThread = async (id: string) => {
-    abortGataStream(id);
-    clearInflight(id);
+    abortRun(id);
+    clearRun(id);
     try {
       await deleteThread(id);
       setThreads((prev) => {
@@ -1402,7 +1277,7 @@ export default function GataBoss() {
 
   const stopActive = () => {
     if (!activeId) return;
-    abortGataStream(activeId);
+    abortRun(activeId);
   };
 
   const attachChatFiles = async (fileList: FileList | File[]) => {
@@ -1441,54 +1316,44 @@ export default function GataBoss() {
 
     let threadId = threadIdOverride ?? activeId;
     if (!threadId) {
-      const row = await createThread({ model });
-      upsertThreadMeta(row, { loaded: true, messages: [], status: 'idle' });
-      threadId = row.id;
-      setActiveId(row.id);
+      try {
+        const row = await createThread({ model });
+        upsertThreadMeta(row, { loaded: true, messages: [] });
+        threadId = row.id;
+        setActiveId(row.id);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to create chat');
+        return;
+      }
     }
 
-    // Don't allow double-send on same thread while streaming
-    if (isGataStreamLive(threadId) || readInflightMap()[threadId]) return;
-
-    const userMsg: ChatMessage = {
-      id: `u-${Date.now()}`,
-      role: 'user',
-      content: message || (attachments.length ? `Attached ${attachments.length} file(s)` : ''),
-      fileNames: attachments.map((a) => a.name),
-      status: 'done',
-    };
-    const assistantId = `a-${Date.now()}`;
-    const assistantMsg: ChatMessage = {
-      id: assistantId,
-      role: 'assistant',
-      content: '',
-      status: 'streaming',
-    };
+    if (getRun(threadId)) return;
 
     const provisionalTitle =
       message.replace(/\s+/g, ' ').slice(0, 72) ||
       (attachments[0] ? `File: ${attachments[0].name}` : 'New chat');
 
     setThreads((prev) => {
-      const t = prev[threadId!] ?? {
-        id: threadId!,
-        title: provisionalTitle,
-        model,
-        updatedAt: new Date().toISOString(),
-        status: 'idle' as ThreadStatus,
-        messages: [],
-        loaded: true,
-      };
+      const t = prev[threadId!];
+      if (!t) {
+        return {
+          ...prev,
+          [threadId!]: {
+            id: threadId!,
+            title: provisionalTitle,
+            model,
+            updatedAt: new Date().toISOString(),
+            messages: [],
+            loaded: true,
+          },
+        };
+      }
       return {
         ...prev,
         [threadId!]: {
           ...t,
           title: t.title === 'New chat' ? provisionalTitle : t.title,
           updatedAt: new Date().toISOString(),
-          status: 'streaming',
-          phase: 'chat',
-          loaded: true,
-          messages: [...t.messages, userMsg, assistantMsg],
         },
       };
     });
@@ -1499,58 +1364,16 @@ export default function GataBoss() {
       if (inputRef.current) inputRef.current.style.height = 'auto';
     });
 
-    const acHandlers = buildStreamHandlers(threadId, assistantId);
-
-    try {
-      await startGataStream(
-        { message, model, attachments, threadId },
-        acHandlers,
-        {
-          startedAt: Date.now(),
-          phase: 'chat',
-          title: provisionalTitle,
-          assistantId,
-        },
-      );
-    } catch (err) {
-      if ((err as Error)?.name === 'AbortError') {
-        setThreads((prev) => {
-          const t = prev[threadId!];
-          if (!t) return prev;
-          return {
-            ...prev,
-            [threadId!]: {
-              ...t,
-              status: 'idle',
-              phase: undefined,
-              messages: t.messages.map((m) =>
-                m.id === assistantId
-                  ? { ...m, status: m.content ? 'done' : 'error', content: m.content || '(stopped)' }
-                  : m,
-              ),
-            },
-          };
-        });
-      } else {
-        const msg = err instanceof Error ? err.message : String(err);
-        setThreads((prev) => {
-          const t = prev[threadId!];
-          if (!t) return prev;
-          return {
-            ...prev,
-            [threadId!]: {
-              ...t,
-              status: 'error',
-              phase: undefined,
-              messages: t.messages.map((m) =>
-                m.id === assistantId ? { ...m, content: msg, status: 'error' } : m,
-              ),
-            },
-          };
-        });
-        toast.error(msg);
-      }
-    }
+    startRun({
+      threadId,
+      message,
+      userMessage:
+        message || (attachments.length ? `Attached ${attachments.length} file(s)` : ''),
+      fileNames: attachments.map((a) => a.name),
+      title: provisionalTitle,
+      model,
+      attachments,
+    });
   };
 
   const openDoc = async (id: string) => {
@@ -1687,14 +1510,14 @@ export default function GataBoss() {
                     <div className="meta">
                       <StatusDot
                         $tone={
-                          t.status === 'streaming'
+                          runs[t.id]?.status === 'streaming'
                             ? 'streaming'
-                            : t.status === 'error'
+                            : runs[t.id]?.status === 'error'
                               ? 'error'
                               : 'idle'
                         }
                       />
-                      {threadActivityLabel(t)}
+                      {threadActivityLabel(t, runs[t.id])}
                       <span className="delete-btn">
                         <IconButton
                           type="button"
@@ -1734,8 +1557,16 @@ export default function GataBoss() {
               </span>
             </SessionTitle>
             <TopActions>
-              {activeStreaming && <Badge $variant="accent">{activeStatusCopy.title}</Badge>}
-              {!activeStreaming && <Badge $variant="neutral">{modelLabel}</Badge>}
+              {activeStreaming && activeStatusCopy ? (
+                <Badge $variant="accent">{activeStatusCopy.title}</Badge>
+              ) : (
+                <Badge $variant="neutral">{modelLabel}</Badge>
+              )}
+              {runningCount > (activeStreaming ? 1 : 0) && (
+                <Badge $variant="neutral">
+                  {runningCount - (activeStreaming ? 1 : 0)} in background
+                </Badge>
+              )}
               <IconButton
                 type="button"
                 $size="sm"
@@ -1749,7 +1580,7 @@ export default function GataBoss() {
           </TopBar>
 
           <Messages ref={scrollerRef}>
-            {!active || active.messages.length === 0 ? (
+            {activeMessages.length === 0 ? (
               <EmptyMain>
                 <EmptyTitle>What should we draft?</EmptyTitle>
                 <EmptySub>
@@ -1764,7 +1595,7 @@ export default function GataBoss() {
                 </Suggestions>
               </EmptyMain>
             ) : (
-              active.messages.map((m) => (
+              activeMessages.map((m) => (
                 <Turn key={m.id} $role={m.role}>
                   {m.fileNames && m.fileNames.length > 0 && (
                     <FileChips>
@@ -1783,10 +1614,13 @@ export default function GataBoss() {
                           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                             {m.content}
                           </ReactMarkdown>
-                        ) : m.status === 'streaming' ? (
+                        ) : m.status === 'streaming' && activeStatusCopy ? (
                           <ThinkingBlock>
-                            <strong>{streamingStatusCopy(active?.phase).title}</strong>
-                            <span>{streamingStatusCopy(active?.phase).detail}</span>
+                            <span className="dots" aria-hidden>
+                              <i /><i /><i />
+                            </span>
+                            <strong>{activeStatusCopy.title}</strong>
+                            <span>{activeStatusCopy.detail}</span>
                           </ThinkingBlock>
                         ) : null}
                         {m.status === 'streaming' && <Cursor />}
@@ -1800,18 +1634,25 @@ export default function GataBoss() {
             )}
           </Messages>
 
-          {activeStreaming && (
+          {activeStreaming && activeRun && activeStatusCopy && (
             <ActivityStrip>
               <span className="pulse" aria-hidden />
               <div className="body">
                 <span className="title">{activeStatusCopy.title}</span>
-                <span className="detail">{activeStatusCopy.detail}</span>
-                {activeUserPrompt && (
-                  <span className="prompt" title={activeUserPrompt}>
-                    Re: {activeUserPrompt}
+                <span className="detail">
+                  {activeRun.live
+                    ? activeStatusCopy.detail
+                    : 'Picked this back up after a reload — waiting on the server to finish.'}
+                </span>
+                {activeRun.userMessage && (
+                  <span className="prompt" title={activeRun.userMessage}>
+                    Re: {activeRun.userMessage}
                   </span>
                 )}
               </div>
+              <Button type="button" $variant="ghost" $size="sm" onClick={stopActive}>
+                <IconStop size={13} /> Stop
+              </Button>
             </ActivityStrip>
           )}
 
