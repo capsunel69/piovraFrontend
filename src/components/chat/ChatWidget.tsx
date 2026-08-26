@@ -7,7 +7,6 @@ import {
   IconStop,
   IconRefresh,
   IconX,
-  IconImage,
   IconMic,
   IconMicOff,
   IconVolume,
@@ -15,6 +14,8 @@ import {
   IconPlay,
   IconPause,
   IconAlert,
+  IconPaperclip,
+  IconFileText,
 } from '../ui/icons';
 import StepCard from '../agents/StepCard';
 import GoogleConsentPrompt from '../agents/GoogleConsentPrompt';
@@ -23,10 +24,14 @@ import { useChat } from '../../context/ChatContext';
 import { useOverlayCount } from '../../hooks/useOverlayStack';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 import { VoiceAPI, type VoiceCapabilities } from '../../services/voice';
-import type { AgentStep, OrchestrateUserImage } from '../../services/piovra';
+import type { AgentStep, OrchestrateUserFile } from '../../services/piovra';
 import {
-  ORCHESTRATE_IMAGE_MAX_COUNT,
-  filesToOrchestrateImages,
+  ORCHESTRATE_FILE_ACCEPT,
+  ORCHESTRATE_FILE_MAX_BYTES,
+  ORCHESTRATE_FILE_MAX_COUNT,
+  ORCHESTRATE_FILES_MAX_TOTAL_BYTES,
+  filesToOrchestrateFiles,
+  isOrchestrateAttachable,
 } from '../../utils/orchestrateImages';
 
 /* ── Launcher bubble ───────────────────────────────────────────────────── */
@@ -487,6 +492,65 @@ const ThumbWrap = styled.div`
     height: 100%;
     object-fit: cover;
   }
+
+  .file-icon {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    place-items: center;
+    color: var(--text-3);
+  }
+`;
+
+const FileChip = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 180px;
+  height: 48px;
+  padding: 0 28px 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-2);
+  background: var(--bg-3);
+
+  .icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    color: var(--text-2);
+    background: var(--bg-2);
+    flex-shrink: 0;
+  }
+
+  .meta {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .name {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .size {
+    font-size: 10px;
+    color: var(--text-3);
+  }
+`;
+
+const AttachError = styled.div`
+  font-size: 11px;
+  color: var(--danger);
+  padding: 0 4px 2px;
 `;
 
 const ThumbRemove = styled.button`
@@ -764,7 +828,13 @@ const SUGGESTIONS = [
   'Send a follow-up email to my latest work contact',
 ];
 
-type PendingImage = { id: string; preview: string; file: File };
+type PendingFile = { id: string; preview: string | null; file: File };
+
+function formatAttachBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
 
 const VOICE_MODE_KEY = 'piovra.chat.voiceMode';
 const VOICE_ID_KEY = 'piovra.chat.voiceId';
@@ -797,7 +867,8 @@ const ChatWidget: React.FC = () => {
   const bubbleHidden = isOpen || overlayCount > 0;
   const [value, setValue] = useState('');
   const [focused, setFocused] = useState(false);
-  const [pending, setPending] = useState<PendingImage[]>([]);
+  const [pending, setPending] = useState<PendingFile[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -989,8 +1060,11 @@ const ChatWidget: React.FC = () => {
 
   useEffect(() => {
     if (isOpen) return;
-    for (const p of pendingRef.current) URL.revokeObjectURL(p.preview);
+    for (const p of pendingRef.current) {
+      if (p.preview) URL.revokeObjectURL(p.preview);
+    }
     setPending([]);
+    setAttachError(null);
   }, [isOpen]);
 
   useEffect(() => {
@@ -1017,22 +1091,49 @@ const ChatWidget: React.FC = () => {
   };
 
   const addFiles = (files: FileList | File[]): void => {
-    const list = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    if (list.length === 0) return;
+    const incoming = Array.from(files);
+    if (incoming.length === 0) return;
+    const errors: string[] = [];
+    const accepted: File[] = [];
+    for (const f of incoming) {
+      if (!isOrchestrateAttachable(f)) {
+        errors.push(`${f.name || 'File'}: unsupported type`);
+        continue;
+      }
+      if (f.size > ORCHESTRATE_FILE_MAX_BYTES) {
+        errors.push(`${f.name || 'File'} must be 8MB or smaller`);
+        continue;
+      }
+      accepted.push(f);
+    }
     setPending((prev) => {
       const next = [...prev];
-      for (const f of list) {
-        if (next.length >= ORCHESTRATE_IMAGE_MAX_COUNT) break;
-        next.push({ id: crypto.randomUUID(), file: f, preview: URL.createObjectURL(f) });
+      let total = next.reduce((s, p) => s + p.file.size, 0);
+      for (const f of accepted) {
+        if (next.length >= ORCHESTRATE_FILE_MAX_COUNT) {
+          errors.push(`At most ${ORCHESTRATE_FILE_MAX_COUNT} files`);
+          break;
+        }
+        if (total + f.size > ORCHESTRATE_FILES_MAX_TOTAL_BYTES) {
+          errors.push('Attachments together must be 16MB or smaller');
+          break;
+        }
+        total += f.size;
+        next.push({
+          id: crypto.randomUUID(),
+          file: f,
+          preview: f.type.startsWith('image/') ? URL.createObjectURL(f) : null,
+        });
       }
       return next;
     });
+    setAttachError(errors[0] ?? null);
   };
 
   const removePending = (id: string): void => {
     setPending((prev) => {
       const t = prev.find((p) => p.id === id);
-      if (t) URL.revokeObjectURL(t.preview);
+      if (t?.preview) URL.revokeObjectURL(t.preview);
       return prev.filter((p) => p.id !== id);
     });
   };
@@ -1046,22 +1147,26 @@ const ChatWidget: React.FC = () => {
     const text = value;
     const toSend = pending;
 
-    let images: OrchestrateUserImage[] | undefined;
+    let files: OrchestrateUserFile[] | undefined;
     try {
       if (toSend.length > 0) {
-        images = await filesToOrchestrateImages(toSend.map((t) => t.file));
+        files = await filesToOrchestrateFiles(toSend.map((t) => t.file));
       }
-    } catch {
+    } catch (err) {
+      setAttachError(err instanceof Error ? err.message : 'Could not read file');
       return;
     }
+    setAttachError(null);
     setValue('');
     setPending([]);
-    for (const p of toSend) URL.revokeObjectURL(p.preview);
+    for (const p of toSend) {
+      if (p.preview) URL.revokeObjectURL(p.preview);
+    }
     // Wait for React to flush the empty value into the DOM before remeasuring
     // — otherwise scrollHeight still reflects the just-sent message and the
     // textarea stays tall.
     requestAnimationFrame(() => autoGrow(textareaRef.current));
-    void send(text, images);
+    void send(text, files);
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -1071,13 +1176,13 @@ const ChatWidget: React.FC = () => {
     }
   };
 
-  const onPasteImages = (e: React.ClipboardEvent<HTMLTextAreaElement>): void => {
+  const onPasteFiles = (e: React.ClipboardEvent<HTMLTextAreaElement>): void => {
     const files = e.clipboardData.files;
     if (!files?.length) return;
-    const imgs = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    if (imgs.length === 0) return;
+    const list = Array.from(files).filter((f) => isOrchestrateAttachable(f));
+    if (list.length === 0) return;
     e.preventDefault();
-    addFiles(imgs);
+    addFiles(list);
   };
 
   const submitSuggestion = (text: string): void => {
@@ -1290,8 +1395,7 @@ const ChatWidget: React.FC = () => {
                 </EmptyAvatar>
                 <EmptyTitle>How can I help?</EmptyTitle>
                 <EmptyHint>
-                  I can add tasks, schedule meetings, set reminders, read/send email, and look things up. Try one
-                  of these:
+                  I can add tasks, schedule meetings, set reminders, read/send email, look things up, and interpret files you attach. Try one of these:
                 </EmptyHint>
                 <Suggestions>
                   {SUGGESTIONS.map((s) => (
@@ -1309,18 +1413,19 @@ const ChatWidget: React.FC = () => {
             ) : (
               turns.map((turn) => {
                 const u = turn.input.trim();
+                const fileCount = turn.imageCount ?? 0;
                 const userLabel =
                   u ||
-                  (turn.imageCount
-                    ? turn.imageCount === 1
-                      ? 'Image'
-                      : `${turn.imageCount} images`
+                  (fileCount
+                    ? fileCount === 1
+                      ? turn.attachmentHint || 'File'
+                      : `${fileCount} files`
                     : '');
                 return (
                 <Turn key={turn.id}>
                   <UserLine>
                     {userLabel}
-                    {u && turn.imageCount ? ` · ${turn.imageCount} image(s)` : ''}
+                    {u && fileCount ? ` · ${fileCount} file${fileCount === 1 ? '' : 's'}` : ''}
                   </UserLine>
                   <AgentColumn>
                     {turn.steps.map((step, i) => (
@@ -1377,11 +1482,21 @@ const ChatWidget: React.FC = () => {
           </Scroller>
           </MessagesRegion>
 
-          <ComposerBar onSubmit={handleSubmit}>
+          <ComposerBar
+            onSubmit={handleSubmit}
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+            }}
+            onDrop={(e) => {
+              if (!e.dataTransfer.files?.length) return;
+              e.preventDefault();
+              addFiles(e.dataTransfer.files);
+            }}
+          >
             <input
               ref={fileRef}
               type="file"
-              accept="image/png,image/jpeg,image/gif,image/webp"
+              accept={ORCHESTRATE_FILE_ACCEPT}
               multiple
               style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
               aria-hidden
@@ -1392,20 +1507,40 @@ const ChatWidget: React.FC = () => {
             />
             {pending.length > 0 && (
               <AttachmentStrip>
-                {pending.map((p) => (
-                  <ThumbWrap key={p.id}>
-                    <img src={p.preview} alt="" />
-                    <ThumbRemove
-                      type="button"
-                      onClick={() => removePending(p.id)}
-                      aria-label="Remove image"
-                    >
-                      <IconX />
-                    </ThumbRemove>
-                  </ThumbWrap>
-                ))}
+                {pending.map((p) =>
+                  p.preview && p.file.type.startsWith('image/') ? (
+                    <ThumbWrap key={p.id}>
+                      <img src={p.preview} alt="" />
+                      <ThumbRemove
+                        type="button"
+                        onClick={() => removePending(p.id)}
+                        aria-label={`Remove ${p.file.name || 'file'}`}
+                      >
+                        <IconX />
+                      </ThumbRemove>
+                    </ThumbWrap>
+                  ) : (
+                    <FileChip key={p.id}>
+                      <span className="icon">
+                        <IconFileText size={14} />
+                      </span>
+                      <span className="meta">
+                        <span className="name">{p.file.name || 'File'}</span>
+                        <span className="size">{formatAttachBytes(p.file.size)}</span>
+                      </span>
+                      <ThumbRemove
+                        type="button"
+                        onClick={() => removePending(p.id)}
+                        aria-label={`Remove ${p.file.name || 'file'}`}
+                      >
+                        <IconX />
+                      </ThumbRemove>
+                    </FileChip>
+                  ),
+                )}
               </AttachmentStrip>
             )}
+            {attachError && <AttachError>{attachError}</AttachError>}
             {recording && (
               <RecBar>
                 <span className="dot" />
@@ -1433,10 +1568,10 @@ const ChatWidget: React.FC = () => {
                 type="button"
                 disabled={streaming}
                 onClick={() => fileRef.current?.click()}
-                title="Add image"
-                aria-label="Add image"
+                title="Attach a file (image, PDF, doc, audio)"
+                aria-label="Attach a file"
               >
-                <IconImage />
+                <IconPaperclip />
               </PillIconButton>
               <PillIconButton
                 type="button"
@@ -1478,7 +1613,7 @@ const ChatWidget: React.FC = () => {
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
                 onKeyDown={handleKey}
-                onPaste={onPasteImages}
+                onPaste={onPasteFiles}
                 rows={1}
                 disabled={streaming}
               />

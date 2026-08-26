@@ -262,11 +262,15 @@ export interface ChatHistoryMessage {
   content: string;
 }
 
-/** User image for vision (raw base64, no data-URL prefix). Matches Piovra `/orchestrate`. */
-export type OrchestrateUserImage = {
-  mimeType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
+/** User file for multimodal input (raw base64, no data-URL prefix). Matches Piovra `/orchestrate`. */
+export type OrchestrateUserFile = {
+  mimeType: string;
   data: string;
+  filename?: string;
 };
+
+/** @deprecated use OrchestrateUserFile */
+export type OrchestrateUserImage = OrchestrateUserFile;
 
 export interface NeedsConsentInfo {
   missingScopes: string[];
@@ -295,7 +299,9 @@ export interface OrchestrateOptions {
    * can act without first calling list skills. */
   context?: string;
   /** Images for this turn only (vision). Omitted from `history` on later calls. */
-  images?: OrchestrateUserImage[];
+  images?: OrchestrateUserFile[];
+  /** Files for this turn (images, PDFs, docs, audio). Omitted from `history`. */
+  files?: OrchestrateUserFile[];
   /** How long to keep polling after the SSE stream drops before giving up.
    * Defaults to 10 minutes — enough for Netlify Pro (10m) and most long runs. */
   pollTimeoutMs?: number;
@@ -470,6 +476,7 @@ export const PiovraAPI = {
           history: opts.history,
           context: opts.context,
           images: opts.images,
+          files: opts.files,
         }),
         signal: opts.signal,
       });

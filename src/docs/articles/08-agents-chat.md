@@ -2,7 +2,7 @@
 
 Tap the **floating chat** to talk with the assistant. It can use your **tasks, meetings, reminders, notes, and contacts** as context so answers match your real data.
 
-You can send **images** on supported setups (there is a per-message limit).
+You can send **images, PDFs, Word docs, Excel/CSV, text, and audio** on supported setups (there is a per-message limit). The assistant will read or transcribe them and use that in the reply.
 
 ## Agents section
 

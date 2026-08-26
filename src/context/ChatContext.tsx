@@ -1,11 +1,11 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { useOrchestrate, type ChatStatus, type ChatTurn } from '../hooks/useOrchestrate';
-import type { OrchestrateUserImage } from '../services/piovra';
+import type { OrchestrateUserFile } from '../services/piovra';
 
 interface ChatContextValue {
   turns: ChatTurn[];
   status: ChatStatus;
-  send: (input: string, images?: OrchestrateUserImage[]) => Promise<void>;
+  send: (input: string, files?: OrchestrateUserFile[]) => Promise<void>;
   abort: () => void;
   reset: () => void;
   isOpen: boolean;

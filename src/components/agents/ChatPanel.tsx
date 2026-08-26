@@ -1,10 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { Button, Card, CardHeader, CardTitle, CardSubtle, EmptyState, Spinner } from '../ui/primitives';
-import { IconBot, IconSend, IconStop, IconRefresh, IconImage, IconX } from '../ui/icons';
+import { IconBot, IconSend, IconStop, IconRefresh, IconPaperclip, IconFileText, IconX } from '../ui/icons';
 import { useOrchestrate } from '../../hooks/useOrchestrate';
-import type { OrchestrateUserImage } from '../../services/piovra';
-import { ORCHESTRATE_IMAGE_MAX_COUNT, filesToOrchestrateImages } from '../../utils/orchestrateImages';
+import type { OrchestrateUserFile } from '../../services/piovra';
+import {
+  ORCHESTRATE_FILE_ACCEPT,
+  ORCHESTRATE_FILE_MAX_BYTES,
+  ORCHESTRATE_FILE_MAX_COUNT,
+  ORCHESTRATE_FILES_MAX_TOTAL_BYTES,
+  filesToOrchestrateFiles,
+  isOrchestrateAttachable,
+} from '../../utils/orchestrateImages';
 import StepCard from './StepCard';
 import GoogleConsentPrompt from './GoogleConsentPrompt';
 import ConnectGmailBanner from './ConnectGmailBanner';
@@ -149,6 +156,35 @@ const ThumbWrap = styled.div`
   }
 `;
 
+const FileChip = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 180px;
+  height: 44px;
+  padding: 0 24px 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-2);
+  background: var(--bg-3);
+
+  .icon {
+    color: var(--text-2);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  .name {
+    min-width: 0;
+    font-size: 11px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+`;
+
 const ThumbRemove = styled.button`
   position: absolute;
   top: 1px;
@@ -202,12 +238,12 @@ interface ChatPanelProps {
   instanceName?: string | null;
 }
 
-type PendingImage = { id: string; preview: string; file: File };
+type PendingFile = { id: string; preview: string | null; file: File };
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
   const { turns, status, send, abort, reset } = useOrchestrate(instanceId);
   const [value, setValue] = useState('');
-  const [pending, setPending] = useState<PendingImage[]>([]);
+  const [pending, setPending] = useState<PendingFile[]>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const pendingRef = useRef(pending);
@@ -218,16 +254,32 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
     if (el) el.scrollTop = el.scrollHeight;
   }, [turns, status]);
 
+  useEffect(() => {
+    return () => {
+      for (const p of pendingRef.current) {
+        if (p.preview) URL.revokeObjectURL(p.preview);
+      }
+    };
+  }, []);
+
   const streaming = status === 'streaming';
 
   const addFiles = (files: FileList | File[]): void => {
-    const list = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    const list = Array.from(files).filter(isOrchestrateAttachable);
     if (list.length === 0) return;
     setPending((prev) => {
       const next = [...prev];
+      let total = next.reduce((s, p) => s + p.file.size, 0);
       for (const f of list) {
-        if (next.length >= ORCHESTRATE_IMAGE_MAX_COUNT) break;
-        next.push({ id: crypto.randomUUID(), file: f, preview: URL.createObjectURL(f) });
+        if (next.length >= ORCHESTRATE_FILE_MAX_COUNT) break;
+        if (f.size > ORCHESTRATE_FILE_MAX_BYTES) continue;
+        if (total + f.size > ORCHESTRATE_FILES_MAX_TOTAL_BYTES) break;
+        total += f.size;
+        next.push({
+          id: crypto.randomUUID(),
+          file: f,
+          preview: f.type.startsWith('image/') ? URL.createObjectURL(f) : null,
+        });
       }
       return next;
     });
@@ -236,7 +288,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
   const removePending = (id: string): void => {
     setPending((prev) => {
       const t = prev.find((p) => p.id === id);
-      if (t) URL.revokeObjectURL(t.preview);
+      if (t?.preview) URL.revokeObjectURL(t.preview);
       return prev.filter((p) => p.id !== id);
     });
   };
@@ -248,18 +300,20 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
     const text = value;
     const toSend = pending;
 
-    let images: OrchestrateUserImage[] | undefined;
+    let files: OrchestrateUserFile[] | undefined;
     try {
       if (toSend.length > 0) {
-        images = await filesToOrchestrateImages(toSend.map((t) => t.file));
+        files = await filesToOrchestrateFiles(toSend.map((t) => t.file));
       }
     } catch {
       return;
     }
     setValue('');
     setPending([]);
-    for (const p of toSend) URL.revokeObjectURL(p.preview);
-    void send(text, images);
+    for (const p of toSend) {
+      if (p.preview) URL.revokeObjectURL(p.preview);
+    }
+    void send(text, files);
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -269,13 +323,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
     }
   };
 
-  const onPasteImages = (e: React.ClipboardEvent<HTMLTextAreaElement>): void => {
+  const onPasteFiles = (e: React.ClipboardEvent<HTMLTextAreaElement>): void => {
     const files = e.clipboardData.files;
     if (!files?.length) return;
-    const imgs = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    if (imgs.length === 0) return;
+    const list = Array.from(files).filter(isOrchestrateAttachable);
+    if (list.length === 0) return;
     e.preventDefault();
-    addFiles(imgs);
+    addFiles(list);
   };
 
   return (
@@ -314,18 +368,19 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
         ) : (
           turns.map((turn) => {
             const u = turn.input.trim();
+            const fileCount = turn.imageCount ?? 0;
             const userLabel =
               u ||
-              (turn.imageCount
-                ? turn.imageCount === 1
-                  ? 'Image'
-                  : `${turn.imageCount} images`
+              (fileCount
+                ? fileCount === 1
+                  ? turn.attachmentHint || 'File'
+                  : `${fileCount} files`
                 : '');
             return (
               <Turn key={turn.id}>
                 <UserLine>
                   {userLabel}
-                  {u && turn.imageCount ? ` · ${turn.imageCount} image(s)` : ''}
+                  {u && fileCount ? ` · ${fileCount} file${fileCount === 1 ? '' : 's'}` : ''}
                 </UserLine>
                 <AgentColumn>
                   {turn.steps.map((step, i) => (
@@ -359,7 +414,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
         <input
           ref={fileRef}
           type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp"
+          accept={ORCHESTRATE_FILE_ACCEPT}
           multiple
           style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
           aria-hidden
@@ -372,22 +427,32 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
           type="button"
           disabled={streaming}
           onClick={() => fileRef.current?.click()}
-          title="Add image"
-          aria-label="Add image"
+          title="Attach a file"
+          aria-label="Attach a file"
         >
-          <IconImage />
+          <IconPaperclip />
         </AttachButton>
         <ComposerMain>
           {pending.length > 0 && (
             <AttachmentStrip>
-              {pending.map((p) => (
-                <ThumbWrap key={p.id}>
-                  <img src={p.preview} alt="" />
-                  <ThumbRemove type="button" onClick={() => removePending(p.id)} aria-label="Remove image">
-                    <IconX />
-                  </ThumbRemove>
-                </ThumbWrap>
-              ))}
+              {pending.map((p) =>
+                p.preview && p.file.type.startsWith('image/') ? (
+                  <ThumbWrap key={p.id}>
+                    <img src={p.preview} alt="" />
+                    <ThumbRemove type="button" onClick={() => removePending(p.id)} aria-label={`Remove ${p.file.name || 'file'}`}>
+                      <IconX />
+                    </ThumbRemove>
+                  </ThumbWrap>
+                ) : (
+                  <FileChip key={p.id}>
+                    <span className="icon"><IconFileText size={14} /></span>
+                    <span className="name">{p.file.name || 'File'}</span>
+                    <ThumbRemove type="button" onClick={() => removePending(p.id)} aria-label={`Remove ${p.file.name || 'file'}`}>
+                      <IconX />
+                    </ThumbRemove>
+                  </FileChip>
+                ),
+              )}
             </AttachmentStrip>
           )}
           <TextInput
@@ -395,7 +460,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKey}
-            onPaste={onPasteImages}
+            onPaste={onPasteFiles}
             rows={1}
           />
         </ComposerMain>

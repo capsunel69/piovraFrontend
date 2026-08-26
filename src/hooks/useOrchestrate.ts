@@ -4,7 +4,7 @@ import {
   type AgentStep,
   type ChatHistoryMessage,
   type NeedsConsentInfo,
-  type OrchestrateUserImage,
+  type OrchestrateUserFile,
 } from '../services/piovra';
 import { useAppContext } from '../context/AppContext';
 import type { Contact, Journal, Meeting, Reminder, Task } from '../types';
@@ -14,8 +14,9 @@ export type ChatStatus = 'idle' | 'streaming' | 'error';
 export interface ChatTurn {
   id: string;
   input: string;
-  /** Number of images sent with this turn (for history hint; bytes are not kept). */
+  /** Number of files sent with this turn (for history hint; bytes are not kept). */
   imageCount?: number;
+  attachmentHint?: string;
   steps: AgentStep[];
   output: string | null;
   error: string | null;
@@ -30,7 +31,7 @@ export interface ChatTurn {
 interface UseOrchestrateResult {
   turns: ChatTurn[];
   status: ChatStatus;
-  send: (input: string, images?: OrchestrateUserImage[]) => Promise<void>;
+  send: (input: string, files?: OrchestrateUserFile[]) => Promise<void>;
   abort: () => void;
   reset: () => void;
 }
@@ -122,10 +123,10 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
   turnsRef.current = turns;
 
   const send = useCallback(
-    async (input: string, images?: OrchestrateUserImage[]): Promise<void> => {
+    async (input: string, files?: OrchestrateUserFile[]): Promise<void> => {
       const trimmed = input.trim();
-      const imageList = images?.length ? images : undefined;
-      if (!trimmed && !imageList?.length) return;
+      const fileList = files?.length ? files : undefined;
+      if (!trimmed && !fileList?.length) return;
 
       const history = buildHistory(turnsRef.current);
       const context = buildContextSnapshot({
@@ -140,7 +141,12 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
       const newTurn: ChatTurn = {
         id: turnId,
         input: trimmed,
-        imageCount: imageList?.length,
+        imageCount: fileList?.length,
+        attachmentHint: fileList
+          ?.map((f) => f.filename)
+          .filter(Boolean)
+          .slice(0, 3)
+          .join(', '),
         steps: [],
         output: null,
         error: null,
@@ -163,7 +169,7 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
           instanceId,
           history,
           context,
-          images: imageList,
+          files: fileList,
           signal: controller.signal,
           onStep: (step) => {
             appendStep(turnId, step);
@@ -234,7 +240,9 @@ function buildHistory(turns: ChatTurn[]): ChatHistoryMessage[] {
     if (t.status !== 'idle') continue;
     const u = t.input?.trim() ?? '';
     if (u || t.imageCount) {
-      const line = (u || '(image)') + (t.imageCount ? ` [${t.imageCount} image(s)]` : '');
+      const n = t.imageCount ?? 0;
+      const label = n ? ` [${n} file${n === 1 ? '' : 's'}]` : '';
+      const line = (u || t.attachmentHint || '(file)') + label;
       out.push({ role: 'user', content: line });
     }
     const assistantText =

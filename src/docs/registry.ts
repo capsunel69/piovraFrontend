@@ -86,7 +86,7 @@ export const DOC_ARTICLES: DocArticle[] = [
     id: 'agents-chat',
     title: 'Assistant & Agents',
     section: 'Automation',
-    keywords: 'chat bubble schedule automatic run history usage tools google permission',
+    keywords: 'chat bubble schedule automatic run history usage tools google permission image pdf audio file attach csv excel spreadsheet',
     body: body08,
   },
   {
