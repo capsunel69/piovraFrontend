@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { format, isSameDay, isValid } from 'date-fns';
 import { useAppContext } from '../context/AppContext';
-import LinkifyText from '../components/shared/LinkifyText';
+import ChecklistNotes from '../components/shared/ChecklistNotes';
 import ReminderEditForm from '../components/ReminderEditForm';
 import {
   PageContainer, PageHeader, PageTitle, PageSubtitle,
@@ -55,11 +55,10 @@ const Title = styled.h3`
   flex-wrap: wrap;
 `;
 
-const Description = styled.p`
+const Description = styled.div`
   font-size: 13px;
   color: var(--text-2);
   margin: 6px 0 0 0;
-  white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.55;
 `;
@@ -439,7 +438,29 @@ const Reminders: React.FC = () => {
 
             return (
               <ReminderRow key={reminder.id} $today={due && !completedToday && !taskCreatedToday} $converted={taskCreatedToday}>
-                <Checkbox $checked={completedToday} onClick={() => toggleReminderCompletion(reminder.id)} disabled={taskCreatedToday} style={{ marginTop: 3 }} />
+                <Checkbox
+                  type="button"
+                  $checked={completedToday}
+                  onClick={() => toggleReminderCompletion(reminder.id)}
+                  disabled={taskCreatedToday}
+                  title={
+                    taskCreatedToday
+                      ? 'Already turned into a task today'
+                      : reminder.recurring
+                        ? 'Mark this occurrence done'
+                        : 'Mark reminder done'
+                  }
+                  aria-label={
+                    reminder.recurring
+                      ? completedToday
+                        ? 'Unmark this occurrence'
+                        : 'Mark this occurrence done'
+                      : completedToday
+                        ? 'Mark reminder not done'
+                        : 'Mark reminder done'
+                  }
+                  style={{ marginTop: 3 }}
+                />
                 <Body>
                   <Title>
                     {reminder.title}
@@ -447,7 +468,14 @@ const Reminders: React.FC = () => {
                     {taskCreatedToday && <Badge $variant="purple">Task created</Badge>}
                     {reminder.recurring && <Badge $variant="info"><IconRepeat /> {reminder.recurring}</Badge>}
                   </Title>
-                  {reminder.description && <Description><LinkifyText text={reminder.description} /></Description>}
+                  {reminder.description && (
+                    <Description>
+                      <ChecklistNotes
+                        text={reminder.description}
+                        onChange={(next) => updateReminder(reminder.id, { description: next })}
+                      />
+                    </Description>
+                  )}
                   <MetaRow>
                     {!reminder.recurring && reminderDate && (
                       <span><IconClock /> {format(reminderDate, 'MMM d, yyyy · HH:mm')}</span>

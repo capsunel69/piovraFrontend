@@ -174,7 +174,12 @@ export const RemindersAPI = {
   update: (id: string, updates: Partial<Reminder>): Promise<Reminder> =>
     fetchApi<Reminder>(`reminders/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify(updates),
+      body: JSON.stringify({
+        ...updates,
+        completedInstances: updates.completedInstances?.map((d) =>
+          d instanceof Date ? d.toISOString() : d,
+        ),
+      }),
     }),
 
   delete: (id: string): Promise<void> =>

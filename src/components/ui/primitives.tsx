@@ -307,8 +307,15 @@ export const Checkbox = styled.button<{ $checked: boolean }>`
   justify-content: center;
   transition: all 0.15s;
   position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
 
-  &:hover { border-color: var(--accent); }
+  &:hover:not(:disabled) { border-color: var(--accent); }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 
   &:after {
     content: '';

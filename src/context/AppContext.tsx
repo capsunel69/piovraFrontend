@@ -702,18 +702,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const toggleReminderCompletion = useCallback(async (reminderId: string) => {
     const reminder = reminders.find(r => r.id === reminderId);
     if (!reminder) return;
-    
+
+    const today = new Date(currentDate);
+    today.setHours(0, 0, 0, 0);
+
+    const updates: Partial<Reminder> = reminder.recurring
+      ? (() => {
+          const instances = (reminder.completedInstances || []).map((d) => new Date(d));
+          const doneToday = instances.some((d) => isSameDay(d, today));
+          return {
+            completedInstances: doneToday
+              ? instances.filter((d) => !isSameDay(d, today))
+              : [...instances, today],
+          };
+        })()
+      : { completed: !reminder.completed };
+
     try {
-      const updatedReminder = await RemindersAPI.update(reminderId, { completed: !reminder.completed });
-      setReminders(prev => prev.map(r => r.id === reminderId ? updatedReminder : r));
+      const updatedReminder = await RemindersAPI.update(reminderId, updates);
+      setReminders((prev) => prev.map((r) => (r.id === reminderId ? updatedReminder : r)));
     } catch (err) {
       console.error('Error toggling reminder completion:', err);
       setError('Failed to update reminder');
-      
-      // Update local state even if API fails
-      setReminders(prev => prev.map(r => r.id === reminderId ? { ...r, completed: !r.completed } : r));
+      setReminders((prev) =>
+        prev.map((r) => (r.id === reminderId ? { ...r, ...updates } : r)),
+      );
     }
-  }, [reminders]);
+  }, [reminders, currentDate]);
 
   // Timer functions
   const startTimer = useCallback((taskId: string, initialTime: number = 0) => {
