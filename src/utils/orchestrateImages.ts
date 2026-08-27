@@ -1,8 +1,8 @@
 import type { OrchestrateUserFile } from '../services/piovra';
 
 export const ORCHESTRATE_FILE_MAX_COUNT = 6;
-export const ORCHESTRATE_FILE_MAX_BYTES = 8 * 1024 * 1024;
-export const ORCHESTRATE_FILES_MAX_TOTAL_BYTES = 16 * 1024 * 1024;
+export const ORCHESTRATE_FILE_MAX_BYTES = 80 * 1024 * 1024;
+export const ORCHESTRATE_FILES_MAX_TOTAL_BYTES = 90 * 1024 * 1024;
 
 /** @deprecated use ORCHESTRATE_FILE_MAX_COUNT */
 export const ORCHESTRATE_IMAGE_MAX_COUNT = ORCHESTRATE_FILE_MAX_COUNT;
@@ -160,11 +160,11 @@ export async function filesToOrchestrateFiles(files: File[]): Promise<Orchestrat
       throw new Error(`Unsupported file type: ${f.name || 'unknown'}`);
     }
     if (f.size > ORCHESTRATE_FILE_MAX_BYTES) {
-      throw new Error(`${f.name || 'File'} must be 8MB or smaller`);
+      throw new Error(`${f.name || 'File'} must be 80MB or smaller`);
     }
     total += f.size;
     if (total > ORCHESTRATE_FILES_MAX_TOTAL_BYTES) {
-      throw new Error('Attachments together must be 16MB or smaller');
+      throw new Error('Attachments together must be 90MB or smaller');
     }
     out.push({
       mimeType: inferOrchestrateMime(f),

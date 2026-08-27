@@ -482,7 +482,12 @@ export const PiovraAPI = {
       });
       if (!res.ok || !res.body) {
         const text = await res.text().catch(() => '');
-        throw new Error(text || `Piovra orchestrate -> ${res.status}`);
+        const message =
+          res.status === 413
+            ? 'Those files are too large to send. Try fewer or smaller files (about 80MB each, 90MB total).'
+            : parseOrchestrateHttpError(text, res.status);
+        opts.onError?.(message);
+        return;
       }
 
       const reader = res.body.getReader();
@@ -522,6 +527,21 @@ interface OrchestrateState {
   runId: string | null;
   stepsEmitted: number;
   terminalSeen: boolean;
+}
+
+function parseOrchestrateHttpError(text: string, status: number): string {
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{')) {
+    try {
+      const j = JSON.parse(trimmed) as { error?: unknown; message?: unknown };
+      const msg = typeof j.message === 'string' ? j.message : typeof j.error === 'string' ? j.error : '';
+      if (msg) return msg;
+    } catch {
+      /* fall through */
+    }
+  }
+  if (trimmed && trimmed.length < 280 && !trimmed.startsWith('<')) return trimmed;
+  return `Piovra orchestrate -> ${status}`;
 }
 
 function handleEvent(raw: string, opts: OrchestrateOptions, state: OrchestrateState): void {

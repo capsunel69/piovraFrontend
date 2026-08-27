@@ -1101,7 +1101,7 @@ const ChatWidget: React.FC = () => {
         continue;
       }
       if (f.size > ORCHESTRATE_FILE_MAX_BYTES) {
-        errors.push(`${f.name || 'File'} must be 8MB or smaller`);
+        errors.push(`${f.name || 'File'} must be 80MB or smaller`);
         continue;
       }
       accepted.push(f);
@@ -1115,7 +1115,7 @@ const ChatWidget: React.FC = () => {
           break;
         }
         if (total + f.size > ORCHESTRATE_FILES_MAX_TOTAL_BYTES) {
-          errors.push('Attachments together must be 16MB or smaller');
+          errors.push('Attachments together must be 90MB or smaller');
           break;
         }
         total += f.size;
