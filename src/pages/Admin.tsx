@@ -21,6 +21,7 @@ import {
   Stack,
   Grid,
   CardSection,
+  Select,
 } from '../components/ui/primitives';
 import {
   IconUsers,
@@ -36,6 +37,11 @@ import {
   IconTranscribe,
   IconGataBoss,
 } from '../components/ui/icons';
+import {
+  AGENT_MODEL_GROUPS,
+  ALL_AGENT_MODEL_IDS,
+  shortModelLabel,
+} from '../constants/agentModels';
 
 const MOBILE_BP = 720;
 
@@ -62,6 +68,14 @@ interface AdminUser {
   noteCount: number;
   googleConnected: boolean;
   googleScopes: string[];
+  agents?: AdminAgent[];
+}
+
+interface AdminAgent {
+  id: string;
+  name: string;
+  model: string;
+  updatedAt?: string;
 }
 
 interface AdminMetrics {
@@ -314,15 +328,19 @@ const Table = styled.table`
   }
 
   .col-user {
-    width: 55%;
+    width: 38%;
+  }
+
+  .col-models {
+    width: 24%;
   }
 
   .col-status {
-    width: 28%;
+    width: 22%;
   }
 
   .col-active {
-    width: 17%;
+    width: 16%;
   }
 `;
 
@@ -481,6 +499,52 @@ const DetailSectionTitle = styled.div`
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--text-3);
+`;
+
+const AgentModelList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+`;
+
+const AgentModelRow = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-1);
+  background: var(--bg-3);
+`;
+
+const AgentModelMeta = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+
+  .name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .id {
+    font-size: 11px;
+    color: var(--text-4);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+`;
+
+const ModelsCell = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 `;
 
 const FeatureList = styled.div`
@@ -877,6 +941,8 @@ const Admin: React.FC = () => {
   const [anCopySelection, setAnCopySelection] = useState<Set<string>>(new Set());
   const [anCopyBusy, setAnCopyBusy] = useState(false);
   const [featureSaveBusy, setFeatureSaveBusy] = useState(false);
+  const [userAgents, setUserAgents] = useState<AdminAgent[] | null>(null);
+  const [agentSaveBusyId, setAgentSaveBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const descBySkillId = useMemo(() => {
@@ -914,6 +980,26 @@ const Admin: React.FC = () => {
     setAnCopySelection(new Set());
   }, [detailUser?.id]);
 
+  useEffect(() => {
+    const userId = detailUser?.id;
+    if (!userId) {
+      setUserAgents(null);
+      return;
+    }
+    let cancelled = false;
+    setUserAgents(null);
+    void adminFetch<AdminAgent[]>(`/users/${userId}/agents`)
+      .then((rows) => {
+        if (!cancelled) setUserAgents(rows);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [detailUser?.id]);
+
   const sortedUsers = useMemo(
     () =>
       users
@@ -935,6 +1021,45 @@ const Admin: React.FC = () => {
       );
     },
     [skillCatalog?.defaultSkillIds],
+  );
+
+  const updateAgentModel = useCallback(
+    async (userId: string, agentId: string, model: string) => {
+      setAgentSaveBusyId(agentId);
+      try {
+        const updated = await adminFetch<AdminAgent>(`/users/${userId}/agents/${agentId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ model }),
+        });
+        const nextAgent: AdminAgent = {
+          id: updated.id,
+          name: updated.name,
+          model: updated.model,
+          updatedAt: updated.updatedAt,
+        };
+        setUserAgents((prev) => prev?.map((a) => (a.id === agentId ? nextAgent : a)) ?? prev);
+        setUsers((prev) =>
+          prev?.map((u) =>
+            u.id === userId
+              ? {
+                  ...u,
+                  agents: (u.agents ?? []).map((a) =>
+                    a.id === agentId ? { id: nextAgent.id, name: nextAgent.name, model: nextAgent.model } : a,
+                  ),
+                }
+              : u,
+          ) ?? prev,
+        );
+        toast.success('Agent model updated', nextAgent.name);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        toast.error('Could not update model', message);
+      } finally {
+        setAgentSaveBusyId(null);
+      }
+    },
+    [toast],
   );
 
   if (me?.role !== 'admin') {
@@ -1035,6 +1160,7 @@ const Admin: React.FC = () => {
                 <thead>
                   <tr>
                     <th className="col-user">User</th>
+                    <th className="col-models">Agents</th>
                     <th className="col-status">Status</th>
                     <th className="col-active">Last active</th>
                   </tr>
@@ -1042,7 +1168,7 @@ const Admin: React.FC = () => {
                 <tbody>
                   {sortedUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={3}>
+                      <td colSpan={4}>
                         <EmptyHint>No users yet.</EmptyHint>
                       </td>
                     </tr>
@@ -1066,6 +1192,19 @@ const Admin: React.FC = () => {
                             </UserText>
                             <RowHint>Open →</RowHint>
                           </UserCell>
+                        </td>
+                        <td className="col-models">
+                          <ModelsCell>
+                            {(u.agents ?? []).length === 0 ? (
+                              <MetaMuted>—</MetaMuted>
+                            ) : (
+                              (u.agents ?? []).map((a) => (
+                                <Badge key={a.id} $variant="neutral" title={a.name}>
+                                  {shortModelLabel(a.model)}
+                                </Badge>
+                              ))
+                            )}
+                          </ModelsCell>
                         </td>
                         <td className="col-status">
                           <StatusCell>
@@ -1116,6 +1255,10 @@ const Admin: React.FC = () => {
                     </Badge>
                   </StatusCell>
                   <MobileUserMeta>
+                    {(u.agents ?? []).length > 0
+                      ? (u.agents ?? []).map((a) => shortModelLabel(a.model)).join(' · ')
+                      : 'No agents'}
+                    {' · '}
                     Last active{' '}
                     {u.lastSeenAt
                       ? formatDistanceToNow(new Date(u.lastSeenAt), { addSuffix: true })
@@ -1304,6 +1447,51 @@ const Admin: React.FC = () => {
                     );
                   })}
                 </FeatureList>
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>Agents</DetailSectionTitle>
+                {userAgents === null ? (
+                  <MetaMuted>Loading agents…</MetaMuted>
+                ) : userAgents.length === 0 ? (
+                  <MetaMuted>No agent definitions for this user.</MetaMuted>
+                ) : (
+                  <AgentModelList>
+                    {userAgents.map((agent) => (
+                      <AgentModelRow key={agent.id}>
+                        <AgentModelMeta>
+                          <span className="name">{agent.name}</span>
+                          <span className="id">{shortModelLabel(agent.model)}</span>
+                        </AgentModelMeta>
+                        <Select
+                          value={agent.model}
+                          disabled={agentSaveBusyId === agent.id}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            if (next === agent.model) return;
+                            void updateAgentModel(detailUser.id, agent.id, next);
+                          }}
+                        >
+                          {AGENT_MODEL_GROUPS.map((g) => (
+                            <optgroup key={g.label} label={g.label}>
+                              {g.models.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.label}
+                                  {m.hint ? ` — ${m.hint}` : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                          {!ALL_AGENT_MODEL_IDS.includes(agent.model) && (
+                            <optgroup label="Custom / legacy">
+                              <option value={agent.model}>{agent.model}</option>
+                            </optgroup>
+                          )}
+                        </Select>
+                      </AgentModelRow>
+                    ))}
+                  </AgentModelList>
+                )}
               </DetailSection>
 
               {detailUser.id !== me?.id &&
