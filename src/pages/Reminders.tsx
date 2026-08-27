@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { format, isSameDay, isValid } from 'date-fns';
 import { useAppContext } from '../context/AppContext';
-import ChecklistNotes from '../components/shared/ChecklistNotes';
+import LinkifyText from '../components/shared/LinkifyText';
 import ReminderEditForm from '../components/ReminderEditForm';
 import {
   PageContainer, PageHeader, PageTitle, PageSubtitle,
@@ -12,20 +12,21 @@ import {
   Chip, ChipGroup, GhostInput,
 } from '../components/ui/primitives';
 import {
-  IconBell, IconPlus, IconTrash, IconRepeat, IconClock, IconEdit,
+  IconBell, IconPlus, IconTrash, IconRepeat, IconClock, IconEdit, IconCheck, IconX,
 } from '../components/ui/icons';
 import type { Reminder } from '../types';
 
-const ReminderRow = styled.div<{ $today?: boolean; $converted?: boolean }>`
+const ReminderRow = styled.div<{ $today?: boolean; $converted?: boolean; $selected?: boolean }>`
   padding: var(--s-4) var(--s-5);
   display: flex;
   gap: var(--s-3);
   align-items: flex-start;
   border-top: 1px solid var(--border-1);
   position: relative;
+  background: ${p => p.$selected ? 'color-mix(in oklab, var(--accent) 8%, transparent)' : 'transparent'};
 
   &:first-child { border-top: none; }
-  &:hover { background: var(--bg-3); }
+  &:hover { background: ${p => p.$selected ? 'color-mix(in oklab, var(--accent) 12%, var(--bg-3))' : 'var(--bg-3)'}; }
 
   ${p => p.$today && `
     &:before {
@@ -59,8 +60,30 @@ const Description = styled.div`
   font-size: 13px;
   color: var(--text-2);
   margin: 6px 0 0 0;
+  white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.55;
+`;
+
+const BulkBar = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-5);
+  border-bottom: 1px solid var(--border-1);
+  background: color-mix(in oklab, var(--accent) 10%, var(--bg-2));
+
+  .count {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-1);
+    margin-right: 4px;
+  }
+
+  @media (max-width: 720px) {
+    padding: var(--s-3);
+  }
 `;
 
 const MetaRow = styled.div`
@@ -113,6 +136,21 @@ function applyTime(target: Date, time: string) {
   if (Number.isFinite(h) && Number.isFinite(m)) target.setHours(h, m, 0, 0);
 }
 
+/** Notes are notes — show markdown checkboxes as bullets, not fake controls. */
+function displayNotes(text: string): string {
+  return text.replace(/^(\s*)(?:[-*]|\d+\.)\s+\[[ xX]\]\s?/gm, '$1• ');
+}
+
+function isReminderCompleted(r: Reminder, currentDate: Date): boolean {
+  if (!r.recurring) return r.completed;
+  const t = new Date(currentDate);
+  t.setHours(0, 0, 0, 0);
+  return (r.completedInstances || []).some((d) => {
+    const instance = parseReminderDate(d);
+    return instance ? isSameDay(instance, t) : false;
+  });
+}
+
 const Reminders: React.FC = () => {
   const {
     reminders,
@@ -137,10 +175,28 @@ const Reminders: React.FC = () => {
   const [showDate, setShowDate] = useState(true);
   const [showDescriptionField, setShowDescriptionField] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     setShowDate(recurring === '');
   }, [recurring]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedIds(new Set());
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
+    const live = new Set(reminders.map((r) => r.id));
+    setSelectedIds((prev) => {
+      const next = new Set([...prev].filter((id) => live.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [reminders]);
 
   const reset = () => {
     setTitle(''); setDescription(''); setDate(''); setTime('');
@@ -271,6 +327,54 @@ const Reminders: React.FC = () => {
     return r.recurring;
   };
 
+  const selectedCount = selectedIds.size;
+  const allSelected = reminders.length > 0 && selectedCount === reminders.length;
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedIds(new Set(reminders.map((r) => r.id)));
+  }, [reminders]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const bulkDelete = useCallback(async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    const label = ids.length === 1 ? 'this reminder' : `${ids.length} reminders`;
+    if (!window.confirm(`Delete ${label}?`)) return;
+    setBulkBusy(true);
+    try {
+      for (const id of ids) await deleteReminder(id);
+      setSelectedIds(new Set());
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [selectedIds, deleteReminder]);
+
+  const bulkMarkDone = useCallback(async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    try {
+      for (const id of ids) {
+        const r = reminders.find((x) => x.id === id);
+        if (!r || isReminderCompleted(r, currentDate)) continue;
+        await toggleReminderCompletion(id);
+      }
+      setSelectedIds(new Set());
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [selectedIds, reminders, currentDate, toggleReminderCompletion]);
+
   const canSubmit = Boolean(title.trim()) && (recurring !== '' || Boolean(date));
 
   return (
@@ -400,7 +504,32 @@ const Reminders: React.FC = () => {
       </Composer>
 
       <Card>
-        <CardHeader><CardTitle><IconBell /> Active <CardSubtle>{reminders.length}</CardSubtle></CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle><IconBell /> Active <CardSubtle>{reminders.length}</CardSubtle></CardTitle>
+          {reminders.length > 0 && selectedCount === 0 && (
+            <Button type="button" $size="sm" $variant="ghost" onClick={selectAll}>
+              Select
+            </Button>
+          )}
+        </CardHeader>
+        {selectedCount > 0 && (
+          <BulkBar>
+            <span className="count">{selectedCount} selected</span>
+            <Button type="button" $size="sm" $variant="ghost" onClick={allSelected ? clearSelection : selectAll} disabled={bulkBusy}>
+              {allSelected ? 'Clear' : 'Select all'}
+            </Button>
+            <ComposerSpacer />
+            <Button type="button" $size="sm" $variant="secondary" onClick={() => void bulkMarkDone()} disabled={bulkBusy}>
+              <IconCheck /> Mark done
+            </Button>
+            <Button type="button" $size="sm" $variant="danger" onClick={() => void bulkDelete()} disabled={bulkBusy}>
+              <IconTrash /> Delete
+            </Button>
+            <IconButton type="button" $size="sm" onClick={clearSelection} title="Clear selection" disabled={bulkBusy}>
+              <IconX />
+            </IconButton>
+          </BulkBar>
+        )}
         <CardBody>
           {reminders.length === 0 ? (
             <EmptyState><IconBell /><div>No reminders yet.</div></EmptyState>
@@ -420,13 +549,7 @@ const Reminders: React.FC = () => {
             }
 
             const due = isReminderDueToday(reminder);
-            const completedToday = reminder.recurring
-              ? (reminder.completedInstances || []).some(d => {
-                  const t = new Date(currentDate); t.setHours(0,0,0,0);
-                  const instance = parseReminderDate(d);
-                  return instance ? isSameDay(instance, t) : false;
-                })
-              : reminder.completed;
+            const completedToday = isReminderCompleted(reminder, currentDate);
             const taskCreatedToday = reminder.recurring
               ? (reminder.convertedToTaskDates || []).some(d => {
                   const t = new Date(currentDate); t.setHours(0,0,0,0);
@@ -435,30 +558,21 @@ const Reminders: React.FC = () => {
                 })
               : reminder.convertedToTask && due;
             const reminderDate = parseReminderDate(reminder.date);
+            const selected = selectedIds.has(reminder.id);
 
             return (
-              <ReminderRow key={reminder.id} $today={due && !completedToday && !taskCreatedToday} $converted={taskCreatedToday}>
+              <ReminderRow
+                key={reminder.id}
+                $today={due && !completedToday && !taskCreatedToday}
+                $converted={taskCreatedToday}
+                $selected={selected}
+              >
                 <Checkbox
                   type="button"
-                  $checked={completedToday}
-                  onClick={() => toggleReminderCompletion(reminder.id)}
-                  disabled={taskCreatedToday}
-                  title={
-                    taskCreatedToday
-                      ? 'Already turned into a task today'
-                      : reminder.recurring
-                        ? 'Mark this occurrence done'
-                        : 'Mark reminder done'
-                  }
-                  aria-label={
-                    reminder.recurring
-                      ? completedToday
-                        ? 'Unmark this occurrence'
-                        : 'Mark this occurrence done'
-                      : completedToday
-                        ? 'Mark reminder not done'
-                        : 'Mark reminder done'
-                  }
+                  $checked={selected}
+                  onClick={() => toggleSelected(reminder.id)}
+                  title="Select reminder"
+                  aria-label={`Select ${reminder.title}`}
                   style={{ marginTop: 3 }}
                 />
                 <Body>
@@ -466,14 +580,12 @@ const Reminders: React.FC = () => {
                     {reminder.title}
                     {due && !completedToday && !taskCreatedToday && <Badge $variant="success">Today</Badge>}
                     {taskCreatedToday && <Badge $variant="purple">Task created</Badge>}
+                    {completedToday && <Badge $variant="neutral">Done</Badge>}
                     {reminder.recurring && <Badge $variant="info"><IconRepeat /> {reminder.recurring}</Badge>}
                   </Title>
                   {reminder.description && (
                     <Description>
-                      <ChecklistNotes
-                        text={reminder.description}
-                        onChange={(next) => updateReminder(reminder.id, { description: next })}
-                      />
+                      <LinkifyText text={displayNotes(reminder.description)} />
                     </Description>
                   )}
                   <MetaRow>
