@@ -25,9 +25,17 @@ interface ModelGroup {
 
 const MODEL_GROUPS: ModelGroup[] = [
   {
+    label: 'OpenAI · GPT-5.6',
+    models: [
+      { id: 'openai:gpt-5.6-sol',   label: 'gpt-5.6-sol',   hint: 'default · flagship reasoning' },
+      { id: 'openai:gpt-5.6-terra', label: 'gpt-5.6-terra', hint: 'balanced everyday work' },
+      { id: 'openai:gpt-5.6-luna',  label: 'gpt-5.6-luna',  hint: 'fast & cheap · high volume' },
+    ],
+  },
+  {
     label: 'OpenAI · GPT-5 family (reasoning)',
     models: [
-      { id: 'openai:gpt-5.4',       label: 'gpt-5.4',       hint: 'frontier reasoning · best for hard agentic tasks' },
+      { id: 'openai:gpt-5.4',       label: 'gpt-5.4',       hint: 'previous flagship' },
       { id: 'openai:gpt-5.4-mini',  label: 'gpt-5.4-mini',  hint: 'strong reasoning at lower cost · subagents / coding' },
       { id: 'openai:gpt-5.4-nano',  label: 'gpt-5.4-nano',  hint: 'cheapest 5.4 · high-volume / classification' },
       { id: 'openai:gpt-5',         label: 'gpt-5',         hint: 'previous flagship · solid all-rounder' },
@@ -39,7 +47,7 @@ const MODEL_GROUPS: ModelGroup[] = [
     label: 'OpenAI · GPT-4 family (chat)',
     models: [
       { id: 'openai:gpt-4.1',       label: 'gpt-4.1',       hint: 'general-purpose chat · large context' },
-      { id: 'openai:gpt-4.1-mini',  label: 'gpt-4.1-mini',  hint: 'recommended default · cheap & solid' },
+      { id: 'openai:gpt-4.1-mini',  label: 'gpt-4.1-mini',  hint: 'cheap & solid' },
       { id: 'openai:gpt-4.1-nano',  label: 'gpt-4.1-nano',  hint: 'cheapest 4.1 · short answers / routing' },
       { id: 'openai:gpt-4o-mini',   label: 'gpt-4o-mini',   hint: 'legacy multimodal mini · vision OK' },
     ],
@@ -62,7 +70,7 @@ const MODEL_GROUPS: ModelGroup[] = [
   },
 ];
 
-const DEFAULT_MODEL_ID = 'openai:gpt-4.1-mini';
+const DEFAULT_MODEL_ID = 'openai:gpt-5.6-sol';
 
 const ALL_MODEL_IDS = MODEL_GROUPS.flatMap((g) => g.models.map((m) => m.id));
 

@@ -43,9 +43,12 @@ export interface GbChatModel {
   provider: 'openai' | 'google';
 }
 
-export const GATA_DEFAULT_MODEL = 'openai:gpt-5.4';
+export const GATA_DEFAULT_MODEL = 'openai:gpt-5.6-sol';
 
 export const GATA_CHAT_MODELS: GbChatModel[] = [
+  { id: 'openai:gpt-5.6-sol', label: 'GPT-5.6 Sol', provider: 'openai' },
+  { id: 'openai:gpt-5.6-terra', label: 'GPT-5.6 Terra', provider: 'openai' },
+  { id: 'openai:gpt-5.6-luna', label: 'GPT-5.6 Luna', provider: 'openai' },
   { id: 'openai:gpt-5.4', label: 'GPT-5.4', provider: 'openai' },
   { id: 'openai:gpt-5.4-mini', label: 'GPT-5.4 Mini', provider: 'openai' },
   { id: 'openai:gpt-5', label: 'GPT-5', provider: 'openai' },

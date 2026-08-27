@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { AgentStep } from '../../services/piovra';
 import { Badge } from '../ui/primitives';
 
@@ -17,9 +19,71 @@ const AssistantBubble = styled.div`
   color: var(--text-1);
   font-size: 14px;
   line-height: 1.55;
-  white-space: pre-wrap;
   max-width: 100%;
-  word-wrap: break-word;
+  overflow-wrap: anywhere;
+
+  p { margin: 0 0 0.65em; }
+  p:last-child { margin-bottom: 0; }
+  h1, h2, h3, h4 {
+    margin: 0.85em 0 0.4em;
+    color: var(--text-1);
+    line-height: 1.3;
+    font-weight: 600;
+  }
+  h1:first-child, h2:first-child, h3:first-child, h4:first-child { margin-top: 0; }
+  h1 { font-size: 16px; }
+  h2 { font-size: 15px; }
+  h3, h4 { font-size: 14px; }
+  ul, ol {
+    margin: 0.25em 0 0.65em;
+    padding-left: 1.25em;
+  }
+  li { margin-bottom: 0.3em; }
+  li > p { margin: 0; }
+  strong { font-weight: 600; color: var(--text-1); }
+  em { font-style: italic; }
+  blockquote {
+    margin: 0.4em 0 0.65em;
+    padding: 0 0 0 10px;
+    border-left: 2px solid var(--border-2);
+    color: var(--text-2);
+  }
+  hr {
+    border: 0;
+    border-top: 1px solid var(--border-1);
+    margin: 0.75em 0;
+  }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--bg-1);
+    border: 1px solid var(--border-1);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  pre {
+    margin: 0.45em 0 0.65em;
+    background: var(--bg-1);
+    border: 1px solid var(--border-1);
+    border-radius: 8px;
+    padding: 10px 12px;
+    overflow-x: auto;
+  }
+  pre code { background: none; border: 0; padding: 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 0.4em 0 0.65em;
+  }
+  th, td {
+    border: 1px solid var(--border-1);
+    padding: 4px 8px;
+    text-align: left;
+  }
+  th { color: var(--text-2); font-weight: 600; }
 `;
 
 const UserBubble = styled.div`
@@ -231,7 +295,22 @@ const StepCard: React.FC<StepCardProps> = ({ step }) => {
   switch (step.kind) {
     case 'message':
       if (step.role === 'user') return <UserBubble>{step.content}</UserBubble>;
-      return <AssistantBubble>{renderWithLinks(step.content)}</AssistantBubble>;
+      return (
+        <AssistantBubble>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              a: ({ href, children, ...props }) => (
+                <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                  {children}
+                </a>
+              ),
+            }}
+          >
+            {step.content ?? ''}
+          </ReactMarkdown>
+        </AssistantBubble>
+      );
 
     case 'thought':
       return <ThoughtLine>{step.text}</ThoughtLine>;
