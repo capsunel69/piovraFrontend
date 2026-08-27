@@ -16,6 +16,7 @@ import {
 import StepCard from './StepCard';
 import GoogleConsentPrompt from './GoogleConsentPrompt';
 import ConnectGmailBanner from './ConnectGmailBanner';
+import { formatBubbleTime } from '../../utils/bubbleTime';
 
 const Shell = styled(Card)`
   display: flex;
@@ -78,6 +79,25 @@ const UserLine = styled.div`
   white-space: pre-wrap;
   max-width: 80%;
   word-wrap: break-word;
+`;
+
+const UserStack = styled.div`
+  align-self: flex-end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 80%;
+  ${UserLine} { max-width: 100%; align-self: stretch; }
+`;
+
+const BubbleTime = styled.time`
+  margin-top: 4px;
+  padding: 0 4px;
+  font-size: 10.5px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-4);
+  user-select: none;
 `;
 
 const AgentColumn = styled.div`
@@ -379,12 +399,20 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
           turns.map((turn) => {
             const u = turn.input.trim();
             const fileNames = (turn.files ?? []).map((f) => f.name);
+            const sentAt = formatBubbleTime(turn.startedAt);
             return (
               <Turn key={turn.id}>
-                <UserLine>
-                  {u || (fileNames.length > 0 ? 'Sent files' : '')}
-                  {fileNames.length > 0 ? `\n${fileNames.join('\n')}` : ''}
-                </UserLine>
+                <UserStack>
+                  <UserLine>
+                    {u || (fileNames.length > 0 ? 'Sent files' : '')}
+                    {fileNames.length > 0 ? `\n${fileNames.join('\n')}` : ''}
+                  </UserLine>
+                  {sentAt && (
+                    <BubbleTime dateTime={turn.startedAt} title={sentAt.title}>
+                      {sentAt.label}
+                    </BubbleTime>
+                  )}
+                </UserStack>
                 <AgentColumn>
                   {turn.steps.map((step, i) => (
                     <StepCard key={i} step={step} />

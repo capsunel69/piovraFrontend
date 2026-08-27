@@ -33,6 +33,8 @@ export interface ChatTurn {
   tokensIn: number | null;
   tokensOut: number | null;
   startedAt: string;
+  /** Set when the turn finishes (success or error). */
+  endedAt: string | null;
 }
 
 interface UseOrchestrateResult {
@@ -162,6 +164,7 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
         tokensIn: null,
         tokensOut: null,
         startedAt: new Date().toISOString(),
+        endedAt: null,
       };
       setTurns((prev) => [...prev, newTurn]);
       setStatus('streaming');
@@ -194,19 +197,29 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
               output,
               tokensIn,
               tokensOut,
+              endedAt: new Date().toISOString(),
             });
           },
           onError: (message) => {
-            updateTurn(turnId, { status: 'error', error: message });
+            updateTurn(turnId, {
+              status: 'error',
+              error: message,
+              endedAt: new Date().toISOString(),
+            });
           },
           onNeedsConsent: (info) => {
-            updateTurn(turnId, { status: 'error', needsConsent: info, error: null });
+            updateTurn(turnId, {
+              status: 'error',
+              needsConsent: info,
+              error: null,
+              endedAt: new Date().toISOString(),
+            });
           },
         });
         setStatus('idle');
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        updateTurn(turnId, { status: 'error', error: message });
+        updateTurn(turnId, { status: 'error', error: message, endedAt: new Date().toISOString() });
         setStatus('error');
       } finally {
         abortRef.current = null;
@@ -221,7 +234,9 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
     setStatus('idle');
     setTurns((prev) =>
       prev.map((t) =>
-        t.status === 'streaming' ? { ...t, status: 'error', error: 'aborted' } : t,
+        t.status === 'streaming'
+          ? { ...t, status: 'error', error: 'aborted', endedAt: new Date().toISOString() }
+          : t,
       ),
     );
   }, []);

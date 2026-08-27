@@ -27,6 +27,7 @@ import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 import { VoiceAPI, type VoiceCapabilities } from '../../services/voice';
 import { PiovraAPI, type AgentStep, type OrchestrateUserFile } from '../../services/piovra';
 import { shortModelLabel } from '../../constants/agentModels';
+import { formatBubbleTime } from '../../utils/bubbleTime';
 import {
   ORCHESTRATE_FILE_ACCEPT,
   ORCHESTRATE_FILE_MAX_BYTES,
@@ -275,6 +276,26 @@ const UserLine = styled.div`
   max-width: 88%;
   word-wrap: break-word;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+`;
+
+const UserStack = styled.div`
+  align-self: flex-end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 88%;
+  ${UserLine} { max-width: 100%; align-self: stretch; }
+`;
+
+const BubbleTime = styled.time<{ $mine?: boolean }>`
+  margin-top: 4px;
+  padding: 0 4px;
+  font-size: 10.5px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-4);
+  user-select: none;
+  align-self: ${(p) => (p.$mine ? 'flex-end' : 'flex-start')};
 `;
 
 const SentFiles = styled.div`
@@ -1460,22 +1481,30 @@ const ChatSurface: React.FC<ChatSurfaceProps> = ({
             turns.map((turn) => {
               const u = turn.input.trim();
               const sentFiles = turn.files ?? [];
+              const sentAt = formatBubbleTime(turn.startedAt);
               return (
                 <Turn key={turn.id}>
-                  <UserLine>
-                    {u || (sentFiles.length > 0 ? 'Sent files' : '')}
-                    {sentFiles.length > 0 && (
-                      <SentFiles>
-                        {sentFiles.map((f, i) => (
-                          <SentFileChip key={`${turn.id}-f${i}`} $wide={isPage} title={f.name}>
-                            <IconFileText />
-                            <span className="n">{f.name}</span>
-                            <span className="s">{formatAttachBytes(f.size)}</span>
-                          </SentFileChip>
-                        ))}
-                      </SentFiles>
+                  <UserStack>
+                    <UserLine>
+                      {u || (sentFiles.length > 0 ? 'Sent files' : '')}
+                      {sentFiles.length > 0 && (
+                        <SentFiles>
+                          {sentFiles.map((f, i) => (
+                            <SentFileChip key={`${turn.id}-f${i}`} $wide={isPage} title={f.name}>
+                              <IconFileText />
+                              <span className="n">{f.name}</span>
+                              <span className="s">{formatAttachBytes(f.size)}</span>
+                            </SentFileChip>
+                          ))}
+                        </SentFiles>
+                      )}
+                    </UserLine>
+                    {sentAt && (
+                      <BubbleTime $mine dateTime={turn.startedAt} title={sentAt.title}>
+                        {sentAt.label}
+                      </BubbleTime>
                     )}
-                  </UserLine>
+                  </UserStack>
                   <AgentColumn>
                     {turn.steps.map((step, i) => (
                       <StepCard key={i} step={step} />

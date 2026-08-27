@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { AgentStep } from '../../services/piovra';
 import { Badge } from '../ui/primitives';
+import { formatBubbleTime } from '../../utils/bubbleTime';
 
 const Wrap = styled.div`
   display: flex;
@@ -98,6 +99,35 @@ const UserBubble = styled.div`
   max-width: 80%;
   word-wrap: break-word;
 `;
+
+const BubbleTime = styled.time<{ $mine?: boolean }>`
+  margin-top: 4px;
+  padding: 0 4px;
+  font-size: 10.5px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-4);
+  user-select: none;
+  align-self: ${(p) => (p.$mine ? 'flex-end' : 'flex-start')};
+`;
+
+const BubbleStack = styled.div<{ $mine?: boolean }>`
+  display: flex;
+  flex-direction: column;
+  align-items: ${(p) => (p.$mine ? 'flex-end' : 'flex-start')};
+  max-width: 100%;
+  width: 100%;
+`;
+
+function StepTime({ at, mine }: { at: string; mine?: boolean }): React.ReactNode {
+  const t = formatBubbleTime(at);
+  if (!t) return null;
+  return (
+    <BubbleTime $mine={mine} dateTime={at} title={t.title}>
+      {t.label}
+    </BubbleTime>
+  );
+}
 
 const ThoughtLine = styled.div`
   color: var(--text-3);
@@ -294,22 +324,32 @@ const StepCard: React.FC<StepCardProps> = ({ step }) => {
 
   switch (step.kind) {
     case 'message':
-      if (step.role === 'user') return <UserBubble>{step.content}</UserBubble>;
+      if (step.role === 'user') {
+        return (
+          <BubbleStack $mine>
+            <UserBubble>{step.content}</UserBubble>
+            <StepTime at={step.at} mine />
+          </BubbleStack>
+        );
+      }
       return (
-        <AssistantBubble>
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              a: ({ href, children, ...props }) => (
-                <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
-                  {children}
-                </a>
-              ),
-            }}
-          >
-            {step.content ?? ''}
-          </ReactMarkdown>
-        </AssistantBubble>
+        <BubbleStack>
+          <AssistantBubble>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({ href, children, ...props }) => (
+                  <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                    {children}
+                  </a>
+                ),
+              }}
+            >
+              {step.content ?? ''}
+            </ReactMarkdown>
+          </AssistantBubble>
+          <StepTime at={step.at} />
+        </BubbleStack>
       );
 
     case 'thought':
