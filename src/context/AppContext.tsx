@@ -718,15 +718,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         })()
       : { completed: !reminder.completed };
 
+    setReminders((prev) => prev.map((r) => (r.id === reminderId ? { ...r, ...updates } : r)));
+
     try {
       const updatedReminder = await RemindersAPI.update(reminderId, updates);
       setReminders((prev) => prev.map((r) => (r.id === reminderId ? updatedReminder : r)));
     } catch (err) {
       console.error('Error toggling reminder completion:', err);
       setError('Failed to update reminder');
-      setReminders((prev) =>
-        prev.map((r) => (r.id === reminderId ? { ...r, ...updates } : r)),
-      );
     }
   }, [reminders, currentDate]);
 

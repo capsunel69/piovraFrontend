@@ -4,6 +4,7 @@ import { format, isSameDay, isValid } from 'date-fns';
 import { useAppContext } from '../context/AppContext';
 import LinkifyText from '../components/shared/LinkifyText';
 import ReminderEditForm from '../components/ReminderEditForm';
+import { useToast } from '../components/ui/Toast';
 import {
   PageContainer, PageHeader, PageTitle, PageSubtitle,
   Card, CardHeader, CardTitle, CardSubtle, CardBody,
@@ -46,10 +47,11 @@ const ReminderRow = styled.div<{ $today?: boolean; $converted?: boolean; $select
   }
 `;
 
-const Title = styled.h3`
+const Title = styled.h3<{ $done?: boolean }>`
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-1);
+  color: ${p => p.$done ? 'var(--text-3)' : 'var(--text-1)'};
+  text-decoration: ${p => p.$done ? 'line-through' : 'none'};
   display: flex;
   align-items: center;
   gap: var(--s-2);
@@ -161,6 +163,7 @@ const Reminders: React.FC = () => {
     convertReminderToTask,
     currentDate,
   } = useAppContext();
+  const toast = useToast();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -328,7 +331,10 @@ const Reminders: React.FC = () => {
   };
 
   const selectedCount = selectedIds.size;
-  const allSelected = reminders.length > 0 && selectedCount === reminders.length;
+  const activeReminders = reminders.filter((r) => !isReminderCompleted(r, currentDate));
+  const doneReminders = reminders.filter((r) => isReminderCompleted(r, currentDate));
+  const allSelected =
+    activeReminders.length > 0 && activeReminders.every((r) => selectedIds.has(r.id));
 
   const toggleSelected = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -340,8 +346,10 @@ const Reminders: React.FC = () => {
   }, []);
 
   const selectAll = useCallback(() => {
-    setSelectedIds(new Set(reminders.map((r) => r.id)));
-  }, [reminders]);
+    setSelectedIds(
+      new Set(reminders.filter((r) => !isReminderCompleted(r, currentDate)).map((r) => r.id)),
+    );
+  }, [reminders, currentDate]);
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
@@ -364,18 +372,116 @@ const Reminders: React.FC = () => {
     if (ids.length === 0) return;
     setBulkBusy(true);
     try {
+      let moved = 0;
       for (const id of ids) {
         const r = reminders.find((x) => x.id === id);
         if (!r || isReminderCompleted(r, currentDate)) continue;
         await toggleReminderCompletion(id);
+        moved += 1;
       }
       setSelectedIds(new Set());
+      if (moved > 0) {
+        toast.success(moved === 1 ? 'Moved to Done' : `Moved ${moved} to Done`);
+      }
     } finally {
       setBulkBusy(false);
     }
-  }, [selectedIds, reminders, currentDate, toggleReminderCompletion]);
+  }, [selectedIds, reminders, currentDate, toggleReminderCompletion, toast]);
 
   const canSubmit = Boolean(title.trim()) && (recurring !== '' || Boolean(date));
+
+  const renderReminderRow = (reminder: Reminder, mode: 'active' | 'done') => {
+    if (editingId === reminder.id) {
+      return (
+        <ReminderEditForm
+          key={reminder.id}
+          reminder={reminder}
+          onSave={(id, updates) => {
+            updateReminder(id, updates);
+            setEditingId(null);
+          }}
+          onCancel={() => setEditingId(null)}
+        />
+      );
+    }
+
+    const due = isReminderDueToday(reminder);
+    const taskCreatedToday = reminder.recurring
+      ? (reminder.convertedToTaskDates || []).some((d) => {
+          const t = new Date(currentDate);
+          t.setHours(0, 0, 0, 0);
+          const converted = parseReminderDate(d);
+          return converted ? isSameDay(converted, t) : false;
+        })
+      : reminder.convertedToTask && due;
+    const reminderDate = parseReminderDate(reminder.date);
+    const selected = selectedIds.has(reminder.id);
+    const done = mode === 'done';
+
+    return (
+      <ReminderRow
+        key={reminder.id}
+        $today={!done && due && !taskCreatedToday}
+        $converted={taskCreatedToday}
+        $selected={!done && selected}
+      >
+        <Checkbox
+          type="button"
+          $checked={done || selected}
+          onClick={() => {
+            if (done) void toggleReminderCompletion(reminder.id);
+            else toggleSelected(reminder.id);
+          }}
+          title={done ? 'Move back to Active' : 'Select reminder'}
+          aria-label={done ? `Restore ${reminder.title}` : `Select ${reminder.title}`}
+          style={{ marginTop: 3 }}
+        />
+        <Body>
+          <Title $done={done}>
+            {reminder.title}
+            {!done && due && !taskCreatedToday && <Badge $variant="success">Today</Badge>}
+            {taskCreatedToday && <Badge $variant="purple">Task created</Badge>}
+            {reminder.recurring && (
+              <Badge $variant="info">
+                <IconRepeat /> {reminder.recurring}
+              </Badge>
+            )}
+          </Title>
+          {reminder.description && (
+            <Description>
+              <LinkifyText text={displayNotes(reminder.description)} />
+            </Description>
+          )}
+          <MetaRow>
+            {!reminder.recurring && reminderDate && (
+              <span>
+                <IconClock /> {format(reminderDate, 'MMM d, yyyy · HH:mm')}
+              </span>
+            )}
+            {reminder.recurring && (
+              <span>
+                <IconRepeat /> {formatRecurring(reminder)}
+                {done ? ' · done today' : ''}
+              </span>
+            )}
+          </MetaRow>
+        </Body>
+        <Actions>
+          {!done && due && !taskCreatedToday && (
+            <Button $size="sm" $variant="ghost" onClick={() => convertReminderToTask(reminder.id)}>
+              <IconPlus /> Task
+            </Button>
+          )}
+          <IconButton $size="sm" onClick={() => setEditingId(reminder.id)} title="Edit">
+            <IconEdit />
+          </IconButton>
+          <IconButton $size="sm" $variant="danger" onClick={() => deleteReminder(reminder.id)} title="Delete">
+            <IconTrash />
+          </IconButton>
+        </Actions>
+      </ReminderRow>
+    );
+  };
 
   return (
     <PageContainer>
@@ -505,8 +611,8 @@ const Reminders: React.FC = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle><IconBell /> Active <CardSubtle>{reminders.length}</CardSubtle></CardTitle>
-          {reminders.length > 0 && selectedCount === 0 && (
+          <CardTitle><IconBell /> Active <CardSubtle>{activeReminders.length}</CardSubtle></CardTitle>
+          {activeReminders.length > 0 && selectedCount === 0 && (
             <Button type="button" $size="sm" $variant="ghost" onClick={selectAll}>
               Select
             </Button>
@@ -531,88 +637,29 @@ const Reminders: React.FC = () => {
           </BulkBar>
         )}
         <CardBody>
-          {reminders.length === 0 ? (
-            <EmptyState><IconBell /><div>No reminders yet.</div></EmptyState>
-          ) : reminders.map(reminder => {
-            if (editingId === reminder.id) {
-              return (
-                <ReminderEditForm
-                  key={reminder.id}
-                  reminder={reminder}
-                  onSave={(id, updates) => {
-                    updateReminder(id, updates);
-                    setEditingId(null);
-                  }}
-                  onCancel={() => setEditingId(null)}
-                />
-              );
-            }
-
-            const due = isReminderDueToday(reminder);
-            const completedToday = isReminderCompleted(reminder, currentDate);
-            const taskCreatedToday = reminder.recurring
-              ? (reminder.convertedToTaskDates || []).some(d => {
-                  const t = new Date(currentDate); t.setHours(0,0,0,0);
-                  const converted = parseReminderDate(d);
-                  return converted ? isSameDay(converted, t) : false;
-                })
-              : reminder.convertedToTask && due;
-            const reminderDate = parseReminderDate(reminder.date);
-            const selected = selectedIds.has(reminder.id);
-
-            return (
-              <ReminderRow
-                key={reminder.id}
-                $today={due && !completedToday && !taskCreatedToday}
-                $converted={taskCreatedToday}
-                $selected={selected}
-              >
-                <Checkbox
-                  type="button"
-                  $checked={selected}
-                  onClick={() => toggleSelected(reminder.id)}
-                  title="Select reminder"
-                  aria-label={`Select ${reminder.title}`}
-                  style={{ marginTop: 3 }}
-                />
-                <Body>
-                  <Title>
-                    {reminder.title}
-                    {due && !completedToday && !taskCreatedToday && <Badge $variant="success">Today</Badge>}
-                    {taskCreatedToday && <Badge $variant="purple">Task created</Badge>}
-                    {completedToday && <Badge $variant="neutral">Done</Badge>}
-                    {reminder.recurring && <Badge $variant="info"><IconRepeat /> {reminder.recurring}</Badge>}
-                  </Title>
-                  {reminder.description && (
-                    <Description>
-                      <LinkifyText text={displayNotes(reminder.description)} />
-                    </Description>
-                  )}
-                  <MetaRow>
-                    {!reminder.recurring && reminderDate && (
-                      <span><IconClock /> {format(reminderDate, 'MMM d, yyyy · HH:mm')}</span>
-                    )}
-                    {reminder.recurring && <span><IconRepeat /> {formatRecurring(reminder)}</span>}
-                  </MetaRow>
-                </Body>
-                <Actions>
-                  {due && !taskCreatedToday && !completedToday && (
-                    <Button $size="sm" $variant="ghost" onClick={() => convertReminderToTask(reminder.id)}>
-                      <IconPlus /> Task
-                    </Button>
-                  )}
-                  <IconButton $size="sm" onClick={() => setEditingId(reminder.id)} title="Edit">
-                    <IconEdit />
-                  </IconButton>
-                  <IconButton $size="sm" $variant="danger" onClick={() => deleteReminder(reminder.id)} title="Delete">
-                    <IconTrash />
-                  </IconButton>
-                </Actions>
-              </ReminderRow>
-            );
-          })}
+          {activeReminders.length === 0 ? (
+            <EmptyState>
+              <IconBell />
+              <div>{reminders.length === 0 ? 'No reminders yet.' : 'Nothing active.'}</div>
+            </EmptyState>
+          ) : (
+            activeReminders.map((r) => renderReminderRow(r, 'active'))
+          )}
         </CardBody>
       </Card>
+
+      {doneReminders.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              <IconCheck /> Done <CardSubtle>{doneReminders.length}</CardSubtle>
+            </CardTitle>
+          </CardHeader>
+          <CardBody>
+            {doneReminders.map((r) => renderReminderRow(r, 'done'))}
+          </CardBody>
+        </Card>
+      )}
     </PageContainer>
   );
 };
