@@ -14,6 +14,7 @@ import {
   IconDashboard, IconTasks, IconCalendar, IconBell, IconNote, IconContacts,
   IconLogout, IconChevronLeft, IconClock, IconBot, IconChat, IconCommentSentinel,
   IconAnalytics, IconTranscribe, IconGataBoss, IconMenu, IconLock, IconBook,
+  IconSpark,
 } from '../ui/icons';
 import { IconButton } from '../ui/primitives';
 
@@ -27,6 +28,7 @@ const NAV_PRIMARY: MobileNavItem[] = [
   { to: '/notes',     label: 'Notes',     icon: IconNote },
   { to: '/contacts',  label: 'Contacts',  icon: IconContacts },
   { to: '/chat',      label: 'Chat',      icon: IconChat },
+  { to: '/assistant', label: 'Assistant', icon: IconSpark },
   { to: '/agents',    label: 'Agents',    icon: IconBot },
   { to: '/gata-boss', label: 'GATA Bo$$', icon: IconGataBoss },
   { to: '/comment-sentinel', label: 'Comment Sentinel', icon: IconCommentSentinel },
@@ -495,6 +497,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     setMobileNavOpen(true);
   }, []);
 
+  const flushPage =
+    location.pathname === '/comment-sentinel' || location.pathname === '/assistant';
+
   return (
     <>
       <Shell $collapsed={collapsed}>
@@ -600,11 +605,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </TopbarRight>
           </Topbar>
 
-          <Content $flush={location.pathname === '/comment-sentinel'}>
-            {location.pathname !== '/comment-sentinel' && (
+          <Content $flush={flushPage}>
+            {!flushPage && (
               <BackgroundFx sidebarCollapsed={collapsed} />
             )}
-            {location.pathname === '/comment-sentinel' ? (
+            {flushPage ? (
               children
             ) : (
               <ContentInner>{children}</ContentInner>

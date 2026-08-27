@@ -11,12 +11,19 @@ import type { Contact, Journal, Meeting, Reminder, Task } from '../types';
 
 export type ChatStatus = 'idle' | 'streaming' | 'error';
 
+export interface TurnFileMeta {
+  name: string;
+  size: number;
+}
+
 export interface ChatTurn {
   id: string;
   input: string;
-  /** Number of files sent with this turn (for history hint; bytes are not kept). */
-  imageCount?: number;
-  attachmentHint?: string;
+  /** Files sent with this turn (names + sizes; bytes are not kept). */
+  files?: TurnFileMeta[];
+  /** Server-extracted content of this turn's attachments, replayed into
+   *  later turns' history so the whole chat keeps access to the files. */
+  attachmentMemory?: Array<{ name: string; text?: string }>;
   steps: AgentStep[];
   output: string | null;
   error: string | null;
@@ -141,12 +148,11 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
       const newTurn: ChatTurn = {
         id: turnId,
         input: trimmed,
-        imageCount: fileList?.length,
-        attachmentHint: fileList
-          ?.map((f) => f.filename)
-          .filter(Boolean)
-          .slice(0, 3)
-          .join(', '),
+        files: fileList?.map((f, i) => ({
+          name: f.filename?.trim() || `file ${i + 1}`,
+          // base64 → raw bytes
+          size: Math.round((f.data.length * 3) / 4),
+        })),
         steps: [],
         output: null,
         error: null,
@@ -172,6 +178,12 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
           files: fileList,
           signal: controller.signal,
           onStep: (step) => {
+            if (step.kind === 'attachments') {
+              // Not rendered as a step — stored on the turn and replayed into
+              // history so later messages keep access to the file content.
+              updateTurn(turnId, { attachmentMemory: step.files });
+              return;
+            }
             appendStep(turnId, step);
             reactToStep(step);
           },
@@ -231,19 +243,54 @@ export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
  * intentionally omitted — the agent re-derives ids each turn via
  * capsuna.*.list, which is cheap and avoids tool-message format drift.
  *
+ * Attachment content extracted server-side (turn.attachmentMemory) is
+ * replayed inside the user message that sent the files, so the whole chat
+ * keeps access to file contents — not just the turn that uploaded them.
+ * Newest turns get budget priority; older files degrade to names only.
+ *
  * Capped to the last N messages so prompt cost stays bounded.
  */
+const MEMORY_TOTAL_BUDGET = 800_000;
+const MEMORY_PER_TURN = 200_000;
+const HISTORY_MESSAGE_MAX = 380_000;
+
 function buildHistory(turns: ChatTurn[]): ChatHistoryMessage[] {
-  const MAX_MESSAGES = 30;
+  const MAX_MESSAGES = 200;
+  const prior = turns.filter((t) => t.status !== 'streaming');
+
+  // Allocate the replay budget newest-first so recent files stay complete.
+  let budget = MEMORY_TOTAL_BUDGET;
+  const memoryBlockByTurn = new Map<string, string>();
+  for (let i = prior.length - 1; i >= 0; i--) {
+    const t = prior[i];
+    const mem = (t.attachmentMemory ?? []).filter((m) => m.text?.trim());
+    if (mem.length === 0 || budget <= 200) continue;
+    let block = '';
+    let used = 0;
+    for (const m of mem) {
+      const text = m.text!.trim();
+      const room = Math.min(MEMORY_PER_TURN, budget) - used;
+      if (room <= 200) break;
+      const body = text.length > room ? `${text.slice(0, room)}\n…(truncated)` : text;
+      block += `\n\n### Content of attached file: ${m.name}\n${body}`;
+      used += body.length;
+    }
+    if (block) {
+      memoryBlockByTurn.set(t.id, block);
+      budget -= used;
+    }
+  }
+
   const out: ChatHistoryMessage[] = [];
-  for (const t of turns) {
-    if (t.status !== 'idle') continue;
+  for (const t of prior) {
     const u = t.input?.trim() ?? '';
-    if (u || t.imageCount) {
-      const n = t.imageCount ?? 0;
-      const label = n ? ` [${n} file${n === 1 ? '' : 's'}]` : '';
-      const line = (u || t.attachmentHint || '(file)') + label;
-      out.push({ role: 'user', content: line });
+    const names = (t.files ?? []).map((f) => f.name);
+    if (u || names.length > 0) {
+      let line = u || 'See attached file(s).';
+      if (names.length > 0) line += `\n[Attached files: ${names.join(', ')}]`;
+      const mem = memoryBlockByTurn.get(t.id);
+      if (mem) line += mem;
+      out.push({ role: 'user', content: line.slice(0, HISTORY_MESSAGE_MAX) });
     }
     const assistantText =
       (t.output && t.output.trim()) ||

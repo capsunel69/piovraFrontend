@@ -14,6 +14,7 @@ import Contacts from './pages/Contacts';
 import Agents from './pages/Agents';
 import Admin from './pages/Admin';
 import Chat from './pages/Chat';
+import Assistant from './pages/Assistant';
 import Documentation from './pages/Documentation';
 import CommentSentinel from './pages/CommentSentinel';
 import Analytics from './pages/Analytics';
@@ -71,6 +72,7 @@ function App() {
                       <Route path="/terms" element={<Terms />} />
                       <Route path="/agents" element={<Agents />} />
                       <Route path="/chat" element={<Chat />} />
+                      <Route path="/assistant" element={<Assistant />} />
                       <Route path="/admin" element={<Admin />} />
                       <Route path="/docs" element={<Documentation />} />
                     </Routes>

@@ -10,6 +10,7 @@ import {
   ORCHESTRATE_FILE_MAX_COUNT,
   ORCHESTRATE_FILES_MAX_TOTAL_BYTES,
   filesToOrchestrateFiles,
+  formatChatLimitsLine,
   isOrchestrateAttachable,
 } from '../../utils/orchestrateImages';
 import StepCard from './StepCard';
@@ -99,10 +100,19 @@ const TurnFooter = styled.div`
 
 const Composer = styled.form`
   border-top: 1px solid var(--border-1);
-  padding: var(--s-3) var(--s-4);
+  padding: var(--s-3) var(--s-4) 0;
   display: flex;
   gap: var(--s-3);
   align-items: flex-end;
+  background: var(--bg-1);
+  flex-shrink: 0;
+`;
+
+const LimitsLine = styled.div`
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+  padding: 6px var(--s-4) 10px;
   background: var(--bg-1);
   flex-shrink: 0;
 `;
@@ -368,19 +378,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
         ) : (
           turns.map((turn) => {
             const u = turn.input.trim();
-            const fileCount = turn.imageCount ?? 0;
-            const userLabel =
-              u ||
-              (fileCount
-                ? fileCount === 1
-                  ? turn.attachmentHint || 'File'
-                  : `${fileCount} files`
-                : '');
+            const fileNames = (turn.files ?? []).map((f) => f.name);
             return (
               <Turn key={turn.id}>
                 <UserLine>
-                  {userLabel}
-                  {u && fileCount ? ` · ${fileCount} file${fileCount === 1 ? '' : 's'}` : ''}
+                  {u || (fileNames.length > 0 ? 'Sent files' : '')}
+                  {fileNames.length > 0 ? `\n${fileNames.join('\n')}` : ''}
                 </UserLine>
                 <AgentColumn>
                   {turn.steps.map((step, i) => (
@@ -427,8 +430,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
           type="button"
           disabled={streaming}
           onClick={() => fileRef.current?.click()}
-          title="Attach a file"
-          aria-label="Attach a file"
+          title={formatChatLimitsLine(null)}
+          aria-label="Attach files"
         >
           <IconPaperclip />
         </AttachButton>
@@ -476,6 +479,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
           </Button>
         )}
       </Composer>
+      <LimitsLine>
+        {formatChatLimitsLine(
+          null,
+          pending.length > 0
+            ? { count: pending.length, bytes: pending.reduce((s, p) => s + p.file.size, 0) }
+            : undefined,
+        )}
+      </LimitsLine>
     </Shell>
   );
 };

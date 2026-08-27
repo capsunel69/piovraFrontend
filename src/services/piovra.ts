@@ -21,7 +21,14 @@ export type AgentStep =
   | { kind: 'tool_call'; skill: string; toolCallId: string; args: unknown; at: string }
   | { kind: 'tool_result'; skill: string; toolCallId: string; result: unknown; at: string }
   | { kind: 'message'; role: 'assistant' | 'user'; content: string; at: string }
-  | { kind: 'error'; message: string; at: string };
+  | { kind: 'error'; message: string; at: string }
+  | {
+      /** Files resolved server-side for a turn, with extracted text where
+       *  available. Replayed into later turns' history for context. */
+      kind: 'attachments';
+      files: Array<{ name: string; text?: string }>;
+      at: string;
+    };
 
 export interface AgentDefinition {
   id: string;

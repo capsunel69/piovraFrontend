@@ -350,6 +350,21 @@ const StepCard: React.FC<StepCardProps> = ({ step }) => {
 
     case 'error':
       return <ErrorBanner>{step.message}</ErrorBanner>;
+
+    case 'attachments':
+      return (
+        <ToolCard>
+          <header>
+            <Badge $variant="accent">files</Badge>
+            <span className="skill">
+              {step.files.map((f) => f.name).join(', ')}
+            </span>
+          </header>
+        </ToolCard>
+      );
+
+    default:
+      return null;
   }
 };
 
