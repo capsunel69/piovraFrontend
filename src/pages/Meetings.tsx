@@ -93,6 +93,7 @@ const BannerBody = styled.div`
 const SyncBar = styled.div`
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--s-2);
   font-size: 12px;
   color: var(--text-3);
@@ -200,6 +201,17 @@ const Actions = styled.div`
 
 type View = 'list' | 'calendar';
 
+function isCalendarAuthError(message: string | null | undefined): boolean {
+  if (!message) return false;
+  const m = message.toLowerCase();
+  return (
+    m.includes('insufficient') ||
+    m.includes('scope') ||
+    m.includes('invalid_grant') ||
+    m.includes('unauthenticated')
+  );
+}
+
 function toLocalInputValue(d: Date): string {
   // YYYY-MM-DDTHH:MM in local time, suitable for <input type="datetime-local">
   const pad = (n: number): string => String(n).padStart(2, '0');
@@ -267,7 +279,12 @@ const Meetings: React.FC = () => {
           return;
         }
         if (j.error === 'calendar_sync_failed') {
-          toast.error(`Sync failed: ${j.message ?? 'Google rejected the request.'}`);
+          const detail = j.message ?? 'Google rejected the request.';
+          toast.error(
+            isCalendarAuthError(detail)
+              ? 'Calendar access expired — reconnect Google to grant scopes again.'
+              : `Sync failed: ${detail}`,
+          );
           await refreshStatus();
           return;
         }
@@ -376,6 +393,16 @@ const Meetings: React.FC = () => {
             <Badge $variant="danger">Sync error</Badge>
           )}
           <ComposerSpacer />
+          <Button
+            $size="sm"
+            $variant={isCalendarAuthError(calStatus.syncError) ? 'primary' : 'ghost'}
+            onClick={() => {
+              window.location.href = googleCalendarUpgradeUrl;
+            }}
+          >
+            <IconExternal />
+            Reconnect
+          </Button>
           <Button $size="sm" $variant="ghost" onClick={handleSync} disabled={syncing}>
             <IconRefresh />
             {syncing ? 'Syncing…' : 'Sync now'}
