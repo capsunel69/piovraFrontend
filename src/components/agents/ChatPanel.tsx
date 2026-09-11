@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { Button, Card, CardHeader, CardTitle, CardSubtle, EmptyState, Spinner } from '../ui/primitives';
 import { IconBot, IconSend, IconStop, IconRefresh, IconPaperclip, IconFileText, IconX } from '../ui/icons';
-import { useOrchestrate } from '../../hooks/useOrchestrate';
+import { useOrchestrate, turnErrorAlreadyShown } from '../../hooks/useOrchestrate';
 import type { OrchestrateUserFile } from '../../services/piovra';
 import {
   ORCHESTRATE_FILE_ACCEPT,
@@ -423,7 +423,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ instanceId, instanceName }) => {
                     </TurnFooter>
                   )}
                   {turn.needsConsent && <GoogleConsentPrompt consent={turn.needsConsent} />}
-                  {turn.error && (
+                  {turn.error && !turnErrorAlreadyShown(turn) && (
                     <TurnFooter style={{ color: 'var(--danger)' }}>{turn.error}</TurnFooter>
                   )}
                   {turn.status === 'idle' && turn.runId && (

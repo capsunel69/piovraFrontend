@@ -23,6 +23,7 @@ import StepCard from '../agents/StepCard';
 import GoogleConsentPrompt from '../agents/GoogleConsentPrompt';
 import ConnectGmailBanner from '../agents/ConnectGmailBanner';
 import { useChat } from '../../context/ChatContext';
+import { turnErrorAlreadyShown } from '../../hooks/useOrchestrate';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 import { VoiceAPI, type VoiceCapabilities } from '../../services/voice';
 import { PiovraAPI, type AgentStep, type OrchestrateUserFile } from '../../services/piovra';
@@ -1515,7 +1516,7 @@ const ChatSurface: React.FC<ChatSurfaceProps> = ({
                       </TurnFooter>
                     )}
                     {turn.needsConsent && <GoogleConsentPrompt consent={turn.needsConsent} />}
-                    {turn.error && (
+                    {turn.error && !turnErrorAlreadyShown(turn) && (
                       <TurnFooter style={{ color: 'var(--danger)' }}>{turn.error}</TurnFooter>
                     )}
                     {turn.status === 'idle' && turn.runId && (

@@ -45,6 +45,11 @@ interface UseOrchestrateResult {
   reset: () => void;
 }
 
+export function turnErrorAlreadyShown(turn: ChatTurn): boolean {
+  if (!turn.error) return true;
+  return turn.steps.some((s) => s.kind === 'error' && s.message === turn.error);
+}
+
 export function useOrchestrate(instanceId?: string): UseOrchestrateResult {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [status, setStatus] = useState<ChatStatus>('idle');
