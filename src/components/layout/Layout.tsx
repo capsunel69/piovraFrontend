@@ -13,7 +13,7 @@ import { AppLogoMark } from './AppLogoMark';
 import {
   IconDashboard, IconTasks, IconCalendar, IconBell, IconNote, IconContacts,
   IconLogout, IconChevronLeft, IconClock, IconBot, IconChat, IconCommentSentinel,
-  IconAnalytics, IconTranscribe, IconGataBoss, IconMenu, IconLock, IconBook,
+  IconAnalytics, IconTranscribe, IconWellness, IconMenu, IconLock, IconBook,
   IconSpark,
 } from '../ui/icons';
 import { IconButton } from '../ui/primitives';
@@ -30,10 +30,10 @@ const NAV_PRIMARY: MobileNavItem[] = [
   { to: '/chat',      label: 'Chat',      icon: IconChat },
   { to: '/assistant', label: 'Assistant', icon: IconSpark },
   { to: '/agents',    label: 'Agents',    icon: IconBot },
-  { to: '/gata-boss', label: 'GATA Bo$$', icon: IconGataBoss },
   { to: '/comment-sentinel', label: 'Comment Sentinel', icon: IconCommentSentinel },
   { to: '/analytics', label: 'Analytics', icon: IconAnalytics },
   { to: '/transcribe', label: 'Transcribe', icon: IconTranscribe },
+  { to: '/wellness', label: 'Wellness', icon: IconWellness },
 ];
 
 /** Mobile drawer breakpoint — keep this in sync with CSS @media queries. */
@@ -464,16 +464,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       if (item.to === '/transcribe') {
         return me?.role === 'admin' || !(me?.disabledFeatures ?? []).includes('transcribe');
       }
-      if (item.to === '/gata-boss') {
-        return me?.role === 'admin' || !(me?.disabledFeatures ?? []).includes('gata_boss');
-      }
+      if (item.to === '/wellness') return me?.waAssistant === true;
       return true;
     });
     if (me?.role === 'admin') {
       return [...base, { to: '/admin', label: 'Admin', icon: IconLock }];
     }
     return base;
-  }, [me?.role, me?.disabledFeatures]);
+  }, [me?.role, me?.disabledFeatures, me?.waAssistant]);
 
   const currentLabel = useMemo(() => {
     if (location.pathname === '/docs') return 'Help center';

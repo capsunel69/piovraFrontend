@@ -31,11 +31,9 @@ import {
   IconTerminal,
   IconLock,
   IconCheck,
-  IconChat,
   IconCommentSentinel,
   IconAnalytics,
   IconTranscribe,
-  IconGataBoss,
 } from '../components/ui/icons';
 import {
   AGENT_MODEL_GROUPS,
@@ -112,17 +110,11 @@ interface AnAdminProject {
 }
 
 const MODULE_FEATURES: Array<{
-  id: 'whatsapp' | 'comment_sentinel' | 'analytics' | 'transcribe' | 'gata_boss';
+  id: 'comment_sentinel' | 'analytics' | 'transcribe';
   label: string;
   description: string;
   Icon: React.FC<React.SVGProps<SVGSVGElement> & { size?: number }>;
 }> = [
-  {
-    id: 'whatsapp',
-    label: 'WhatsApp',
-    description: 'Pairing, inbox, autoreply, and WhatsApp agent skills.',
-    Icon: IconChat,
-  },
   {
     id: 'comment_sentinel',
     label: 'Comment Sentinel',
@@ -140,12 +132,6 @@ const MODULE_FEATURES: Array<{
     label: 'Audio Transcribe',
     description: 'Upload audio/video or paste a URL to transcribe with Whisper.',
     Icon: IconTranscribe,
-  },
-  {
-    id: 'gata_boss',
-    label: 'GATA Bo$$',
-    description: 'ChatGPT-style party assistant with shared knowledge base (GPT-5.4).',
-    Icon: IconGataBoss,
   },
 ];
 

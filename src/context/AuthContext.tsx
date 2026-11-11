@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-export type SwitchableFeature = 'whatsapp' | 'comment_sentinel' | 'analytics' | 'transcribe' | 'gata_boss';
+export type SwitchableFeature = 'comment_sentinel' | 'analytics' | 'transcribe';
 
 export interface MeUser {
   id: string;
@@ -9,6 +9,8 @@ export interface MeUser {
   pictureUrl: string | null;
   role: 'user' | 'admin';
   disabledFeatures?: SwitchableFeature[];
+  /** Owner of the WhatsApp assistant (sees the Wellness page). */
+  waAssistant?: boolean;
 }
 
 interface AuthContextType {

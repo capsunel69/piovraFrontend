@@ -264,9 +264,9 @@ const JobForm: React.FC<JobFormProps> = ({
           <PromptHint>
             This text is sent to the agent on every run. The agent's <strong>system prompt</strong>
             (set on its definition) controls personality and rules; this <strong>input</strong>{' '}
-            says <em>what to do this run</em>. For a WhatsApp digest, describe which chats matter,
-            the tone, and the length — e.g. "Summarise unread family-group messages from the last
-            24h, three bullet points per chat, neutral tone."
+            says <em>what to do this run</em>. For an inbox digest, describe which emails matter,
+            the tone, and the length — e.g. "Summarise unread emails from the last 24h, three
+            bullet points per sender, neutral tone."
           </PromptHint>
         </Field>
 
