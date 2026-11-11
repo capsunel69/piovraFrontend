@@ -239,7 +239,8 @@ const RangeChip = styled.button<{ $active: boolean }>`
 const KpiGrid = styled.div`
   display: grid;
   gap: var(--s-4);
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  > * { min-width: 0; }
   margin-bottom: var(--s-5);
 `;
 
@@ -279,20 +280,22 @@ const PanelHead = styled.div`
 `;
 
 const Big = styled.div`
-  font-size: 34px;
+  font-size: clamp(26px, 2.4vw, 34px);
+  overflow-wrap: anywhere;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--text-1);
   font-variant-numeric: tabular-nums;
   line-height: 1;
 
-  small { font-size: 13px; font-weight: 600; color: var(--text-3); margin-left: 6px; letter-spacing: 0; }
+  small { font-size: 13px; font-weight: 600; color: var(--text-3); margin-left: 6px; letter-spacing: 0; white-space: nowrap; }
 `;
 
 const Muted = styled.div`
   font-size: 12px;
   color: var(--text-3);
   margin-top: 6px;
+  overflow-wrap: anywhere;
 `;
 
 const ChartGrid = styled.div`
@@ -315,7 +318,9 @@ const ImgFallback = styled.div`
 const RingWrap = styled.div`
   display: flex;
   align-items: center;
-  gap: var(--s-5);
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  > div { flex: 1 1 110px; min-width: 0; }
 `;
 
 const Ring: React.FC<{ value: number; target: number | null; size?: number }> = ({ value, target, size = 112 }) => {
@@ -340,7 +345,7 @@ const Ring: React.FC<{ value: number; target: number | null; size?: number }> = 
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
         style={{ transition: 'stroke-dasharray 0.8s cubic-bezier(0.2,0.7,0.2,1)' }}
       />
-      <text x="50%" y="47%" textAnchor="middle" fontSize="22" fontWeight="800" fill="var(--text-1)">
+      <text x="50%" y="47%" textAnchor="middle" fontSize={size * 0.2} fontWeight="800" fill="var(--text-1)">
         {target ? `${Math.round(pct * 100)}%` : '🔥'}
       </text>
       <text x="50%" y="64%" textAnchor="middle" fontSize="10" fill="var(--text-3)">
@@ -558,7 +563,7 @@ const OverviewTab: React.FC<{ data: Overview; reload: () => void }> = ({ data, r
         <Panel $i={0} $accent={C.kcal}>
           <PanelHead><h3>🔥 Today</h3><Muted style={{ margin: 0 }}>{todayTotals.entries} meals</Muted></PanelHead>
           <RingWrap>
-            <Ring value={todayTotals.kcal} target={p.targetKcal} />
+            <Ring value={todayTotals.kcal} target={p.targetKcal} size={92} />
             <div>
               <Big>{r0(todayTotals.kcal)}<small>kcal</small></Big>
               <Muted>
